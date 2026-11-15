@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: CC-BY-4.0
+# Validation targets for the Tern GT (fictional compact FWD hot hatch).
+#
+# EVERY TARGET HERE IS A PLACEHOLDER. They are round, approximate figures
+# typical of the class as widely published for such cars, not measurements
+# of any vehicle. Replace them with measured values (see
+# docs/TELEMETRY_IMPORT.md) and set confidence = "measured".
+#
+# tolerance_percent is the largest acceptable error. The harness reports the
+# error for every target and fails beyond the tolerance.
+
+car = "hatch_tern_gt"
+track = "test_track"
+tire_temp_c = 60.0
+note = "Placeholder class-typical targets. Not measured."
+
+[[target]]
+metric = "skidpad_lateral_g"
+value = 0.93
+unit = "g"
+tolerance_percent = 10.0
+source = "approximate class-typical skidpad figure for a hot hatch on summer road tires"
+confidence = "placeholder"
+
+[[target]]
+metric = "braking_distance_60_0"
+value = 35.0
+unit = "m"
+tolerance_percent = 10.0
+source = "approximate class-typical 60-0 mph stopping distance (about 115 ft)"
+confidence = "placeholder"
+
+[[target]]
+metric = "accel_0_60"
+value = 6.3
+unit = "s"
+tolerance_percent = 10.0
+source = "approximate class-typical 0-60 mph time with a manual gearbox"
+confidence = "placeholder"
+
+[[target]]
+metric = "top_speed"
+value = 69.4
+unit = "m/s"
+tolerance_percent = 6.0
+source = "approximate class-typical top speed of about 250 km/h"
+confidence = "placeholder"
+
+[[target]]
+metric = "understeer_gradient"
+value = 2.5
+unit = "deg/g"
+tolerance_percent = 40.0
+source = "rough expectation for a nose-heavy front-drive road car; wide tolerance because the figure itself is a guess"
+confidence = "placeholder"

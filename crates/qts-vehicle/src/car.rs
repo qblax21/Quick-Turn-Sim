@@ -52,6 +52,8 @@ const MIN_ROLLING_RADIUS: f64 = 0.05;
 const ABS_PEDAL_THRESHOLD: f64 = 0.01;
 /// Lowest pressure fraction the anti-lock system will release to.
 const ABS_MIN_FACTOR: f64 = 0.02;
+/// Time constant of the steering compliance response, s.
+const STEER_COMPLIANCE_LAG_S: f64 = 0.02;
 
 /// What the driver is asking for this tick, already decoded from the input
 /// frame.
@@ -129,6 +131,9 @@ pub struct CarState {
     pub tires: [TireState; 4],
     /// Anti-lock pressure fraction per wheel, 0 to 1.
     pub abs_factor: [f64; 4],
+    /// Steer angle lost at the front wheels to steering-system compliance,
+    /// rad. Negative values reduce a left steer.
+    pub steer_compliance: f64,
 }
 
 /// Per-wheel values from the last tick, for telemetry and display.
@@ -360,6 +365,7 @@ impl Car {
             wheel_angle: [0.0; 4],
             tires: [TireState::new(tire_temp_c); 4],
             abs_factor: [1.0; 4],
+            steer_compliance: 0.0,
         };
         let mut car = Self {
             params,
@@ -411,6 +417,7 @@ impl Car {
             wheel_angle: [0.0; 4],
             tires: [TireState::new(self.initial_tire_temp_c); 4],
             abs_factor: [1.0; 4],
+            steer_compliance: 0.0,
         };
         self.drivetrain.reset();
         self.refresh_static_output();
@@ -568,8 +575,8 @@ impl Car {
             // Wheel frame in the ground plane.
             let toe = -corner.side * ax.static_toe_rad;
             let steer_angle = match i {
-                FL => steer_left + toe,
-                FR => steer_right + toe,
+                FL => steer_left + toe + self.state.steer_compliance,
+                FR => steer_right + toe + self.state.steer_compliance,
                 _ => toe,
             };
             let (sin_d, cos_d) = (fm::sin(steer_angle), fm::cos(steer_angle));
@@ -748,8 +755,17 @@ impl Car {
                 continue;
             }
             let moving = vel_body.x.abs() > abs.min_speed_m_per_s;
-            if moving && wheels[i].slip_ratio < -abs.slip_threshold {
-                *f -= abs.release_rate_per_s * dt;
+            if moving {
+                // Steer the pressure toward the target slip: release in
+                // proportion to the excess, reapply in proportion to the
+                // shortfall, both rate-limited.
+                let braking_slip = -wheels[i].slip_ratio;
+                let rate = clamp(
+                    abs.control_gain_per_s * (abs.slip_threshold - braking_slip),
+                    -abs.release_rate_per_s,
+                    abs.apply_rate_per_s,
+                );
+                *f += rate * dt;
             } else {
                 *f += abs.apply_rate_per_s * dt;
             }
@@ -821,6 +837,12 @@ impl Car {
             kingpin_moment += axis.dot(r.cross(tire_force_body[i])) + axis.z * wheels[i].mz;
         }
         let steering_torque_nm = kingpin_moment / st.ratio;
+        // The steering system twists under the kingpin moment, taking a
+        // little steer angle off. A short lag keeps this out of the same
+        // tick it was computed from.
+        let compliance_target = st.compliance_rad_per_nm * kingpin_moment;
+        self.state.steer_compliance += (compliance_target - self.state.steer_compliance)
+            * (dt / (STEER_COMPLIANCE_LAG_S + dt));
 
         // Integrate: velocities first, then positions from the new
         // velocities.
@@ -937,6 +959,7 @@ impl Snapshot for Car {
             t.save(w);
         }
         w.write_f64s(&s.abs_factor);
+        w.write_f64(s.steer_compliance);
         self.drivetrain.save(w);
     }
 
@@ -954,6 +977,7 @@ impl Snapshot for Car {
             t.load(r)?;
         }
         r.read_f64s(&mut s.abs_factor)?;
+        s.steer_compliance = r.read_f64()?;
         self.drivetrain.load(r)?;
         self.refresh_static_output();
         Ok(())

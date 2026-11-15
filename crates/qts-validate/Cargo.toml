@@ -10,11 +10,9 @@ publish.workspace = true
 
 [dependencies]
 qts-core.workspace = true
-qts-tire.workspace = true
 qts-vehicle.workspace = true
 qts-sim.workspace = true
 serde.workspace = true
-toml.workspace = true
 
 [lints]
 workspace = true

@@ -73,6 +73,7 @@ caster_rad = { value = 0.12, source = "about 7 degrees", confidence = "placehold
 kingpin_inclination_rad = { value = 0.19, source = "about 11 degrees", confidence = "placeholder" }
 scrub_radius_m = { value = 0.012, source = "small positive scrub radius", confidence = "placeholder" }
 mechanical_trail_m = { value = 0.028, source = "follows from caster and wheel radius, rounded", confidence = "placeholder" }
+compliance_rad_per_nm = { value = 0.00005, source = "chosen to add roughly 1.5 degrees per g of compliance understeer, a typical road-car order of magnitude", confidence = "placeholder" }
 
 [brakes]
 max_torque_front_nm = { value = 4200.0, source = "enough to exceed front grip at full pedal", confidence = "placeholder" }
@@ -81,10 +82,11 @@ handbrake_torque_nm = { value = 2000.0, source = "enough to lock the rear wheels
 
 [brakes.abs]
 enabled = true
-slip_threshold = { value = 0.12, source = "near the placeholder tire's peak slip", confidence = "placeholder" }
+slip_threshold = { value = 0.10, source = "target braking slip, just below the peak of the placeholder tire", confidence = "placeholder" }
 release_rate_per_s = { value = 14.0, source = "controller tuning guess", confidence = "placeholder" }
 apply_rate_per_s = { value = 7.0, source = "controller tuning guess", confidence = "placeholder" }
 min_speed_m_per_s = { value = 2.0, source = "typical cut-out speed", confidence = "placeholder" }
+control_gain_per_s = { value = 80.0, source = "controller tuning guess", confidence = "placeholder" }
 
 [aero]
 air_density_kg_per_m3 = { value = 1.2, source = "sea level, 20 degrees C", confidence = "estimated" }

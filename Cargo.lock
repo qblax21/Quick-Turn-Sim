@@ -88,10 +88,8 @@ version = "0.1.0"
 dependencies = [
  "qts-core",
  "qts-sim",
- "qts-tire",
  "qts-vehicle",
  "serde",
- "toml",
 ]
 
 [[package]]

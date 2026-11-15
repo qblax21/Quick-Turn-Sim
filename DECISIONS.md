@@ -236,3 +236,52 @@ travelling (simplest option). Driving backwards through the finish counts.
 A cone is knocked down when the car's body outline overlaps it. It has no
 mass and does not move the car. The count is part of the deterministic
 state.
+
+## D-033 Steering compliance is modelled
+
+The first validation run gave understeer gradients near zero. Without
+compliance the only sources of understeer are weight distribution, tire
+load sensitivity and camber, and in real cars the twist of the steering
+system under aligning moment is a main contributor. One parameter per car
+(`steering.compliance_rad_per_nm`) takes steer angle off the front wheels
+in proportion to the kingpin moment, through a 20 ms lag so the result of a
+tick does not feed back into the same tick. The understeer gradient is
+measured from steering-wheel angle over steering ratio, as the standard
+definition requires, so compliance counts.
+
+## D-034 Anti-lock control is proportional to slip error
+
+The first controller released and reapplied pressure at fixed rates around
+a threshold and lost about 15 percent of the available deceleration. It now
+moves pressure at a rate proportional to the difference between target and
+actual slip, within the same rate limits. This is still a simple
+controller, not a model of any production system.
+
+## D-035 How the validation manoeuvres are defined
+
+- Skidpad: 30 m radius, counter-clockwise, target speed ramped 0.12 m/s per
+  second, result is the best one-second mean lateral acceleration while the
+  car is within 1.5 m of the line.
+- Braking: full pedal applied in one step as the car coasts through 60 mph;
+  distance from that point to rest. The build-up of deceleration is
+  included.
+- 0 to 60 mph: timed from the start of clutch release (or pedal application
+  for the electric car), with no rollout allowance. The engine car takes the
+  best of nine launches, as a driver would try several.
+- Top speed: full throttle from rest on level ground in still air until ten
+  seconds add less than 0.05 m/s.
+- Understeer gradient: least-squares slope between 0.15 g and 0.45 g from
+  the same circle run.
+
+These are documented choices, not the only valid ones. Published figures
+for real cars often use a one-foot rollout and may differ by several
+percent for that reason alone.
+
+## D-036 What "passing validation" means today
+
+Car parameters were chosen as class-typical placeholders, and two model
+gaps found by the first validation run were closed (D-033, D-034). No
+parameter was fitted to make a target pass, and the targets themselves are
+placeholders. A passing report therefore shows that the harness works and
+that the placeholder cars are in a plausible range. It is not evidence of
+realism, and the report says so on every run.

@@ -145,6 +145,10 @@ pub struct SteeringParams {
     pub scrub_radius_m: f64,
     /// Mechanical trail at the ground, m.
     pub mechanical_trail_m: f64,
+    /// Steer angle lost at the front wheels per unit of total kingpin
+    /// moment, rad per N·m. Models the twist of the column, rack mounts
+    /// and bushes; it is a main source of understeer in real cars.
+    pub compliance_rad_per_nm: f64,
 }
 
 /// Brake system.
@@ -176,6 +180,9 @@ pub struct AbsParams {
     pub apply_rate_per_s: f64,
     /// Speed below which the system does not intervene, m/s.
     pub min_speed_m_per_s: f64,
+    /// How strongly pressure follows the slip error, fraction of full
+    /// pressure per second per unit of slip ratio.
+    pub control_gain_per_s: f64,
 }
 
 /// Aerodynamics: drag and lift proportional to dynamic pressure.
@@ -500,6 +507,8 @@ impl CarParams {
         positive("brakes.abs.slip_threshold", br.abs.slip_threshold)?;
         positive("brakes.abs.release_rate_per_s", br.abs.release_rate_per_s)?;
         positive("brakes.abs.apply_rate_per_s", br.abs.apply_rate_per_s)?;
+        positive("brakes.abs.control_gain_per_s", br.abs.control_gain_per_s)?;
+        non_negative("steering.compliance_rad_per_nm", s.compliance_rad_per_nm)?;
         positive(
             "aero.air_density_kg_per_m3",
             self.aero.air_density_kg_per_m3,

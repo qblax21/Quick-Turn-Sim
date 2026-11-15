@@ -89,6 +89,7 @@ pub mod test_support {
                 kingpin_inclination_rad: 0.2,
                 scrub_radius_m: 0.01,
                 mechanical_trail_m: 0.02,
+                compliance_rad_per_nm: 0.0,
             },
             brakes: BrakeParams {
                 max_torque_front_nm: 2600.0,
@@ -100,6 +101,7 @@ pub mod test_support {
                     release_rate_per_s: 12.0,
                     apply_rate_per_s: 6.0,
                     min_speed_m_per_s: 2.0,
+                    control_gain_per_s: 80.0,
                 },
             },
             aero: AeroParams {
