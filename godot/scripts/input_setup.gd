@@ -202,7 +202,7 @@ func _ffb_slider(parent: Control, entry: Array, config: Dictionary) -> void:
 	var row := HBoxContainer.new()
 	var label := Label.new()
 	label.text = entry[1]
-	label.custom_minimum_size = Vector2(250, 0)
+	label.custom_minimum_size = Vector2(230, 0)
 	row.add_child(label)
 	var slider := HSlider.new()
 	slider.min_value = entry[2]
@@ -210,6 +210,7 @@ func _ffb_slider(parent: Control, entry: Array, config: Dictionary) -> void:
 	slider.step = entry[4]
 	slider.value = config.get(key, entry[2])
 	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slider.custom_minimum_size = Vector2(200, 0)
 	row.add_child(slider)
 	var readout := Label.new()
 	readout.custom_minimum_size = Vector2(80, 0)

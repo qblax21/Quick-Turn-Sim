@@ -1,0 +1,14 @@
+; SPDX-License-Identifier: Apache-2.0
+; Tells Godot where the simulation binding library is. The libraries are
+; copied into res://bin by tools/build.ps1 (Windows) or tools/build.sh.
+
+[configuration]
+entry_symbol = "gdext_rust_init"
+compatibility_minimum = 4.4
+reloadable = false
+
+[libraries]
+windows.debug.x86_64 = "res://bin/qts_godot.dll"
+windows.release.x86_64 = "res://bin/qts_godot.dll"
+linux.debug.x86_64 = "res://bin/libqts_godot.so"
+linux.release.x86_64 = "res://bin/libqts_godot.so"

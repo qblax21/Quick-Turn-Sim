@@ -26,10 +26,13 @@ func setup(bridge) -> void:
 
 
 func _ready() -> void:
+	# A full-screen container keeps the panel centred at any window size.
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(center)
 	var panel := PanelContainer.new()
-	panel.set_anchors_preset(Control.PRESET_CENTER)
 	panel.custom_minimum_size = Vector2(620, 0)
-	add_child(panel)
+	center.add_child(panel)
 	var margin := MarginContainer.new()
 	for side in ["left", "right", "top", "bottom"]:
 		margin.add_theme_constant_override("margin_" + side, 24)
@@ -76,6 +79,9 @@ func _ready() -> void:
 		var suffix := "" if device.force_feedback else "  (no force feedback)"
 		device_list.add_item("%s%s" % [device.name, suffix])
 		device_ids.append(device.id)
+		# Preselect the first wheel that supports force feedback.
+		if device.force_feedback and device_list.selected == 0:
+			device_list.select(device_ids.size() - 1)
 	_add_row(box, "Wheel", device_list)
 	direct_steering = CheckBox.new()
 	direct_steering.text = "Read steering straight from the wheel at the physics rate (untested)"
