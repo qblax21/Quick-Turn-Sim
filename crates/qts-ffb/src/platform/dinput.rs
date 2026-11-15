@@ -19,6 +19,7 @@
 
 use crate::device::{DeviceInfo, FfbDevice, FfbError};
 use std::ffi::c_void;
+use windows::core::w;
 use windows::core::GUID;
 use windows::Win32::Devices::HumanInterfaceDevice::{
     DirectInput8Create, IDirectInput8W, IDirectInputDevice8W, IDirectInputEffect,
@@ -31,7 +32,9 @@ use windows::Win32::Devices::HumanInterfaceDevice::{
 };
 use windows::Win32::Foundation::{BOOL, HINSTANCE, HWND};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
-use windows::Win32::UI::WindowsAndMessaging::{GetDesktopWindow, GetForegroundWindow};
+use windows::Win32::UI::WindowsAndMessaging::{
+    CreateWindowExW, DestroyWindow, WINDOW_EX_STYLE, WS_OVERLAPPED,
+};
 
 /// Name of this backend in [`DeviceInfo`].
 pub const BACKEND: &str = "directinput";
@@ -153,6 +156,8 @@ pub struct DInputDevice {
     // Kept alive because the device refers to it for as long as it exists.
     _direct_input: IDirectInput8W,
     last_magnitude: i32,
+    // Hidden window created when the caller had none to offer.
+    owned_window: Option<HWND>,
 }
 
 // SAFETY: DirectInput device and effect objects may be called from any
@@ -164,8 +169,8 @@ impl DInputDevice {
     /// Opens a device by the identifier [`enumerate`] returned.
     ///
     /// `window` is the native handle of the application's top-level window.
-    /// DirectInput needs one for exclusive access; when `None`, the
-    /// foreground window and then the desktop window are tried.
+    /// DirectInput needs one for exclusive access; when `None`, a hidden
+    /// window is created and owned by the device.
     pub fn open(id: &str, window: Option<isize>) -> Result<Self, FfbError> {
         let guid = id_to_guid(id).ok_or_else(|| FfbError::NotFound(id.to_string()))?;
         let di = create_direct_input()?;
@@ -207,15 +212,33 @@ impl DInputDevice {
                 .SetDataFormat(&mut format)
                 .map_err(|e| device_error("SetDataFormat", e))?;
 
+            let mut owned_window: Option<HWND> = None;
             let hwnd = match window {
                 Some(handle) if handle != 0 => HWND(handle as *mut c_void),
                 _ => {
-                    let foreground = GetForegroundWindow();
-                    if foreground.0.is_null() {
-                        GetDesktopWindow()
-                    } else {
-                        foreground
-                    }
+                    // DirectInput only grants exclusive access through a
+                    // top-level window of the calling process. A program
+                    // without one (the command-line tool) gets a hidden
+                    // window created for the purpose.
+                    let module =
+                        GetModuleHandleW(None).map_err(|e| device_error("GetModuleHandle", e))?;
+                    let hidden = CreateWindowExW(
+                        WINDOW_EX_STYLE(0),
+                        w!("STATIC"),
+                        w!("force feedback"),
+                        WS_OVERLAPPED,
+                        0,
+                        0,
+                        0,
+                        0,
+                        None,
+                        None,
+                        HINSTANCE(module.0),
+                        None,
+                    )
+                    .map_err(|e| device_error("CreateWindow (hidden)", e))?;
+                    owned_window = Some(hidden);
+                    hidden
                 }
             };
             device
@@ -264,6 +287,7 @@ impl DInputDevice {
                 effect: None,
                 _direct_input: di,
                 last_magnitude: 0,
+                owned_window,
             };
             if has_ffb {
                 let _ = this.device.SendForceFeedbackCommand(DISFFC_RESET);
@@ -401,6 +425,9 @@ impl Drop for DInputDevice {
                 let _ = effect.Unload();
             }
             let _ = self.device.Unacquire();
+            if let Some(window) = self.owned_window.take() {
+                let _ = DestroyWindow(window);
+            }
         }
     }
 }

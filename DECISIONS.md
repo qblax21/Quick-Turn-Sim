@@ -314,3 +314,12 @@ physics advances and the drawn car moves in the right direction. A
 screenshot tool renders the real main scene for visual inspection. Neither
 can verify how a wheel feels or whether DirectInput output works on a given
 device; that needs a person at the wheel.
+
+## D-041 The DirectInput backend creates its own hidden window when needed
+
+The first test on real hardware failed at `Acquire` with "invalid window
+handle". DirectInput grants exclusive access only through a top-level
+window that belongs to the calling process, so borrowing the foreground or
+desktop window does not work. When the caller supplies no handle (the
+command-line tool), the backend creates a hidden window and destroys it
+with the device. The front end passes its own window handle.

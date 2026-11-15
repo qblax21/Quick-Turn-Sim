@@ -15,7 +15,8 @@ says so.
 | Headless sim runs and replays exactly | Verified |
 | Both cars drivable on all three tracks | Verified with scripted drivers and the front-end smoke test |
 | Front end renders, HUD and overlay work | Verified by screenshots |
-| Driving with a wheel, with force feedback | **Not verified. No wheel was attached.** |
+| Force-feedback output to a wheel | Verified on a Fanatec CSL Elite with `qts-sim ffb-test`: device opens, torque moves the wheel, sign is correct |
+| Driving with a wheel in the front end | **Not verified yet.** Needs a person driving |
 | Keyboard, gamepad and wheel input in the front end | **Not verified by a person.** Code runs; no device input was exercised |
 | CI | Written, **never run** (the repository has not been pushed) |
 | MSVC build on Windows | **Not verified** (no Windows SDK on the development machine) |
@@ -72,8 +73,9 @@ pass" is true locally but unconfirmed on CI.
   road-detail and kerb channels and a soft clip, all unit tested.
 - Pre-filter and post-filter signals logged to telemetry.
 - DirectInput backend: compiles, enumerates devices, structure sizes match
-  the DirectInput ABI, errors are reported. **Output to a real device is
-  untested.**
+  the DirectInput ABI, errors are reported. A test torque on a Fanatec CSL
+  Elite moved the wheel in the commanded direction. Driving through the
+  front end with it is still untested.
 
 ### Telemetry, import, validation
 - Telemetry CSV with 108 documented channels; a test keeps the document and

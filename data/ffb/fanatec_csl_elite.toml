@@ -2,9 +2,10 @@
 # Force-feedback preset for a Fanatec CSL Elite wheel base.
 #
 # INITIAL, UNTUNED PRESET. It was written from the pipeline design and the
-# published peak torque of the base, and has NOT been tried on the hardware.
-# In particular the output sign (`invert`) is unverified: use the sign check
-# in the wheel setup screen before driving, and start with low gain.
+# published peak torque of the base. On 2026-11-15 the base was opened
+# through DirectInput and a test torque confirmed the output sign: a positive
+# command turns the wheel left, so `invert = false` is correct. Gain,
+# filtering and effects have NOT been tuned by driving; start with low gain.
 
 id = "fanatec_csl_elite"
 name = "Fanatec CSL Elite (initial, untuned)"
