@@ -48,6 +48,7 @@ quickturnsim/
 │  └─ validation/             target values and tolerances
 ├─ godot/                     Godot 4 project (scenes, GDScript for rendering, input and UI only)
 ├─ docs/                      telemetry format, import guide, Steam note, data format reference
+├─ tools/                     build scripts, Magic Formula reference script
 └─ .github/workflows/ci.yml
 ```
 
@@ -248,11 +249,17 @@ moment, lateral force times mechanical trail, longitudinal force times scrub
 radius, and the load-dependent jacking terms from caster and kingpin
 inclination), referred to the steering column through the ratio. It is
 computed every tick and is an output only: the steering wheel position is an
-input from the device.
+input from the device. Steering-system compliance takes a little steer angle
+off the front wheels in proportion to the kingpin moment (D-033).
 
 **Brakes.** Pedal to line pressure to per-wheel torque with a front/rear bias,
 a handbrake on the rear axle, lock handling by the synchronising-torque
-method, and an optional data-driven ABS (per-wheel slip threshold modulation).
+method, and an optional data-driven anti-lock system that steers each wheel's
+pressure toward a target slip (D-034).
+
+**Body contact.** Eight points on the body outline collide with the ground
+through a penalty spring, damper and friction, so a car that rolls over
+comes to rest instead of falling through the world.
 
 **Drivetrains.** A `Drivetrain` trait takes driver inputs and wheel speeds and
 returns per-wheel drive torques and reflected inertias. Two implementations:
@@ -350,8 +357,9 @@ pub trait FfbDevice {
 Backends: `null` (records output; used in tests and when no wheel is present)
 and `dinput` (Windows DirectInput constant-force effect, compiled only on
 Windows). A Linux backend can be added as another module without touching the
-pipeline. Presets are data files; the entry-level direct-drive-style wheelbase
-preset shipped with the foundation is labelled as initial and untuned.
+pipeline. Presets are data files. The two shipped with the foundation (a
+generic wheel and the Fanatec CSL Elite base) are labelled initial and
+untuned: neither has been tried on hardware.
 
 ## 10. Hosts and data flow
 
@@ -379,6 +387,13 @@ The real-time host owns a sim thread so physics and force feedback run at the
 physics rate regardless of the render frame rate. The host uses the wall clock
 only to decide *how many* ticks to run; it never passes time into `step`.
 Godot holds no simulation state: it sends inputs and reads poses.
+
+Two details of the host matter for feel. Input sampled once per rendered
+frame is ramped across the interval between updates rather than applied as a
+step (D-028). And when a wheel is open, the host can read its angle directly
+at the device rate and map it one-to-one onto the car's steering wheel,
+bypassing the frame-rate path (D-029; off by default, untested on hardware).
+The steering device is opened and used on the sim thread only.
 
 ## 11. Telemetry and validation
 
@@ -437,21 +452,23 @@ There is no physics, timing or lap logic in GDScript.
 - Steam: the planned route is GodotSteam as a separate GDExtension in the
   front end; the note is in `docs/STEAM.md`. Nothing is integrated now.
 
-## 14. Milestones
+## 14. Milestones (as built)
 
 1. Workspace, licenses, `qts-core` (math, driver, snapshot, hash, replay,
    input frames, net hooks) with tests.
 2. `qts-tire`: baseline, transient, thermal, surfaces, data files, tests.
-3. `qts-vehicle`: chassis, suspension, steering, brakes, aero.
-4. Drivetrains and the two car data files.
-5. `qts-sim`: tracks, session, data loading, headless binary, replay.
-6. `qts-telemetry` and `qts-ffb` pipeline.
-7. `qts-validate` and the full test suite.
-8. DirectInput backend and the real-time host.
-9. `qts-godot` binding and the Godot project.
-10. README, CONTRIBUTING, CI, docs, `STATUS.md`.
+3. `qts-vehicle`: chassis, suspension, steering, brakes, aero, both
+   drivetrains, and the two car data files.
+4. `qts-sim` (tracks, session, data loading, headless binary, real-time
+   host), `qts-telemetry`, and `qts-ffb` (pipeline and DirectInput backend),
+   with the determinism, replay, snapshot and soak tests.
+5. `qts-validate` and the target files.
+6. `qts-godot` binding and the Godot project.
+7. README, CONTRIBUTING, CI, docs, `STATUS.md`.
 
-Each milestone ends with the test suite passing and a commit.
+Each milestone ended with the test suite passing and a commit. The plan had
+ten steps; telemetry, force feedback and the host were built together with
+the session because the headless binary needed all three.
 
 ## 15. Risks
 

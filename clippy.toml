@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 # Unordered collections are banned so no simulation code can iterate one by accident.
 disallowed-types = [
     { path = "std::collections::HashMap", reason = "iteration order is not deterministic; use Vec or BTreeMap" },

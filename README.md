@@ -1,0 +1,194 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+# Quick Turn Sim
+
+Quick Turn Sim (QTS) is an open-source, physics-first racing simulator. This
+repository is its **foundation**: a deterministic headless physics core in
+Rust, a force-feedback pipeline, telemetry, a validation harness, and a thin
+Godot 4 front end with two fictional cars and three placeholder tracks.
+
+> **Read this first.** Nothing here is calibrated. Every vehicle, tire and
+> surface parameter is a placeholder with a recorded source and confidence
+> level, the cars are fictional, and the validation targets are approximate
+> class-typical numbers, not measurements. The project does not claim any
+> model is realistic. `STATUS.md` says what works, what is stubbed and what
+> is untuned.
+
+## What is in the box
+
+- **Physics core** (`crates/`): fixed 1000 Hz step, snapshot and restore,
+  exact replay, a state hash every tick. Runs without a window.
+- **Vehicle model**: sprung body, four unsprung masses, suspension with
+  basic geometry, steering, brakes with anti-lock, aerodynamics, and two
+  drivetrain modules (engine with manual gearbox, dual-motor electric with
+  blended regeneration).
+- **Tire model**: Magic Formula baseline, relaxation-length transient,
+  three-node thermal model with pressure, per-surface parameters. Tarmac is
+  the supported surface; gravel is a first pass and is marked untuned.
+- **Force feedback**: raw steering torque from the physics through a
+  configurable pipeline to a DirectInput device on Windows.
+- **Telemetry**: documented CSV, plus an importer for data-logger CSV.
+- **Validation harness**: scripted manoeuvres compared with target files,
+  reporting the error for every metric.
+- **Front end** (`godot/`): rendering, input and UI only.
+
+Design and reasoning: `ARCHITECTURE.md`, `DECISIONS.md`.
+
+## Requirements
+
+| What | Version | Notes |
+| --- | --- | --- |
+| Rust | stable, 1.85 or later | Install from <https://rustup.rs>. |
+| Godot | 4.4 or later (standard build, not .NET) | Only for the front end. Developed against 4.7.2. |
+| Windows | 10 or 11 | Linux builds and passes type-checking; no force-feedback output there yet. |
+
+On Windows, either Rust toolchain works:
+
+- **MSVC** (rustup's default): needs the Visual Studio C++ build tools with a
+  Windows SDK.
+- **GNU**: needs nothing else. Use it if you do not have the build tools:
+  `rustup default stable-x86_64-pc-windows-gnu`
+
+## Build (Windows, one command)
+
+From the repository root:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\build.ps1
+```
+
+This builds every crate in release mode and copies the binding library to
+`godot\bin\`. Add `-Test` to run the whole test suite afterwards.
+
+On Linux: `tools/build.sh` (add `--test` for the tests).
+
+## Run
+
+### With the front end
+
+1. Open Godot, choose **Import**, and select the `godot` folder.
+2. Press **Play** (F5).
+3. Pick a car and a track, then **Drive**.
+
+Keyboard and a gamepad work without setup. For a wheel, open **Controls and
+wheel setup** first: assign and calibrate the axes, choose the wheel under
+**Wheel** in the menu, and read the force-feedback note below.
+
+| While driving | Key |
+| --- | --- |
+| Accelerate, brake | W / S or the arrow keys |
+| Steer | A / D |
+| Handbrake | Space |
+| Shift up, down | E / Q |
+| Clutch | Shift |
+| Reset to the start | R |
+| Menu | Esc |
+| Camera | C |
+| Pause | P |
+| Tire and force-feedback overlay | F1 |
+| Record telemetry | F2 |
+| Record a replay | F3 |
+
+Recordings go to the `recordings` folder in Godot's user data directory for
+the project.
+
+### Force feedback: before you drive with a wheel
+
+The DirectInput output and the wheel presets have **not been tried on
+hardware**. Treat the first run as a test:
+
+1. Start with the gain low (the presets do).
+2. Drive slowly and turn. The wheel should resist and return to centre when
+   you let go.
+3. If it pulls further into the turn instead, tick **Invert force direction**
+   in the setup screen.
+
+You can also test a wheel without the front end. This moves the wheel
+gently, so keep your hands clear:
+
+```powershell
+target\release\qts-sim.exe ffb-devices
+target\release\qts-sim.exe ffb-test --device <id from the list>
+```
+
+### Headless
+
+```powershell
+target\release\qts-sim.exe list
+target\release\qts-sim.exe run --car hatch_tern_gt --track gravel_stage --driver path --seconds 90 --replay run.rpl --telemetry run.csv
+target\release\qts-sim.exe replay run.rpl
+```
+
+`replay` re-simulates the recorded inputs and compares state hashes. On the
+build that made the recording it must report `EXACT`. `qts-sim help` lists
+every command.
+
+## Tests and validation
+
+```powershell
+cargo test --workspace
+```
+
+The suite covers the tire model against independently computed Magic
+Formula values, weight transfer and energy checks on the vehicle,
+determinism, replay, snapshot and restore, a ten-minute soak per car, the
+force-feedback pipeline, the data files, and the validation harness.
+
+To see the validation numbers:
+
+```powershell
+target\release\qts-validate.exe
+```
+
+It prints simulated value, target, error and tolerance for skidpad lateral
+acceleration, 60-0 mph braking distance, 0-60 mph time, top speed and
+understeer gradient, and exits non-zero if any is out of tolerance. The
+shipped targets are placeholders and the report says so.
+
+The front end has a headless smoke test:
+
+```powershell
+godot --headless --path godot --script res://tests/smoke.gd
+```
+
+## Calibrating against your own data
+
+1. Export a run from your logger as CSV.
+2. `qts-sim import your_run.csv --profile generic --targets`
+3. Review the summary and paste the generated targets into
+   `data/validation/<car>.toml`.
+
+Details and how to write a column-mapping profile for your logger:
+`docs/TELEMETRY_IMPORT.md`.
+
+## Repository layout
+
+```
+crates/      Rust workspace (qts-core, qts-tire, qts-vehicle, qts-ffb,
+             qts-telemetry, qts-sim, qts-validate, qts-godot)
+data/        Cars, tires, surfaces, tracks, FFB presets, import profiles,
+             validation targets. Never compiled into a crate.
+godot/       Godot 4 project: rendering, input, UI.
+docs/        Telemetry format, import guide, data file reference, Steam note.
+tools/       Build scripts and the Magic Formula reference script.
+```
+
+## Determinism
+
+The same build, given the same starting snapshot and the same inputs,
+produces the same state hash on every tick. That is tested. Bit-identical
+results across operating systems, CPU types or compiler versions are **not**
+guaranteed and are not solved; `ARCHITECTURE.md` section 5 gives the plan.
+
+## Licence
+
+- Code: Apache-2.0, see `LICENSE`.
+- Original assets and data files: CC BY 4.0, see `LICENSE-ASSETS`.
+
+The cars, tracks and names in this repository are original and fictional.
+Hardware product names appear only to identify compatible devices.
+
+## Renaming the project
+
+The product name is written in two places: this README and
+`crates/qts-core/src/constants.rs`. The front end and every report read it
+from the constants file, and no file format contains it.
