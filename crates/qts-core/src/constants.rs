@@ -1,0 +1,40 @@
+// SPDX-License-Identifier: Apache-2.0
+//! The single place in code where the product name is written.
+//!
+//! Everything that shows a name to a person (window titles, report headers,
+//! the generator line in telemetry files) reads it from here. File formats
+//! and logic never embed it, so a rename touches this file and the README.
+
+/// Full product name for UI and documents.
+pub const PRODUCT_NAME: &str = "Quick Turn Sim";
+
+/// Short product name for compact UI.
+pub const PRODUCT_SHORT_NAME: &str = "QTS";
+
+/// Version of the simulation core, taken from the crate version.
+pub const CORE_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Default physics rate in ticks per second. Sessions may override it.
+pub const DEFAULT_TICK_RATE_HZ: u32 = 1000;
+
+/// Standard gravity in m/s².
+pub const GRAVITY_M_S2: f64 = 9.806_65;
+
+/// Identifies the build that produced a replay or hash log.
+///
+/// Float results are only guaranteed to match between identical builds, so
+/// this string is stored in replay headers and compared on load.
+pub fn build_id() -> String {
+    let profile = if cfg!(debug_assertions) {
+        "debug"
+    } else {
+        "release"
+    };
+    format!(
+        "{}/{}-{}/{}",
+        CORE_VERSION,
+        std::env::consts::ARCH,
+        std::env::consts::OS,
+        profile
+    )
+}

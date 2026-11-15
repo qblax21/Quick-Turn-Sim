@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+[package]
+name = "qts-ffb"
+description = "Force-feedback torque pipeline and device output behind a platform trait."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+qts-core.workspace = true
+serde.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+[package]
+name = "qts-tire"
+description = "Tire model: Magic Formula baseline, transient relaxation, thermal and pressure, surface interface."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+qts-core.workspace = true
+serde.workspace = true
+
+[lints]
+workspace = true

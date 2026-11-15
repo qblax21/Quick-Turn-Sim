@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+[package]
+name = "qts-telemetry"
+description = "Telemetry CSV logger and logger-CSV importer."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+qts-core.workspace = true
+serde.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: Apache-2.0
+[package]
+name = "qts-validate"
+description = "Validation harness: scripted manoeuvres compared with target data."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+qts-core.workspace = true
+qts-tire.workspace = true
+qts-vehicle.workspace = true
+qts-sim.workspace = true
+serde.workspace = true
+toml.workspace = true
+
+[lints]
+workspace = true
