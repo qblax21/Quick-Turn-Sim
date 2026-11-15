@@ -1,0 +1,338 @@
+// SPDX-License-Identifier: Apache-2.0
+//! Combustion engine, friction clutch, manual gearbox and one driven axle
+//! with an open or limited-slip differential.
+
+use super::{brake_share, DriveContext, DriveResult, DriveTelemetry, Drivetrain, RAD_S_TO_RPM};
+use crate::params::{DifferentialKind, DrivenAxle, EngineManualParams};
+use crate::spin::SpinSolver;
+use qts_core::math::{clamp, interp_table};
+use qts_core::snapshot::{Snapshot, SnapshotError, StateReader, StateWriter};
+
+/// Gauss-Seidel sweeps per tick.
+const SOLVER_ITERATIONS: u32 = 10;
+/// Idle controller gain, N·m per rpm below idle.
+const IDLE_GAIN_NM_PER_RPM: f64 = 0.6;
+/// Rev limiter hysteresis, rpm.
+const LIMITER_HYSTERESIS_RPM: f64 = 150.0;
+/// Pause between automatic shifts, s.
+const AUTO_SHIFT_COOLDOWN_S: f64 = 0.4;
+/// Speed below which reverse may be selected from a forward gear, m/s.
+const REVERSE_SELECT_SPEED: f64 = 2.0;
+
+/// The engine-and-manual-gearbox drivetrain module.
+#[derive(Clone, Debug)]
+pub struct EngineManual {
+    p: EngineManualParams,
+    torque_table: Vec<(f64, f64)>,
+    driven: [usize; 2],
+    engine_omega: f64,
+    gear: i8,
+    target_gear: i8,
+    shift_timer: f64,
+    limiter_cut: bool,
+    diff_input_torque: f64,
+    auto_shift_cooldown: f64,
+}
+
+impl EngineManual {
+    /// Builds the module at idle in neutral.
+    pub fn new(p: EngineManualParams) -> Self {
+        let torque_table = p
+            .engine
+            .torque_curve_rpm
+            .iter()
+            .copied()
+            .zip(p.engine.torque_curve_nm.iter().copied())
+            .collect();
+        let driven = match p.driven_axle {
+            DrivenAxle::Front => [0, 1],
+            DrivenAxle::Rear => [2, 3],
+        };
+        let idle = p.engine.idle_rpm / RAD_S_TO_RPM;
+        Self {
+            p,
+            torque_table,
+            driven,
+            engine_omega: idle,
+            gear: 0,
+            target_gear: 0,
+            shift_timer: 0.0,
+            limiter_cut: false,
+            diff_input_torque: 0.0,
+            auto_shift_cooldown: 0.0,
+        }
+    }
+
+    /// Engine speed, rad/s.
+    pub fn engine_omega(&self) -> f64 {
+        self.engine_omega
+    }
+
+    /// Overall ratio (gear times final drive) of `gear`; negative in
+    /// reverse, zero in neutral.
+    pub fn overall_ratio(&self, gear: i8) -> f64 {
+        let g = &self.p.gearbox;
+        match gear {
+            0 => 0.0,
+            n if n < 0 => -g.reverse_ratio * g.final_drive,
+            n => match g.ratios.get(n as usize - 1) {
+                Some(r) => r * g.final_drive,
+                None => 0.0,
+            },
+        }
+    }
+
+    /// Full-throttle torque at an engine speed, N·m.
+    pub fn full_throttle_torque(&self, rpm: f64) -> f64 {
+        interp_table(&self.torque_table, rpm).max(0.0)
+    }
+
+    fn begin_shift(&mut self, gear: i8) {
+        if gear == self.gear && self.shift_timer <= 0.0 {
+            return;
+        }
+        self.target_gear = gear;
+        if self.p.gearbox.shift_time_s > 0.0 {
+            self.shift_timer = self.p.gearbox.shift_time_s;
+        } else {
+            self.gear = gear;
+        }
+        self.auto_shift_cooldown = AUTO_SHIFT_COOLDOWN_S;
+    }
+
+    fn handle_shifting(&mut self, ctx: &DriveContext, dt: f64) {
+        let c = &ctx.controls;
+        let top = self.p.gearbox.ratios.len() as i8;
+        if self.auto_shift_cooldown > 0.0 {
+            self.auto_shift_cooldown -= dt;
+        }
+        if self.shift_timer > 0.0 {
+            self.shift_timer -= dt;
+            if self.shift_timer <= 0.0 {
+                self.shift_timer = 0.0;
+                self.gear = self.target_gear;
+            }
+            return;
+        }
+        if let Some(g) = c.gear_request {
+            if (-1..=top).contains(&g) && g != self.gear {
+                self.begin_shift(g);
+                return;
+            }
+        }
+        if c.shift_up && self.gear < top {
+            self.begin_shift(self.gear + 1);
+            return;
+        }
+        if c.shift_down && self.gear > -1 {
+            let into_reverse = self.gear == 0;
+            if !into_reverse || ctx.speed.abs() < REVERSE_SELECT_SPEED {
+                self.begin_shift(self.gear - 1);
+            }
+            return;
+        }
+        if c.auto_shift && self.auto_shift_cooldown <= 0.0 {
+            let rpm = self.engine_omega * RAD_S_TO_RPM;
+            let redline = self.p.engine.redline_rpm;
+            if self.gear == 0 && c.throttle > 0.05 {
+                self.begin_shift(1);
+            } else if self.gear >= 1 {
+                if rpm > 0.97 * redline && self.gear < top && c.throttle > 0.3 {
+                    self.begin_shift(self.gear + 1);
+                } else if self.gear > 1 {
+                    let here = self.overall_ratio(self.gear);
+                    let lower = self.overall_ratio(self.gear - 1);
+                    let rpm_after = rpm * lower / here;
+                    if rpm < 0.4 * redline && rpm_after < 0.7 * redline {
+                        self.begin_shift(self.gear - 1);
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl Drivetrain for EngineManual {
+    fn step(&mut self, ctx: &DriveContext, dt: f64) -> DriveResult {
+        self.handle_shifting(ctx, dt);
+        let c = &ctx.controls;
+        let e = &self.p.engine;
+        let rpm = self.engine_omega * RAD_S_TO_RPM;
+
+        // Clutch engagement.
+        let in_gear = self.shift_timer <= 0.0 && self.gear != 0;
+        let ratio = if in_gear {
+            self.overall_ratio(self.gear)
+        } else {
+            0.0
+        };
+        let pedal = 1.0 - clamp(c.clutch, 0.0, 1.0);
+        let engagement = if !in_gear {
+            0.0
+        } else if c.auto_clutch {
+            let cl = &self.p.clutch;
+            let auto = clamp(
+                (rpm - cl.auto_engage_start_rpm)
+                    / (cl.auto_engage_full_rpm - cl.auto_engage_start_rpm),
+                0.0,
+                1.0,
+            );
+            pedal.min(auto)
+        } else {
+            pedal
+        };
+
+        // Engine torque.
+        if rpm > e.redline_rpm {
+            self.limiter_cut = true;
+        } else if rpm < e.redline_rpm - LIMITER_HYSTERESIS_RPM {
+            self.limiter_cut = false;
+        }
+        let throttle = if self.limiter_cut {
+            0.0
+        } else {
+            clamp(c.throttle, 0.0, 1.0)
+        };
+        let full = self.full_throttle_torque(rpm);
+        let mut engine_torque = throttle * full;
+        if self.engine_omega > 0.0 {
+            engine_torque -= e.friction_torque_nm + e.friction_nm_per_rad_s * self.engine_omega;
+        }
+        if rpm < e.idle_rpm {
+            let idle_limit = 0.6 * self.full_throttle_torque(e.idle_rpm);
+            engine_torque += (IDLE_GAIN_NM_PER_RPM * (e.idle_rpm - rpm)).min(idle_limit);
+        }
+
+        // Coupled solve: four wheels plus the engine.
+        const ENGINE: usize = 4;
+        let omega = [
+            ctx.wheel_omega[0],
+            ctx.wheel_omega[1],
+            ctx.wheel_omega[2],
+            ctx.wheel_omega[3],
+            self.engine_omega,
+        ];
+        let inertia = [
+            ctx.wheel_inertia[0],
+            ctx.wheel_inertia[1],
+            ctx.wheel_inertia[2],
+            ctx.wheel_inertia[3],
+            e.inertia_kg_m2,
+        ];
+        let mut solver = SpinSolver::new(&omega, &inertia, dt);
+        for i in 0..4 {
+            solver.apply_torque(i, ctx.tire_torque[i]);
+        }
+        solver.apply_torque(ENGINE, engine_torque);
+
+        let mut friction = [None; 4];
+        let mut brake_cap = [0.0; 4];
+        for i in 0..4 {
+            brake_cap[i] = ctx.service_brake_torque[i] + ctx.handbrake_torque[i];
+            friction[i] = solver.add_constraint(&[(i, 1.0)], brake_cap[i] + ctx.resist_torque[i]);
+        }
+        let [left, right] = self.driven;
+        let clutch = if engagement > 0.0 {
+            solver.add_constraint(
+                &[(ENGINE, 1.0), (left, -0.5 * ratio), (right, -0.5 * ratio)],
+                self.p.clutch.max_torque_nm * engagement,
+            )
+        } else {
+            None
+        };
+        if self.p.differential.kind == DifferentialKind::LimitedSlip {
+            let d = &self.p.differential;
+            let frac = if self.diff_input_torque >= 0.0 {
+                d.lock_fraction_drive
+            } else {
+                d.lock_fraction_coast
+            };
+            let lock = d.preload_nm + frac * self.diff_input_torque.abs();
+            solver.add_constraint(&[(left, 1.0), (right, -1.0)], lock);
+        }
+        solver.solve(SOLVER_ITERATIONS);
+
+        let mut result = DriveResult::default();
+        for i in 0..4 {
+            result.wheel_omega[i] = solver.omega(i);
+            if let Some(idx) = friction[i] {
+                result.brake_torque[i] = brake_share(
+                    solver.constraint_torque(idx),
+                    brake_cap[i],
+                    ctx.resist_torque[i],
+                );
+            }
+        }
+        self.engine_omega = solver.omega(ENGINE).max(0.0);
+
+        // Positive clutch torque drives the gearbox.
+        let clutch_torque = clutch.map_or(0.0, |idx| -solver.constraint_torque(idx));
+        let axle_torque = clutch_torque * ratio;
+        self.diff_input_torque = axle_torque * if ratio < 0.0 { -1.0 } else { 1.0 };
+        result.shaft_torque[left] = 0.5 * axle_torque;
+        result.shaft_torque[right] = 0.5 * axle_torque;
+
+        let carrier = 0.5 * (result.wheel_omega[left] + result.wheel_omega[right]);
+        result.telemetry = DriveTelemetry {
+            engine_rpm: self.engine_omega * RAD_S_TO_RPM,
+            engine_torque_nm: engine_torque,
+            gear: if self.shift_timer > 0.0 {
+                self.target_gear
+            } else {
+                self.gear
+            },
+            shifting: self.shift_timer > 0.0,
+            clutch_engagement: engagement,
+            clutch_torque_nm: clutch_torque,
+            motor_torque_nm: [0.0; 2],
+            drive_power_w: axle_torque * carrier,
+            regen_power_w: 0.0,
+            battery_power_w: 0.0,
+            battery_soc: 0.0,
+        };
+        result
+    }
+
+    fn kinetic_energy(&self) -> f64 {
+        0.5 * self.p.engine.inertia_kg_m2 * self.engine_omega * self.engine_omega
+    }
+
+    fn reset(&mut self) {
+        *self = EngineManual::new(self.p.clone());
+    }
+
+    fn forward_gears(&self) -> u8 {
+        self.p.gearbox.ratios.len() as u8
+    }
+
+    fn kind_name(&self) -> &'static str {
+        "engine_manual"
+    }
+}
+
+impl Snapshot for EngineManual {
+    fn save(&self, w: &mut StateWriter) {
+        w.write_f64(self.engine_omega);
+        w.write_i8(self.gear);
+        w.write_i8(self.target_gear);
+        w.write_f64(self.shift_timer);
+        w.write_bool(self.limiter_cut);
+        w.write_f64(self.diff_input_torque);
+        w.write_f64(self.auto_shift_cooldown);
+    }
+
+    fn load(&mut self, r: &mut StateReader<'_>) -> Result<(), SnapshotError> {
+        self.engine_omega = r.read_f64()?;
+        self.gear = r.read_i8()?;
+        self.target_gear = r.read_i8()?;
+        self.shift_timer = r.read_f64()?;
+        self.limiter_cut = r.read_bool()?;
+        self.diff_input_torque = r.read_f64()?;
+        self.auto_shift_cooldown = r.read_f64()?;
+        let top = self.p.gearbox.ratios.len() as i8;
+        if !(-1..=top).contains(&self.gear) || !(-1..=top).contains(&self.target_gear) {
+            return Err(SnapshotError::Invalid("gear out of range"));
+        }
+        Ok(())
+    }
+}

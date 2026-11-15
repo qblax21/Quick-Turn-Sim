@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: CC-BY-4.0
+# Tern GT with the limited-slip differential option.
+# Everything not listed here comes from the base file.
+
+inherits = "hatch_tern_gt"
+id = "hatch_tern_gt_lsd"
+name = "Tern GT (limited-slip differential)"
+description = "Car A with the clutch-type limited-slip differential option."
+
+[drivetrain.differential]
+kind = "limited_slip"

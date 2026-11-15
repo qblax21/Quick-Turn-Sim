@@ -116,3 +116,65 @@ Both car classes have ABS in reality, and a braking-distance metric without
 it would mostly measure the test driver. ABS is a simple per-wheel slip
 threshold and can be switched off in the car file. Traction and stability
 control are left out; the launch test uses a driver model instead.
+
+## D-017 Suspension geometry is an inclined wheel path, not added forces
+
+The first implementation added jacking and anti-dive as extra forces
+proportional to tire force. The undamped energy test showed that this is
+not energy-consistent: a force acts on the suspension travel but the wheel
+does not move along the matching path. Each wheel now travels along a
+direction tilted sideways by `roll_center_height / half_track` and fore-aft
+by `anti_pitch_tan`. Jacking, anti-dive, anti-lift and anti-squat fall out
+of the equations of motion, and track change with travel comes for free.
+One anti-pitch parameter per axle replaces the separate brake and drive
+values, so inboard-drive and outboard-brake geometry are not distinguished.
+
+## D-018 Tire forces act on the body at the contact patch
+
+Applying the longitudinal force at the contact patch gives the correct
+pitch moment in steady state. It differs from the exact treatment (force
+at the wheel centre plus brake and drive reaction torques) by the wheel's
+spin-up inertia torque, which is small.
+
+## D-019 Rolling radius equals loaded radius
+
+A separate effective rolling radius would let the tire do net work at zero
+slip, which shows up as a small energy source. One radius is used for slip
+and for wheel torque (simplest option).
+
+## D-020 Engine stall and restart are implicit
+
+There is no starter model. If the engine is dragged to zero speed it stays
+there while coupled; pressing the clutch or selecting neutral lets the idle
+controller spin it back up (simplest option).
+
+## D-021 Gearbox efficiency is folded into engine friction
+
+A per-gear efficiency would make the clutch constraint asymmetric. Losses
+are represented by the engine friction terms only, so the driveline is
+slightly too efficient in high gears.
+
+## D-022 Regeneration stands down while the anti-lock system works
+
+Any wheel in anti-lock modulation switches regeneration off on both axles,
+including lift-off regeneration, so the motors cannot fight the modulation.
+Friction brakes take the full demand in that case.
+
+## D-023 Open differential shares rotor inertia through the mesh
+
+Each motor is a separate rotating body tied to its axle by a rigid
+constraint in the wheel-spin solver, rather than an analytically reduced
+inertia. The same solver then handles brakes, rolling resistance, clutch,
+limited slip and gear meshes with one mechanism.
+
+## D-024 Car variants inherit from a base file
+
+`inherits = "<id>"` in a car file deep-merges the file over its base. The
+limited-slip variant of Car A is ten lines instead of a second copy of
+every parameter that could drift apart.
+
+## D-025 Carcass deflection is excluded from the energy function
+
+The tire deflection state stores elastic energy only while the tire is not
+sliding. Counting it produced false energy gains on a frictionless
+surface, so the energy checks leave it out.

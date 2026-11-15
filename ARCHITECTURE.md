@@ -231,9 +231,10 @@ drivetrain and tire internal states.
 bump and rebound damping rates, bump stops, and an anti-roll bar per axle
 coupling left and right travel. Basic geometry is data-driven: static camber
 and toe, camber gain with travel, caster, kingpin inclination, scrub radius,
-mechanical trail, roll-centre height per axle (applied as a jacking force so
-geometric and elastic load transfer are separated), and anti-dive and
-anti-squat fractions.
+mechanical trail, and per axle a roll-centre height and an anti-pitch angle.
+The last two tilt the path each wheel travels along relative to the body, so
+jacking, anti-dive, anti-lift and anti-squat follow from the equations of
+motion rather than being added as forces (D-017).
 
 **Tire contact.** The tire is a vertical spring and damper between the
 unsprung mass and the ground, so tire load is a result of the dynamics, not an

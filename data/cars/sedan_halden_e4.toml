@@ -1,0 +1,130 @@
+# SPDX-License-Identifier: CC-BY-4.0
+# Halden E4: a FICTIONAL performance dual-motor all-wheel-drive electric sedan.
+#
+# The name and design are original. No value here describes a real vehicle.
+# Numbers are approximate figures typical of the class, used as placeholders
+# so the model runs; every one carries its source and a confidence level
+# (placeholder / estimated / measured). Nothing is measured yet.
+
+id = "sedan_halden_e4"
+name = "Halden E4"
+class = "Performance dual-motor all-wheel-drive electric sedan (fictional)"
+description = "Car B. One motor per axle, single-speed reductions, regenerative braking."
+tire_front = "performance_235_40r19"
+tire_rear = "performance_235_40r19"
+
+[body]
+sprung_mass_kg = { value = 1739.0, source = "class-typical 1850 kg kerb weight plus a 75 kg driver, less unsprung mass", confidence = "placeholder" }
+inertia_roll_kg_m2 = { value = 560.0, source = "rule-of-thumb radius of gyration for a mid-size sedan with a floor battery", confidence = "placeholder" }
+inertia_pitch_kg_m2 = { value = 2900.0, source = "rule-of-thumb radius of gyration for a mid-size sedan with a floor battery", confidence = "placeholder" }
+inertia_yaw_kg_m2 = { value = 3200.0, source = "rule-of-thumb radius of gyration for a mid-size sedan with a floor battery", confidence = "placeholder" }
+wheelbase_m = { value = 2.875, source = "class-typical wheelbase", confidence = "placeholder" }
+cg_to_front_axle_m = { value = 1.496, source = "chosen to give 48 percent of total weight on the front axle", confidence = "placeholder" }
+cg_height_m = { value = 0.47, source = "low centre of gravity typical of a floor-mounted battery", confidence = "placeholder" }
+length_m = { value = 4.70, source = "class-typical overall length", confidence = "placeholder" }
+width_m = { value = 1.85, source = "class-typical overall width", confidence = "placeholder" }
+height_m = { value = 1.28, source = "class-typical body height above the sill", confidence = "placeholder" }
+ground_clearance_m = { value = 0.14, source = "class-typical ground clearance", confidence = "placeholder" }
+contact_stiffness_n_per_m = { value = 320000.0, source = "numerical penalty stiffness for body-to-ground contact", confidence = "placeholder" }
+contact_damping_n_s_per_m = { value = 12000.0, source = "numerical penalty damping for body-to-ground contact", confidence = "placeholder" }
+contact_friction = { value = 0.5, source = "guess for bodywork sliding on tarmac", confidence = "placeholder" }
+
+[suspension.front]
+track_m = { value = 1.58, source = "class-typical track", confidence = "placeholder" }
+unsprung_mass_kg = { value = 45.0, source = "class-typical driven-corner unsprung mass with 19 inch wheels", confidence = "placeholder" }
+wheel_inertia_kg_m2 = { value = 1.55, source = "19 inch wheel, tire, disc and hub, order of magnitude", confidence = "placeholder" }
+spring_rate_n_per_m = { value = 52000.0, source = "chosen for a 1.6 Hz front ride frequency", confidence = "placeholder" }
+motion_ratio = { value = 0.90, source = "typical double-wishbone motion ratio", confidence = "placeholder" }
+damper_bump_n_s_per_m = { value = 3620.0, source = "about 0.35 of critical in bump", confidence = "placeholder" }
+damper_rebound_n_s_per_m = { value = 6200.0, source = "about 0.6 of critical in rebound", confidence = "placeholder" }
+anti_roll_bar_n_per_m = { value = 18000.0, source = "chosen with the rear bar for mild understeer", confidence = "placeholder" }
+bump_travel_m = { value = 0.07, source = "class-typical bump travel", confidence = "placeholder" }
+droop_travel_m = { value = 0.08, source = "class-typical droop travel", confidence = "placeholder" }
+bump_stop_rate_n_per_m = { value = 200000.0, source = "stiff progressive stop approximated as linear", confidence = "placeholder" }
+static_camber_rad = { value = -0.0175, source = "about -1.0 degree", confidence = "placeholder" }
+camber_gain_rad_per_m = { value = -0.4, source = "about -2.3 degrees per 100 mm of bump", confidence = "placeholder" }
+static_toe_rad = { value = 0.0, source = "zero front toe", confidence = "placeholder" }
+roll_center_height_m = { value = 0.07, source = "typical double-wishbone roll centre height", confidence = "placeholder" }
+anti_pitch_tan = { value = 0.10, source = "moderate anti-dive", confidence = "placeholder" }
+
+[suspension.rear]
+track_m = { value = 1.58, source = "class-typical track", confidence = "placeholder" }
+unsprung_mass_kg = { value = 48.0, source = "class-typical driven-corner unsprung mass with 19 inch wheels", confidence = "placeholder" }
+wheel_inertia_kg_m2 = { value = 1.6, source = "19 inch wheel, tire, disc and hub, order of magnitude", confidence = "placeholder" }
+spring_rate_n_per_m = { value = 71500.0, source = "chosen for a 1.8 Hz rear ride frequency", confidence = "placeholder" }
+motion_ratio = { value = 0.90, source = "typical multi-link motion ratio", confidence = "placeholder" }
+damper_bump_n_s_per_m = { value = 4420.0, source = "about 0.35 of critical in bump", confidence = "placeholder" }
+damper_rebound_n_s_per_m = { value = 7580.0, source = "about 0.6 of critical in rebound", confidence = "placeholder" }
+anti_roll_bar_n_per_m = { value = 12000.0, source = "chosen with the front bar for mild understeer", confidence = "placeholder" }
+bump_travel_m = { value = 0.075, source = "class-typical bump travel", confidence = "placeholder" }
+droop_travel_m = { value = 0.085, source = "class-typical droop travel", confidence = "placeholder" }
+bump_stop_rate_n_per_m = { value = 220000.0, source = "stiff progressive stop approximated as linear", confidence = "placeholder" }
+static_camber_rad = { value = -0.026, source = "about -1.5 degrees", confidence = "placeholder" }
+camber_gain_rad_per_m = { value = -0.6, source = "about -3.4 degrees per 100 mm of bump", confidence = "placeholder" }
+static_toe_rad = { value = 0.002, source = "slight rear toe-in for stability", confidence = "placeholder" }
+roll_center_height_m = { value = 0.11, source = "typical multi-link roll centre height", confidence = "placeholder" }
+anti_pitch_tan = { value = 0.12, source = "moderate anti-squat and anti-lift", confidence = "placeholder" }
+
+[steering]
+ratio = { value = 12.0, source = "quick ratio typical of the class", confidence = "placeholder" }
+max_wheel_angle_rad = { value = 6.283, source = "2.0 turns lock to lock", confidence = "placeholder" }
+ackermann_fraction = { value = 0.6, source = "partial Ackermann, typical road car", confidence = "placeholder" }
+caster_rad = { value = 0.12, source = "about 7 degrees", confidence = "placeholder" }
+kingpin_inclination_rad = { value = 0.19, source = "about 11 degrees", confidence = "placeholder" }
+scrub_radius_m = { value = 0.012, source = "small positive scrub radius", confidence = "placeholder" }
+mechanical_trail_m = { value = 0.028, source = "follows from caster and wheel radius, rounded", confidence = "placeholder" }
+
+[brakes]
+max_torque_front_nm = { value = 4200.0, source = "enough to exceed front grip at full pedal", confidence = "placeholder" }
+max_torque_rear_nm = { value = 2400.0, source = "about 36 percent rear bias for a near-even weight split", confidence = "placeholder" }
+handbrake_torque_nm = { value = 2000.0, source = "enough to lock the rear wheels", confidence = "placeholder" }
+
+[brakes.abs]
+enabled = true
+slip_threshold = { value = 0.12, source = "near the placeholder tire's peak slip", confidence = "placeholder" }
+release_rate_per_s = { value = 14.0, source = "controller tuning guess", confidence = "placeholder" }
+apply_rate_per_s = { value = 7.0, source = "controller tuning guess", confidence = "placeholder" }
+min_speed_m_per_s = { value = 2.0, source = "typical cut-out speed", confidence = "placeholder" }
+
+[aero]
+air_density_kg_per_m3 = { value = 1.2, source = "sea level, 20 degrees C", confidence = "estimated" }
+drag_area_m2 = { value = 0.51, source = "class-typical Cd 0.23 times frontal area 2.22 m2", confidence = "placeholder" }
+lift_area_front_m2 = { value = 0.05, source = "near-neutral front lift", confidence = "placeholder" }
+lift_area_rear_m2 = { value = 0.08, source = "small rear lift", confidence = "placeholder" }
+
+[drivetrain]
+kind = "dual_motor_electric"
+front_torque_share = { value = 0.38, source = "rear-biased split, typical of the class", confidence = "placeholder" }
+torque_vectoring = "none"
+
+[drivetrain.front_motor]
+peak_torque_nm = { value = 240.0, source = "class-typical front induction or permanent-magnet unit", confidence = "placeholder" }
+peak_power_w = { value = 137000.0, source = "class-typical front unit", confidence = "placeholder" }
+max_speed_rad_per_s = { value = 2050.0, source = "about 19 600 rpm, sets the top speed with the reduction", confidence = "placeholder" }
+reduction_ratio = { value = 9.0, source = "class-typical single-speed reduction", confidence = "placeholder" }
+rotor_inertia_kg_m2 = { value = 0.045, source = "order of magnitude", confidence = "placeholder" }
+efficiency = { value = 0.92, source = "flat motor-plus-inverter efficiency, no map", confidence = "placeholder" }
+regen_torque_limit_nm = { value = 120.0, source = "half of peak torque", confidence = "placeholder" }
+regen_power_limit_w = { value = 60000.0, source = "guess", confidence = "placeholder" }
+
+[drivetrain.rear_motor]
+peak_torque_nm = { value = 420.0, source = "class-typical rear permanent-magnet unit", confidence = "placeholder" }
+peak_power_w = { value = 220000.0, source = "class-typical rear unit", confidence = "placeholder" }
+max_speed_rad_per_s = { value = 2050.0, source = "about 19 600 rpm, sets the top speed with the reduction", confidence = "placeholder" }
+reduction_ratio = { value = 9.0, source = "class-typical single-speed reduction", confidence = "placeholder" }
+rotor_inertia_kg_m2 = { value = 0.06, source = "order of magnitude", confidence = "placeholder" }
+efficiency = { value = 0.93, source = "flat motor-plus-inverter efficiency, no map", confidence = "placeholder" }
+regen_torque_limit_nm = { value = 210.0, source = "half of peak torque", confidence = "placeholder" }
+regen_power_limit_w = { value = 90000.0, source = "guess", confidence = "placeholder" }
+
+[drivetrain.battery]
+capacity_j = { value = 2.7e8, source = "75 kWh usable, class-typical", confidence = "placeholder" }
+initial_soc = { value = 0.9, source = "session default", confidence = "placeholder" }
+max_discharge_power_w = { value = 400000.0, source = "above combined motor power so the motors are the limit", confidence = "placeholder" }
+max_charge_power_w = { value = 150000.0, source = "guess", confidence = "placeholder" }
+
+[drivetrain.regen]
+coast_fraction = { value = 0.25, source = "moderate lift-off regeneration", confidence = "placeholder" }
+brake_share = { value = 0.6, source = "share of pedal demand regeneration may take", confidence = "placeholder" }
+fade_low_m_per_s = { value = 1.5, source = "regeneration off below walking pace", confidence = "placeholder" }
+fade_high_m_per_s = { value = 4.0, source = "regeneration fully available above about 14 km/h", confidence = "placeholder" }

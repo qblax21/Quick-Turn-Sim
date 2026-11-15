@@ -1,0 +1,123 @@
+# SPDX-License-Identifier: CC-BY-4.0
+# Tern GT: a FICTIONAL compact front-wheel-drive turbocharged hot hatch.
+#
+# The name and design are original. No value here describes a real vehicle.
+# Numbers are approximate figures typical of the class, used as placeholders
+# so the model runs; every one carries its source and a confidence level
+# (placeholder / estimated / measured). Nothing is measured yet.
+
+id = "hatch_tern_gt"
+name = "Tern GT"
+class = "Compact front-wheel-drive turbocharged hot hatch (fictional)"
+description = "Car A. Front engine, six-speed manual, open differential."
+tire_front = "street_205_45r17"
+tire_rear = "street_205_45r17"
+
+[body]
+sprung_mass_kg = { value = 1229.0, source = "class-typical 1300 kg kerb weight plus a 75 kg driver, less unsprung mass", confidence = "placeholder" }
+inertia_roll_kg_m2 = { value = 420.0, source = "rule-of-thumb radius of gyration for a compact hatch", confidence = "placeholder" }
+inertia_pitch_kg_m2 = { value = 1700.0, source = "rule-of-thumb radius of gyration for a compact hatch", confidence = "placeholder" }
+inertia_yaw_kg_m2 = { value = 1900.0, source = "rule-of-thumb radius of gyration for a compact hatch", confidence = "placeholder" }
+wheelbase_m = { value = 2.50, source = "class-typical wheelbase", confidence = "placeholder" }
+cg_to_front_axle_m = { value = 0.9286, source = "chosen to give 62 percent of total weight on the front axle", confidence = "placeholder" }
+cg_height_m = { value = 0.56, source = "class-typical centre-of-gravity height", confidence = "placeholder" }
+length_m = { value = 3.95, source = "class-typical overall length", confidence = "placeholder" }
+width_m = { value = 1.73, source = "class-typical overall width", confidence = "placeholder" }
+height_m = { value = 1.28, source = "class-typical body height above the sill", confidence = "placeholder" }
+ground_clearance_m = { value = 0.13, source = "class-typical ground clearance", confidence = "placeholder" }
+contact_stiffness_n_per_m = { value = 250000.0, source = "numerical penalty stiffness for body-to-ground contact", confidence = "placeholder" }
+contact_damping_n_s_per_m = { value = 9000.0, source = "numerical penalty damping for body-to-ground contact", confidence = "placeholder" }
+contact_friction = { value = 0.5, source = "guess for bodywork sliding on tarmac", confidence = "placeholder" }
+
+[suspension.front]
+track_m = { value = 1.50, source = "class-typical track", confidence = "placeholder" }
+unsprung_mass_kg = { value = 40.0, source = "class-typical driven-corner unsprung mass", confidence = "placeholder" }
+wheel_inertia_kg_m2 = { value = 1.15, source = "17 inch wheel, tire, disc and hub, order of magnitude", confidence = "placeholder" }
+spring_rate_n_per_m = { value = 38000.0, source = "chosen for a 1.5 Hz front ride frequency", confidence = "placeholder" }
+motion_ratio = { value = 0.95, source = "typical strut motion ratio", confidence = "placeholder" }
+damper_bump_n_s_per_m = { value = 2800.0, source = "about 0.35 of critical in bump", confidence = "placeholder" }
+damper_rebound_n_s_per_m = { value = 4850.0, source = "about 0.6 of critical in rebound", confidence = "placeholder" }
+anti_roll_bar_n_per_m = { value = 14000.0, source = "chosen with the rear bar for mild understeer", confidence = "placeholder" }
+bump_travel_m = { value = 0.075, source = "class-typical bump travel", confidence = "placeholder" }
+droop_travel_m = { value = 0.085, source = "class-typical droop travel", confidence = "placeholder" }
+bump_stop_rate_n_per_m = { value = 160000.0, source = "stiff progressive stop approximated as linear", confidence = "placeholder" }
+static_camber_rad = { value = -0.0175, source = "about -1.0 degree, typical sporty road alignment", confidence = "placeholder" }
+camber_gain_rad_per_m = { value = -0.35, source = "about -2 degrees per 100 mm of bump for a strut", confidence = "placeholder" }
+static_toe_rad = { value = 0.0, source = "zero front toe", confidence = "placeholder" }
+roll_center_height_m = { value = 0.06, source = "typical lowered-strut roll centre height", confidence = "placeholder" }
+anti_pitch_tan = { value = 0.08, source = "mild anti-dive", confidence = "placeholder" }
+
+[suspension.rear]
+track_m = { value = 1.50, source = "class-typical track", confidence = "placeholder" }
+unsprung_mass_kg = { value = 33.0, source = "class-typical undriven-corner unsprung mass", confidence = "placeholder" }
+wheel_inertia_kg_m2 = { value = 1.05, source = "17 inch wheel, tire, disc and hub, order of magnitude", confidence = "placeholder" }
+spring_rate_n_per_m = { value = 30000.0, source = "chosen for a 1.7 Hz rear ride frequency", confidence = "placeholder" }
+motion_ratio = { value = 0.93, source = "typical torsion-beam or multi-link ratio", confidence = "placeholder" }
+damper_bump_n_s_per_m = { value = 1970.0, source = "about 0.35 of critical in bump", confidence = "placeholder" }
+damper_rebound_n_s_per_m = { value = 3350.0, source = "about 0.6 of critical in rebound", confidence = "placeholder" }
+anti_roll_bar_n_per_m = { value = 16000.0, source = "stiff rear bar, typical of the class, for rotation", confidence = "placeholder" }
+bump_travel_m = { value = 0.08, source = "class-typical bump travel", confidence = "placeholder" }
+droop_travel_m = { value = 0.09, source = "class-typical droop travel", confidence = "placeholder" }
+bump_stop_rate_n_per_m = { value = 140000.0, source = "stiff progressive stop approximated as linear", confidence = "placeholder" }
+static_camber_rad = { value = -0.026, source = "about -1.5 degrees", confidence = "placeholder" }
+camber_gain_rad_per_m = { value = -0.5, source = "about -3 degrees per 100 mm of bump", confidence = "placeholder" }
+static_toe_rad = { value = 0.002, source = "slight rear toe-in for stability", confidence = "placeholder" }
+roll_center_height_m = { value = 0.14, source = "typical rear roll centre height for the layout", confidence = "placeholder" }
+anti_pitch_tan = { value = 0.10, source = "mild anti-lift", confidence = "placeholder" }
+
+[steering]
+ratio = { value = 14.5, source = "class-typical overall steering ratio", confidence = "placeholder" }
+max_wheel_angle_rad = { value = 8.17, source = "2.6 turns lock to lock", confidence = "placeholder" }
+ackermann_fraction = { value = 0.6, source = "partial Ackermann, typical road car", confidence = "placeholder" }
+caster_rad = { value = 0.105, source = "about 6 degrees", confidence = "placeholder" }
+kingpin_inclination_rad = { value = 0.21, source = "about 12 degrees, typical strut", confidence = "placeholder" }
+scrub_radius_m = { value = 0.005, source = "small positive scrub radius", confidence = "placeholder" }
+mechanical_trail_m = { value = 0.022, source = "follows from caster and wheel radius, rounded", confidence = "placeholder" }
+
+[brakes]
+max_torque_front_nm = { value = 3000.0, source = "enough to exceed front grip at full pedal", confidence = "placeholder" }
+max_torque_rear_nm = { value = 800.0, source = "about 21 percent rear bias", confidence = "placeholder" }
+handbrake_torque_nm = { value = 1200.0, source = "enough to lock the rear wheels", confidence = "placeholder" }
+
+[brakes.abs]
+enabled = true
+slip_threshold = { value = 0.12, source = "near the placeholder tire's peak slip", confidence = "placeholder" }
+release_rate_per_s = { value = 14.0, source = "controller tuning guess", confidence = "placeholder" }
+apply_rate_per_s = { value = 7.0, source = "controller tuning guess", confidence = "placeholder" }
+min_speed_m_per_s = { value = 2.0, source = "typical cut-out speed", confidence = "placeholder" }
+
+[aero]
+air_density_kg_per_m3 = { value = 1.2, source = "sea level, 20 degrees C", confidence = "estimated" }
+drag_area_m2 = { value = 0.67, source = "class-typical Cd 0.32 times frontal area 2.1 m2", confidence = "placeholder" }
+lift_area_front_m2 = { value = 0.12, source = "small front lift, typical unassisted hatch", confidence = "placeholder" }
+lift_area_rear_m2 = { value = 0.18, source = "small rear lift, typical unassisted hatch", confidence = "placeholder" }
+
+[drivetrain]
+kind = "engine_manual"
+driven_axle = "front"
+
+[drivetrain.engine]
+torque_curve_rpm = { value = [1000.0, 1500.0, 2000.0, 4500.0, 5500.0, 6500.0, 7000.0], source = "shape typical of a 2.0 litre turbocharged petrol engine", confidence = "placeholder" }
+torque_curve_nm = { value = [180.0, 300.0, 320.0, 320.0, 295.0, 245.0, 200.0], source = "class-typical 320 N.m plateau and about 170 kW peak", confidence = "placeholder" }
+inertia_kg_m2 = { value = 0.16, source = "engine plus flywheel, order of magnitude", confidence = "placeholder" }
+idle_rpm = { value = 850.0, source = "typical idle speed", confidence = "placeholder" }
+redline_rpm = { value = 6800.0, source = "typical rev limit for the class", confidence = "placeholder" }
+friction_torque_nm = { value = 14.0, source = "order of magnitude", confidence = "placeholder" }
+friction_nm_per_rad_s = { value = 0.025, source = "order of magnitude", confidence = "placeholder" }
+
+[drivetrain.clutch]
+max_torque_nm = { value = 480.0, source = "1.5 times peak engine torque", confidence = "placeholder" }
+auto_engage_start_rpm = { value = 1100.0, source = "assist tuning guess", confidence = "placeholder" }
+auto_engage_full_rpm = { value = 2200.0, source = "assist tuning guess", confidence = "placeholder" }
+
+[drivetrain.gearbox]
+ratios = { value = [3.31, 1.92, 1.36, 1.03, 0.84, 0.69], source = "invented six-speed spread typical of the class", confidence = "placeholder" }
+reverse_ratio = { value = 3.2, source = "invented", confidence = "placeholder" }
+final_drive = { value = 3.94, source = "invented, typical of the class", confidence = "placeholder" }
+shift_time_s = { value = 0.25, source = "quick manual shift", confidence = "placeholder" }
+
+[drivetrain.differential]
+kind = "open"
+preload_nm = { value = 40.0, source = "used only by the limited-slip variant", confidence = "placeholder" }
+lock_fraction_drive = { value = 0.30, source = "used only by the limited-slip variant", confidence = "placeholder" }
+lock_fraction_coast = { value = 0.10, source = "used only by the limited-slip variant", confidence = "placeholder" }
