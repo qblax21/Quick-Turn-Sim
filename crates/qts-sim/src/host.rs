@@ -292,6 +292,7 @@ struct Published {
     current: RenderPose,
     alpha: f64,
     hud: HudState,
+    cones_down: Vec<bool>,
 }
 
 struct Shared {
@@ -346,6 +347,7 @@ impl RealtimeHost {
                 current: pose,
                 alpha: 1.0,
                 hud: HudState::of(&session),
+                cones_down: session.timing().cone_down.clone(),
             }),
             status: Mutex::new(HostStatus {
                 ffb_enabled: true,
@@ -380,6 +382,11 @@ impl RealtimeHost {
     pub fn render(&self) -> (RenderPose, HudState) {
         let p = lock(&self.shared.published);
         (RenderPose::lerp(&p.previous, &p.current, p.alpha), p.hud)
+    }
+
+    /// Which cones are currently knocked down, in track cone order.
+    pub fn cones_down(&self) -> Vec<bool> {
+        lock(&self.shared.published).cones_down.clone()
     }
 
     /// Current diagnostics.
@@ -739,6 +746,9 @@ impl SimThread {
                 p.current = self.current;
                 p.alpha = if self.paused { 1.0 } else { driver.alpha() };
                 p.hud = HudState::of(&self.session);
+                p.cones_down.clear();
+                p.cones_down
+                    .extend_from_slice(&self.session.timing().cone_down);
             }
             {
                 let mut s = lock(&self.shared.status);

@@ -1,0 +1,27 @@
+; SPDX-License-Identifier: Apache-2.0
+; Engine configuration file. The project name here is deliberately neutral:
+; the product name is defined once in the simulation core and applied to
+; the window title at run time.
+
+config_version=5
+
+[application]
+
+config/name="sim-frontend"
+config/description="Rendering, input and UI front end. All simulation logic lives in the Rust core."
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.4")
+
+[display]
+
+window/size/viewport_width=1600
+window/size/viewport_height=900
+
+[physics]
+
+; Godot's own physics is not used; the simulation runs in the Rust core.
+common/physics_ticks_per_second=60
+
+[rendering]
+
+anti_aliasing/quality/msaa_3d=2

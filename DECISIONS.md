@@ -285,3 +285,32 @@ parameter was fitted to make a target pass, and the targets themselves are
 placeholders. A passing report therefore shows that the harness works and
 that the placeholder cars are in a plausible range. It is not evidence of
 realism, and the report says so on every run.
+
+## D-037 The binding builds against the Godot 4.4 interface
+
+The `godot` crate is built with `api-4-4`, so one library loads in Godot 4.4
+and every later 4.x editor. It was developed and smoke-tested against
+Godot 4.7.2. Building against the newest interface would have locked out
+older editors for no benefit, since the binding uses only basic types.
+
+## D-038 The binding exposes one class and returns plain values
+
+`SimBridge` returns transforms, packed arrays and dictionaries. There are
+no Godot nodes, signals or resources defined in Rust, so the front end can
+be rewritten freely and the binding stays a type-conversion layer. Track
+geometry is sent as data (points, regions, cones) and meshed in GDScript.
+
+## D-039 The Godot project name is neutral
+
+`project.godot` calls the project `sim-frontend`. The window title and
+menu heading come from the simulation core's constants at run time, so the
+product name is still written only there and in the README.
+
+## D-040 Front-end verification is a headless smoke test plus screenshots
+
+`godot/tests/smoke.gd` loads every car on every track through the real
+binding, builds the menu, setup screen, world, car and HUD, and checks that
+physics advances and the drawn car moves in the right direction. A
+screenshot tool renders the real main scene for visual inspection. Neither
+can verify how a wheel feels or whether DirectInput output works on a given
+device; that needs a person at the wheel.

@@ -8,10 +8,17 @@ license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 
+[lib]
+crate-type = ["cdylib"]
+
 [dependencies]
 qts-core.workspace = true
 qts-sim.workspace = true
 qts-ffb.workspace = true
+qts-vehicle.workspace = true
+# `api-4-4` builds against the Godot 4.4 interface, so the extension loads in
+# Godot 4.4 and every later 4.x editor.
+godot = { version = "0.5", features = ["api-4-4"] }
 
 [lints]
 workspace = true
