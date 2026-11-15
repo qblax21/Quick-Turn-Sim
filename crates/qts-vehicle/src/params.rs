@@ -149,6 +149,9 @@ pub struct SteeringParams {
     /// moment, rad per N·m. Models the twist of the column, rack mounts
     /// and bushes; it is a main source of understeer in real cars.
     pub compliance_rad_per_nm: f64,
+    /// Share of the steering load carried by power assist, 0 (unassisted)
+    /// to just under 1. The raw steering torque is what remains.
+    pub assist_fraction: f64,
 }
 
 /// Brake system.
@@ -509,6 +512,12 @@ impl CarParams {
         positive("brakes.abs.apply_rate_per_s", br.abs.apply_rate_per_s)?;
         positive("brakes.abs.control_gain_per_s", br.abs.control_gain_per_s)?;
         non_negative("steering.compliance_rad_per_nm", s.compliance_rad_per_nm)?;
+        if !(0.0..1.0).contains(&s.assist_fraction) {
+            return Err(format!(
+                "steering.assist_fraction must be in [0, 1), got {}",
+                s.assist_fraction
+            ));
+        }
         positive(
             "aero.air_density_kg_per_m3",
             self.aero.air_density_kg_per_m3,

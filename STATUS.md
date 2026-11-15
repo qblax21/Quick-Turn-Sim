@@ -16,7 +16,7 @@ says so.
 | Both cars drivable on all three tracks | Verified with scripted drivers and the front-end smoke test |
 | Front end renders, HUD and overlay work | Verified by screenshots |
 | Force-feedback output to a wheel | Verified on a Fanatec CSL Elite with `qts-sim ffb-test`: device opens, torque moves the wheel, sign is correct |
-| Driving with a wheel in the front end | **Not verified yet.** Needs a person driving |
+| Driving with a wheel in the front end | Driven by the project owner on a Fanatec CSL Elite; force feedback works. Preset still untuned |
 | Keyboard, gamepad and wheel input in the front end | **Not verified by a person.** Code runs; no device input was exercised |
 | CI | Written, **never run** (the repository has not been pushed) |
 | MSVC build on Windows | **Not verified** (no Windows SDK on the development machine) |
@@ -134,6 +134,8 @@ plausible range. It is not evidence of realism.
 - **Saving force-feedback changes from the UI**: sliders apply live and are
   lost on exit. Edit the preset file to keep them.
 - **Cones** are detected and counted, not simulated as objects.
+- **Power steering**: a fixed assist fraction per car, not a speed-sensitive
+  model.
 - **Traction and stability control**: none.
 - **Engine stall and starter**: implicit (see D-020).
 - **Wheel gyroscopic effects, chassis flex, driveline compliance, gearbox

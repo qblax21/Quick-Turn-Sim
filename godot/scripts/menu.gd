@@ -113,7 +113,7 @@ func _ready() -> void:
 	box.add_child(error_label)
 
 	var keys := Label.new()
-	keys.text = "Keyboard: W/S or arrows = pedals, A/D = steer, Space = handbrake, E/Q = shift, Shift = clutch, R = reset.\nWhile driving: Esc = menu, C = camera, P = pause, F1 = tire and FFB overlay, F2 = telemetry, F3 = replay."
+	keys.text = "Keyboard: W/S or arrows = pedals, A/D = steer, Space = handbrake, E/Q = shift, Shift = clutch, R = reset.\nWhile driving: Esc = menu, C = seat or chase camera, P = pause, F1 = tire and FFB overlay, F2 = telemetry, F3 = replay."
 	keys.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	keys.add_theme_font_size_override("font_size", 13)
 	box.add_child(keys)

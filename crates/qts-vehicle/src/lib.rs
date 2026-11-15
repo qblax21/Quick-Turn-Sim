@@ -90,6 +90,7 @@ pub mod test_support {
                 scrub_radius_m: 0.01,
                 mechanical_trail_m: 0.02,
                 compliance_rad_per_nm: 0.0,
+                assist_fraction: 0.0,
             },
             brakes: BrakeParams {
                 max_torque_front_nm: 2600.0,

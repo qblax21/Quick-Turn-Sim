@@ -836,7 +836,9 @@ impl Car {
             .normalized_or(Vec3::Z);
             kingpin_moment += axis.dot(r.cross(tire_force_body[i])) + axis.z * wheels[i].mz;
         }
-        let steering_torque_nm = kingpin_moment / st.ratio;
+        // Power assist carries a fixed share of the load; the rest reaches
+        // the column.
+        let steering_torque_nm = kingpin_moment / st.ratio * (1.0 - st.assist_fraction);
         // The steering system twists under the kingpin moment, taking a
         // little steer angle off. A short lag keeps this out of the same
         // tick it was computed from.

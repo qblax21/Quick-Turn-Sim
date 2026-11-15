@@ -323,3 +323,20 @@ window that belongs to the calling process, so borrowing the foreground or
 desktop window does not work. When the caller supplies no handle (the
 command-line tool), the backend creates a hidden window and destroys it
 with the device. The front end passes its own window handle.
+
+## D-042 Power assist is a fixed fraction of the steering load
+
+After the first drive on a wheel, the electric sedan's steering felt a
+little heavy while the hatch felt right. `steering.assist_fraction` removes
+a fixed share of the kingpin torque before it reaches the column (0 for the
+hatch, 0.25 for the sedan). Real assist varies with speed and torque; this
+is the simplest model that lets weight be set per car instead of per wheel
+preset. The value is driver feedback, not a measurement.
+
+## D-043 First changes made from driving feedback
+
+One driver, one session, on a Fanatec CSL Elite: the hatch had slightly too
+little lift-off oversteer, so its rear anti-roll bar went from 16 to
+20 kN/m and rear toe-in was halved. The sources in the car file say so.
+These are still placeholders; a subjective impression is not a measurement.
+The driver's-seat camera became the default view.

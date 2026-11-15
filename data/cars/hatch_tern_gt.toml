@@ -55,13 +55,13 @@ spring_rate_n_per_m = { value = 30000.0, source = "chosen for a 1.7 Hz rear ride
 motion_ratio = { value = 0.93, source = "typical torsion-beam or multi-link ratio", confidence = "placeholder" }
 damper_bump_n_s_per_m = { value = 1970.0, source = "about 0.35 of critical in bump", confidence = "placeholder" }
 damper_rebound_n_s_per_m = { value = 3350.0, source = "about 0.6 of critical in rebound", confidence = "placeholder" }
-anti_roll_bar_n_per_m = { value = 16000.0, source = "stiff rear bar, typical of the class, for rotation", confidence = "placeholder" }
+anti_roll_bar_n_per_m = { value = 20000.0, source = "stiff rear bar for rotation; raised from 16000 after a first drive found too little lift-off oversteer", confidence = "placeholder" }
 bump_travel_m = { value = 0.08, source = "class-typical bump travel", confidence = "placeholder" }
 droop_travel_m = { value = 0.09, source = "class-typical droop travel", confidence = "placeholder" }
 bump_stop_rate_n_per_m = { value = 140000.0, source = "stiff progressive stop approximated as linear", confidence = "placeholder" }
 static_camber_rad = { value = -0.026, source = "about -1.5 degrees", confidence = "placeholder" }
 camber_gain_rad_per_m = { value = -0.5, source = "about -3 degrees per 100 mm of bump", confidence = "placeholder" }
-static_toe_rad = { value = 0.002, source = "slight rear toe-in for stability", confidence = "placeholder" }
+static_toe_rad = { value = 0.001, source = "slight rear toe-in; halved after a first drive found too little lift-off oversteer", confidence = "placeholder" }
 roll_center_height_m = { value = 0.14, source = "typical rear roll centre height for the layout", confidence = "placeholder" }
 anti_pitch_tan = { value = 0.10, source = "mild anti-lift", confidence = "placeholder" }
 
@@ -74,6 +74,7 @@ kingpin_inclination_rad = { value = 0.21, source = "about 12 degrees, typical st
 scrub_radius_m = { value = 0.005, source = "small positive scrub radius", confidence = "placeholder" }
 mechanical_trail_m = { value = 0.022, source = "follows from caster and wheel radius, rounded", confidence = "placeholder" }
 compliance_rad_per_nm = { value = 0.00005, source = "chosen to add roughly 1.5 degrees per g of compliance understeer, a typical road-car order of magnitude", confidence = "placeholder" }
+assist_fraction = { value = 0.0, source = "no assist modelled; first drive on a wheel judged the weight about right", confidence = "placeholder" }
 
 [brakes]
 max_torque_front_nm = { value = 3000.0, source = "enough to exceed front grip at full pedal", confidence = "placeholder" }

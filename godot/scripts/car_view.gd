@@ -5,6 +5,7 @@
 extends Node3D
 
 var wheels: Array = []
+var cabin_node: MeshInstance3D
 
 
 func _material(color: Color) -> StandardMaterial3D:
@@ -46,6 +47,7 @@ func build(info: Dictionary) -> void:
 	cabin.material_override = _material(Color(0.12, 0.14, 0.18))
 	cabin.position = Vector3(0.0, bottom + height * 0.71, -mid_forward + length * 0.1)
 	add_child(cabin)
+	cabin_node = cabin
 
 	for i in range(4):
 		var front := i < 2
@@ -71,6 +73,12 @@ func build(info: Dictionary) -> void:
 		spoke.material_override = _material(Color(0.75, 0.75, 0.78))
 		pivot.add_child(spoke)
 		wheels.append(pivot)
+
+
+# The cabin box is hidden in the driver's-seat view so it does not block it.
+func set_cabin_visible(on: bool) -> void:
+	if cabin_node:
+		cabin_node.visible = on
 
 
 # `states` holds five numbers per wheel: local x, y, z, steer angle and

@@ -74,6 +74,7 @@ kingpin_inclination_rad = { value = 0.19, source = "about 11 degrees", confidenc
 scrub_radius_m = { value = 0.012, source = "small positive scrub radius", confidence = "placeholder" }
 mechanical_trail_m = { value = 0.028, source = "follows from caster and wheel radius, rounded", confidence = "placeholder" }
 compliance_rad_per_nm = { value = 0.00005, source = "chosen to add roughly 1.5 degrees per g of compliance understeer, a typical road-car order of magnitude", confidence = "placeholder" }
+assist_fraction = { value = 0.25, source = "first drive on a wheel judged the unassisted weight a little heavy; a quarter of the load given to assist", confidence = "placeholder" }
 
 [brakes]
 max_torque_front_nm = { value = 4200.0, source = "enough to exceed front grip at full pedal", confidence = "placeholder" }

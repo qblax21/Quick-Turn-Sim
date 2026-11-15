@@ -19,7 +19,9 @@ var world
 var car_view
 var hud
 var camera: Camera3D
-var cockpit_view := false
+# The driver's seat is the default view; C switches to the chase camera.
+var cockpit_view := true
+var seat_offset := Vector3(-0.36, 0.6, 0.3)
 var paused := false
 var telemetry_on := false
 var replay_on := false
@@ -55,6 +57,8 @@ func _ready() -> void:
 
 	camera = Camera3D.new()
 	camera.far = 3000.0
+	camera.near = 0.1
+	camera.fov = 65.0
 	camera.position = Vector3(0.0, 6.0, 12.0)
 	add_child(camera)
 
@@ -121,7 +125,13 @@ func _start_driving(car_id: String, track_id: String, auto_clutch: bool, auto_sh
 	world.build(sim)
 	car_view = CarView.new()
 	add_child(car_view)
-	car_view.build(sim.car_info())
+	var info: Dictionary = sim.car_info()
+	car_view.build(info)
+	# Eye point of a left-hand-drive seat, relative to the centre of gravity:
+	# 55 percent of the wheelbase behind the front axle, near roof height.
+	var eye_height: float = info.get("ground_clearance", 0.13) + 0.82 * info.get("height", 1.25)
+	var behind_cg: float = 0.55 * info.get("wheelbase", 2.6) - info.get("cg_to_front_axle", 1.2)
+	seat_offset = Vector3(-0.36, eye_height - info.get("cg_height", 0.5), behind_cg)
 	hud = Hud.new()
 	add_child(hud)
 	hud.setup(sim)
@@ -144,8 +154,10 @@ func _process(delta: float) -> void:
 
 func _update_camera(car_xform: Transform3D, delta: float) -> void:
 	if cockpit_view:
-		camera.global_transform = car_xform * Transform3D(Basis.IDENTITY, Vector3(-0.35, 0.55, 0.3))
+		camera.global_transform = car_xform * Transform3D(Basis.IDENTITY, seat_offset)
+		car_view.set_cabin_visible(false)
 		return
+	car_view.set_cabin_visible(true)
 	# Chase camera: behind and above, easing toward its target.
 	var back := car_xform.basis.z
 	back.y = 0.0
