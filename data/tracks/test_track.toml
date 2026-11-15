@@ -1,0 +1,86 @@
+# SPDX-License-Identifier: CC-BY-4.0
+# Open tarmac proving ground for skidpad, braking and acceleration tests.
+# Original design, placeholder quality. Distances in metres.
+
+id = "test_track"
+name = "Proving Ground"
+description = "Flat tarmac with a timed strip, a 30 m skidpad circle, a kerb strip and a gravel patch."
+default_surface = "tarmac"
+air_temp_c = 20.0
+road_temp_c = 28.0
+ground_half_extent_m = 1300.0
+
+[spawn]
+x = 0.0
+y = 0.0
+heading_deg = 0.0
+
+[[paths]]
+id = "strip"
+start_x = 0.0
+start_y = 0.0
+start_heading_deg = 0.0
+segments = [{ kind = "straight", length_m = 1200.0 }]
+
+# Kerb strip to the right of the timed strip, for the force-feedback kerb
+# channel and wheel-hop behaviour.
+[[regions]]
+kind = "rect"
+surface = "kerb"
+center_x = 150.0
+center_y = -6.0
+half_length_m = 25.0
+half_width_m = 0.6
+ridges = { height_m = 0.025, pitch_m = 0.35 }
+
+# Loose patch to the left, for surface-change behaviour.
+[[regions]]
+kind = "rect"
+surface = "gravel"
+center_x = 150.0
+center_y = 14.0
+half_length_m = 30.0
+half_width_m = 5.0
+
+[[gates]]
+kind = "start"
+path = "strip"
+at_m = 5.0
+half_width_m = 4.0
+
+[[gates]]
+kind = "finish"
+path = "strip"
+at_m = 407.336
+half_width_m = 4.0
+
+[[markers]]
+kind = "circle"
+center_x = 0.0
+center_y = 60.0
+radius_m = 30.0
+label = "skidpad 30 m"
+
+[[markers]]
+kind = "line"
+x1 = 5.0
+y1 = -4.0
+x2 = 5.0
+y2 = 4.0
+label = "start"
+
+[[markers]]
+kind = "line"
+x1 = 407.336
+y1 = -4.0
+x2 = 407.336
+y2 = 4.0
+label = "quarter mile"
+
+[[markers]]
+kind = "line"
+x1 = 1005.0
+y1 = -4.0
+x2 = 1005.0
+y2 = 4.0
+label = "1000 m"

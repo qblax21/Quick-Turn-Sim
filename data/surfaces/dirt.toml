@@ -11,5 +11,5 @@ stiffness_scale = { value = 0.4, source = "first-pass guess for a soft verge", c
 falloff = { value = 0.1, source = "first-pass guess for a soft verge", confidence = "placeholder" }
 rolling_resistance_add = { value = 0.06, source = "first-pass guess for a soft verge", confidence = "placeholder" }
 plough_coefficient = { value = 0.18, source = "first-pass guess for a soft verge", confidence = "placeholder" }
-roughness_amplitude_m = { value = 0.012, source = "first-pass guess for a soft verge", confidence = "placeholder" }
-roughness_wavelength_m = { value = 0.8, source = "first-pass guess for a soft verge", confidence = "placeholder" }
+roughness_amplitude_m = { value = 0.008, source = "first-pass guess for a soft verge", confidence = "placeholder" }
+roughness_wavelength_m = { value = 0.9, source = "first-pass guess for a soft verge", confidence = "placeholder" }

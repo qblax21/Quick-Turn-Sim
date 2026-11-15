@@ -1,0 +1,72 @@
+# SPDX-License-Identifier: CC-BY-4.0
+# Short rally stage: about one kilometre of varied corners on gravel with a
+# change to tarmac for the final section. Original design, placeholder
+# quality. The gravel surface model is a first pass and is NOT tuned.
+
+id = "gravel_stage"
+name = "Quarry Road Stage"
+description = "About 1 km: gravel with fast and tight corners, then tarmac to the finish. Soft verge off the road."
+default_surface = "dirt"
+air_temp_c = 16.0
+road_temp_c = 18.0
+ground_half_extent_m = 700.0
+
+[spawn]
+x = 3.0
+y = 0.0
+heading_deg = 0.0
+
+[[paths]]
+id = "stage"
+start_x = 0.0
+start_y = 0.0
+start_heading_deg = 0.0
+segments = [
+    { kind = "straight", length_m = 70.0 },
+    { kind = "arc", radius_m = 40.0, angle_deg = 60.0 },
+    { kind = "straight", length_m = 45.0 },
+    { kind = "arc", radius_m = 25.0, angle_deg = -100.0 },
+    { kind = "straight", length_m = 55.0 },
+    { kind = "arc", radius_m = 18.0, angle_deg = 110.0 },
+    { kind = "straight", length_m = 35.0 },
+    { kind = "arc", radius_m = 60.0, angle_deg = -50.0 },
+    { kind = "straight", length_m = 85.0 },
+    { kind = "arc", radius_m = 30.0, angle_deg = 80.0 },
+    { kind = "straight", length_m = 50.0 },
+    { kind = "arc", radius_m = 22.0, angle_deg = -120.0 },
+    { kind = "straight", length_m = 65.0 },
+    { kind = "arc", radius_m = 45.0, angle_deg = 70.0 },
+    { kind = "straight", length_m = 75.0 },
+    { kind = "arc", radius_m = 35.0, angle_deg = -60.0 },
+    { kind = "straight", length_m = 55.0 },
+    { kind = "arc", radius_m = 28.0, angle_deg = 90.0 },
+    { kind = "straight", length_m = 70.0 },
+]
+
+[[regions]]
+kind = "path"
+surface = "gravel"
+path = "stage"
+from_m = 0.0
+to_m = 760.0
+half_width_m = 3.2
+
+[[regions]]
+kind = "path"
+surface = "tarmac"
+path = "stage"
+from_m = 760.0
+to_m = 2000.0
+half_width_m = 3.2
+
+[[gates]]
+kind = "start"
+path = "stage"
+at_m = 12.0
+half_width_m = 3.2
+
+[[gates]]
+kind = "finish"
+path = "stage"
+at_m = 985.0
+half_width_m = 3.2

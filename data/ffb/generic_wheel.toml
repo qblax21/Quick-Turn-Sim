@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: CC-BY-4.0
+# Force-feedback preset for an unknown wheel.
+#
+# UNTUNED. Cautious values for a wheel whose torque is not known. It has NOT
+# been tried on any hardware. The output sign (`invert`) is unverified: use
+# the sign check in the wheel setup screen before driving.
+
+id = "generic_wheel"
+name = "Generic wheel (untuned)"
+description = "Cautious defaults for an unknown force-feedback wheel. Not tuned."
+tuned = false
+invert = false
+
+device_max_torque_nm = { value = 5.0, source = "guess for an unknown mid-range wheel", confidence = "placeholder" }
+device_rotation_rad = { value = 15.708, source = "assumes the wheel is set to 900 degrees of rotation", confidence = "placeholder" }
+gain = { value = 0.20, source = "deliberately low for an unknown wheel", confidence = "placeholder" }
+lowpass_cutoff_hz = { value = 60.0, source = "light smoothing, first guess", confidence = "placeholder" }
+slew_limit_nm_per_s = { value = 600.0, source = "limits spikes without dulling steering, first guess", confidence = "placeholder" }
+soft_clip_knee = { value = 0.75, source = "start compressing at three quarters of full output", confidence = "placeholder" }
+damping_nm_s_per_rad = { value = 0.03, source = "small added damping against oscillation, first guess", confidence = "placeholder" }
+friction_nm = { value = 0.0, source = "no added friction", confidence = "placeholder" }
+friction_smoothing_rad_per_s = { value = 0.5, source = "smoothing speed for the friction effect", confidence = "placeholder" }
+inertia_nm_s2_per_rad = { value = 0.0, source = "no added inertia", confidence = "placeholder" }
+velocity_filter_hz = { value = 30.0, source = "filter on measured wheel velocity, first guess", confidence = "placeholder" }
+road_detail_gain_nm_per_n = { value = 0.0003, source = "first guess", confidence = "placeholder" }
+kerb_gain_nm_per_n = { value = 0.0015, source = "first guess", confidence = "placeholder" }
+detail_highpass_hz = { value = 10.0, source = "keeps steady cornering load out of the detail channels", confidence = "placeholder" }
+detail_limit_nm = { value = 1.0, source = "ceiling on the detail channels", confidence = "placeholder" }
+device_update_rate_hz = { value = 250.0, source = "cautious rate for an unknown device", confidence = "placeholder" }

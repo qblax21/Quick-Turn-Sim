@@ -178,3 +178,61 @@ every parameter that could drift apart.
 The tire deflection state stores elastic energy only while the tire is not
 sliding. Counting it produced false energy gains on a frictionless
 surface, so the energy checks leave it out.
+
+## D-026 Dependencies, and why each one is there
+
+- `serde` (derive) and `toml`: parsing data files at load time. Never used
+  inside a simulation step.
+- `windows` 0.58, Windows only, `qts-ffb` only: typed bindings for the
+  DirectInput COM interfaces. Hand-written vtables were the alternative and
+  were judged riskier than a generated binding. Version 0.58 is pinned on
+  purpose: later versions link through `raw-dylib`, which on the GNU Windows
+  toolchain needs a working `dlltool` that a plain rustup install does not
+  provide. 0.58 ships prebuilt import libraries and builds on both the MSVC
+  and GNU toolchains with nothing extra installed.
+- `godot` (gdext), `qts-godot` only: the GDExtension binding.
+
+Nothing else is depended on directly. There is no linear-algebra, logging,
+command-line, error-handling or serialization crate in the simulation path.
+
+## D-027 Development toolchain on Windows is GNU; MSVC also supported
+
+The development machine had Visual Studio without a Windows SDK, so the
+MSVC Rust target could not link. The `x86_64-pc-windows-gnu` toolchain
+carries its own linker and needs nothing else. The code does not depend on
+the choice; CI builds with MSVC on Windows and on Linux.
+
+## D-028 Frame-rate input is ramped, not stepped
+
+The front end samples input once per rendered frame, but physics runs at
+1000 Hz. Feeding each new value as a step would hit the tires with a
+staircase and show up as grain in the force feedback. The real-time host
+spreads each change over the interval since the previous input update
+(capped at 50 ms). This adds up to one frame of latency to analog inputs
+when read through the front end.
+
+## D-029 Optional direct steering from the wheel at the physics rate
+
+When a force-feedback device is open, the host can take the steering angle
+straight from it every device update, mapping wheel rotation one-to-one onto
+the car's steering wheel. This avoids the frame of latency in D-028 for the
+input that matters most. It is off by default because it has not been tried
+on hardware.
+
+## D-030 Opening a device briefly stalls the sim thread
+
+DirectInput device enumeration takes a few hundred milliseconds. The device
+is opened on the sim thread because that thread is the only one that uses
+it, so the simulation pauses for that long when a device is selected in the
+menu. The fixed-step driver bounds the catch-up afterwards.
+
+## D-031 Timing gates trigger in either direction
+
+A gate fires when the car's centre crosses its line, whichever way it is
+travelling (simplest option). Driving backwards through the finish counts.
+
+## D-032 Cones are detected, not simulated
+
+A cone is knocked down when the car's body outline overlaps it. It has no
+mass and does not move the car. The count is part of the deterministic
+state.

@@ -1,0 +1,973 @@
+// SPDX-License-Identifier: Apache-2.0
+//! Tracks: surface map, paths, cones and timing gates.
+//!
+//! A track file describes a flat world: a default surface, regions that
+//! override it (rectangles, circles, and strips along a path), cones, and
+//! timing gates. The ground is flat apart from surface roughness and the
+//! ridge profile a region may carry (used for kerbs); elevation is not
+//! modelled yet (see `DECISIONS.md`, D-015).
+//!
+//! Everything here is a pure function of position, as the determinism rules
+//! require: no caches that depend on query order.
+
+use qts_core::math::{fm, lattice_noise_2d};
+use qts_tire::SurfaceParams;
+use qts_vehicle::{Ground, GroundSample};
+use serde::Deserialize;
+
+/// Spacing of points along a generated path, m.
+const PATH_STEP_M: f64 = 1.0;
+/// Largest heading change between path points on an arc, rad.
+const PATH_STEP_RAD: f64 = 0.05;
+/// Path segments per bounding-box chunk.
+const CHUNK: usize = 16;
+/// Radius of a cone base, m.
+pub const CONE_RADIUS_M: f64 = 0.14;
+
+/// A track file, as written in `data/tracks`.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct TrackDef {
+    /// Identifier, equal to the file stem.
+    pub id: String,
+    /// Display name.
+    pub name: String,
+    /// Free-text description.
+    #[serde(default)]
+    pub description: String,
+    /// Surface everywhere no region applies.
+    pub default_surface: String,
+    /// Air temperature for the session, °C.
+    pub air_temp_c: f64,
+    /// Road surface temperature for the session, °C.
+    pub road_temp_c: f64,
+    /// Half-size of the square of ground worth drawing, m.
+    pub ground_half_extent_m: f64,
+    /// Where the car starts.
+    pub spawn: SpawnDef,
+    /// Paths built from straights and arcs.
+    #[serde(default)]
+    pub paths: Vec<PathDef>,
+    /// Surface regions; later entries win where they overlap.
+    #[serde(default)]
+    pub regions: Vec<RegionDef>,
+    /// Individually placed cones.
+    #[serde(default)]
+    pub cones: Vec<ConeDef>,
+    /// Cones placed in pairs along a path.
+    #[serde(default)]
+    pub cone_pairs: Vec<ConePairsDef>,
+    /// Timing gates.
+    #[serde(default)]
+    pub gates: Vec<GateDef>,
+    /// Painted markings, for drawing only.
+    #[serde(default)]
+    pub markers: Vec<MarkerDef>,
+}
+
+/// Start position and heading.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SpawnDef {
+    /// World x, m.
+    pub x: f64,
+    /// World y, m.
+    pub y: f64,
+    /// Heading, degrees counter-clockwise from the x axis.
+    pub heading_deg: f64,
+}
+
+/// A path made of straights and arcs.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PathDef {
+    /// Name used by regions, cone rows and gates.
+    pub id: String,
+    /// Start x, m.
+    pub start_x: f64,
+    /// Start y, m.
+    pub start_y: f64,
+    /// Start heading, degrees.
+    pub start_heading_deg: f64,
+    /// Segments in order.
+    pub segments: Vec<SegmentDef>,
+}
+
+/// One path segment.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum SegmentDef {
+    /// A straight.
+    Straight {
+        /// Length, m.
+        length_m: f64,
+    },
+    /// A circular arc. Positive angles turn left.
+    Arc {
+        /// Radius, m.
+        radius_m: f64,
+        /// Signed turn angle, degrees.
+        angle_deg: f64,
+    },
+}
+
+/// Height profile a rectangular region may carry.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct RidgeProfile {
+    /// Peak height of the ridges, m.
+    pub height_m: f64,
+    /// Distance between ridge peaks along the region's length, m.
+    pub pitch_m: f64,
+}
+
+/// A surface region.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum RegionDef {
+    /// An oriented rectangle.
+    Rect {
+        /// Surface identifier.
+        surface: String,
+        /// Centre x, m.
+        center_x: f64,
+        /// Centre y, m.
+        center_y: f64,
+        /// Half extent along the heading, m.
+        half_length_m: f64,
+        /// Half extent across the heading, m.
+        half_width_m: f64,
+        /// Heading of the long axis, degrees.
+        #[serde(default)]
+        heading_deg: f64,
+        /// Optional ridge profile along the long axis.
+        #[serde(default)]
+        ridges: Option<RidgeProfile>,
+    },
+    /// A disc.
+    Circle {
+        /// Surface identifier.
+        surface: String,
+        /// Centre x, m.
+        center_x: f64,
+        /// Centre y, m.
+        center_y: f64,
+        /// Radius, m.
+        radius_m: f64,
+    },
+    /// A strip of constant half-width along part of a path.
+    Path {
+        /// Surface identifier.
+        surface: String,
+        /// Path name.
+        path: String,
+        /// Start distance along the path, m.
+        from_m: f64,
+        /// End distance along the path, m.
+        to_m: f64,
+        /// Half width, m.
+        half_width_m: f64,
+    },
+}
+
+/// One cone.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ConeDef {
+    /// World x, m.
+    pub x: f64,
+    /// World y, m.
+    pub y: f64,
+}
+
+/// Pairs of cones either side of a path.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ConePairsDef {
+    /// Path name.
+    pub path: String,
+    /// First pair at this distance along the path, m.
+    pub from_m: f64,
+    /// No pair beyond this distance, m.
+    pub to_m: f64,
+    /// Distance between pairs, m.
+    pub spacing_m: f64,
+    /// Distance of each cone from the path, m.
+    pub half_width_m: f64,
+}
+
+/// What crossing a gate does.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum GateKind {
+    /// Starts a timed run.
+    Start,
+    /// Ends a timed run.
+    Finish,
+    /// Ends the current lap and starts the next.
+    StartFinish,
+}
+
+/// A timing gate across a path.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct GateDef {
+    /// What crossing it does.
+    pub kind: GateKind,
+    /// Path the gate sits on.
+    pub path: String,
+    /// Distance along the path, m.
+    pub at_m: f64,
+    /// Half width of the gate, m.
+    pub half_width_m: f64,
+}
+
+/// A painted marking. Has no effect on the simulation.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum MarkerDef {
+    /// A painted circle.
+    Circle {
+        /// Centre x, m.
+        center_x: f64,
+        /// Centre y, m.
+        center_y: f64,
+        /// Radius, m.
+        radius_m: f64,
+        /// Caption.
+        #[serde(default)]
+        label: String,
+    },
+    /// A painted line.
+    Line {
+        /// Start x, m.
+        x1: f64,
+        /// Start y, m.
+        y1: f64,
+        /// End x, m.
+        x2: f64,
+        /// End y, m.
+        y2: f64,
+        /// Caption.
+        #[serde(default)]
+        label: String,
+    },
+}
+
+/// A path expanded into a polyline.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PathGeom {
+    /// Name.
+    pub id: String,
+    /// Points along the path.
+    pub points: Vec<[f64; 2]>,
+    /// Distance along the path at each point, m.
+    pub s: Vec<f64>,
+    /// Heading at each point, rad.
+    pub heading: Vec<f64>,
+    /// Bounding box `[min_x, min_y, max_x, max_y]` of each chunk of
+    /// segments.
+    chunks: Vec<[f64; 4]>,
+}
+
+impl PathGeom {
+    fn build(def: &PathDef) -> Result<Self, String> {
+        let mut x = def.start_x;
+        let mut y = def.start_y;
+        let mut heading = def.start_heading_deg.to_radians();
+        let mut dist = 0.0;
+        let mut points = vec![[x, y]];
+        let mut s = vec![0.0];
+        let mut headings = vec![heading];
+        for seg in &def.segments {
+            match *seg {
+                SegmentDef::Straight { length_m } => {
+                    if !(length_m.is_finite() && length_m > 0.0) {
+                        return Err(format!(
+                            "path `{}`: straight length must be positive",
+                            def.id
+                        ));
+                    }
+                    let n = (length_m / PATH_STEP_M).ceil().max(1.0) as usize;
+                    let step = length_m / n as f64;
+                    for _ in 0..n {
+                        x += step * fm::cos(heading);
+                        y += step * fm::sin(heading);
+                        dist += step;
+                        points.push([x, y]);
+                        s.push(dist);
+                        headings.push(heading);
+                    }
+                }
+                SegmentDef::Arc {
+                    radius_m,
+                    angle_deg,
+                } => {
+                    if !(radius_m.is_finite() && radius_m > 0.0)
+                        || !angle_deg.is_finite()
+                        || angle_deg == 0.0
+                    {
+                        return Err(format!(
+                            "path `{}`: arc needs a positive radius and a non-zero angle",
+                            def.id
+                        ));
+                    }
+                    let angle = angle_deg.to_radians();
+                    let length = radius_m * angle.abs();
+                    let n = (length / PATH_STEP_M)
+                        .ceil()
+                        .max((angle.abs() / PATH_STEP_RAD).ceil())
+                        .max(1.0) as usize;
+                    let dtheta = angle / n as f64;
+                    // Each step is a chord of the arc.
+                    let chord = 2.0 * radius_m * fm::sin(0.5 * dtheta.abs());
+                    for _ in 0..n {
+                        let mid = heading + 0.5 * dtheta;
+                        x += chord * fm::cos(mid);
+                        y += chord * fm::sin(mid);
+                        heading += dtheta;
+                        dist += radius_m * dtheta.abs();
+                        points.push([x, y]);
+                        s.push(dist);
+                        headings.push(heading);
+                    }
+                }
+            }
+        }
+        if points.len() < 2 {
+            return Err(format!("path `{}` has no segments", def.id));
+        }
+        let mut chunks = Vec::new();
+        let segments = points.len() - 1;
+        let mut first = 0;
+        while first < segments {
+            let last = (first + CHUNK).min(segments);
+            let mut b = [
+                f64::INFINITY,
+                f64::INFINITY,
+                f64::NEG_INFINITY,
+                f64::NEG_INFINITY,
+            ];
+            for p in &points[first..=last] {
+                b[0] = b[0].min(p[0]);
+                b[1] = b[1].min(p[1]);
+                b[2] = b[2].max(p[0]);
+                b[3] = b[3].max(p[1]);
+            }
+            chunks.push(b);
+            first = last;
+        }
+        Ok(Self {
+            id: def.id.clone(),
+            points,
+            s,
+            heading: headings,
+            chunks,
+        })
+    }
+
+    /// Total length, m.
+    pub fn length(&self) -> f64 {
+        *self.s.last().unwrap_or(&0.0)
+    }
+
+    /// Position and heading at distance `dist` along the path, clamped to
+    /// its ends.
+    pub fn at(&self, dist: f64) -> ([f64; 2], f64) {
+        let d = dist.clamp(0.0, self.length());
+        // Binary search for the segment containing `d`.
+        let mut lo = 0usize;
+        let mut hi = self.s.len() - 1;
+        while hi - lo > 1 {
+            let mid = (lo + hi) / 2;
+            if self.s[mid] <= d {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        let span = self.s[hi] - self.s[lo];
+        let t = if span > 0.0 {
+            (d - self.s[lo]) / span
+        } else {
+            0.0
+        };
+        let a = self.points[lo];
+        let b = self.points[hi];
+        (
+            [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t],
+            self.heading[lo] + (self.heading[hi] - self.heading[lo]) * t,
+        )
+    }
+
+    /// Closest point on the part of the path between `from` and `to`:
+    /// returns `(distance along the path, signed lateral offset)` with the
+    /// offset positive to the left of the path direction, or `None` if
+    /// nothing in range lies within `max_offset`.
+    pub fn project(
+        &self,
+        x: f64,
+        y: f64,
+        from: f64,
+        to: f64,
+        max_offset: f64,
+    ) -> Option<(f64, f64)> {
+        let mut best: Option<(f64, f64, f64)> = None; // (dist², s, signed offset)
+        let limit2 = max_offset * max_offset;
+        for (c, b) in self.chunks.iter().enumerate() {
+            if x < b[0] - max_offset
+                || x > b[2] + max_offset
+                || y < b[1] - max_offset
+                || y > b[3] + max_offset
+            {
+                continue;
+            }
+            let first = c * CHUNK;
+            let last = (first + CHUNK).min(self.points.len() - 1);
+            for i in first..last {
+                if self.s[i + 1] < from || self.s[i] > to {
+                    continue;
+                }
+                let a = self.points[i];
+                let p = self.points[i + 1];
+                let (dx, dy) = (p[0] - a[0], p[1] - a[1]);
+                let len2 = dx * dx + dy * dy;
+                if len2 <= 0.0 {
+                    continue;
+                }
+                let t = (((x - a[0]) * dx + (y - a[1]) * dy) / len2).clamp(0.0, 1.0);
+                let along = self.s[i] + t * (self.s[i + 1] - self.s[i]);
+                if along < from || along > to {
+                    continue;
+                }
+                let (ox, oy) = (x - (a[0] + t * dx), y - (a[1] + t * dy));
+                let d2 = ox * ox + oy * oy;
+                if d2 <= limit2 && best.is_none_or(|b| d2 < b.0) {
+                    let side = if dx * oy - dy * ox >= 0.0 { 1.0 } else { -1.0 };
+                    best = Some((d2, along, side * fm::sqrt(d2)));
+                }
+            }
+        }
+        best.map(|(_, along, offset)| (along, offset))
+    }
+}
+
+#[derive(Clone, Debug)]
+enum Region {
+    Rect {
+        cx: f64,
+        cy: f64,
+        cos: f64,
+        sin: f64,
+        half_length: f64,
+        half_width: f64,
+        surface: u16,
+        ridges: Option<RidgeProfile>,
+    },
+    Circle {
+        cx: f64,
+        cy: f64,
+        radius2: f64,
+        surface: u16,
+    },
+    Path {
+        path: usize,
+        from: f64,
+        to: f64,
+        half_width: f64,
+        surface: u16,
+    },
+}
+
+/// A timing gate as a line segment.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Gate {
+    /// What crossing it does.
+    pub kind: GateKind,
+    /// One end.
+    pub a: [f64; 2],
+    /// The other end.
+    pub b: [f64; 2],
+}
+
+/// A track ready for simulation.
+#[derive(Clone, Debug)]
+pub struct Track {
+    def: TrackDef,
+    surfaces: Vec<SurfaceParams>,
+    default_surface: u16,
+    regions: Vec<Region>,
+    paths: Vec<PathGeom>,
+    cones: Vec<[f64; 2]>,
+    gates: Vec<Gate>,
+}
+
+fn find_surface(surfaces: &[SurfaceParams], id: &str, track: &str) -> Result<u16, String> {
+    surfaces
+        .iter()
+        .position(|s| s.id == id)
+        .map(|i| i as u16)
+        .ok_or_else(|| format!("track `{track}` uses unknown surface `{id}`"))
+}
+
+impl Track {
+    /// Builds a track from its definition and the session's surface table.
+    pub fn new(def: TrackDef, surfaces: Vec<SurfaceParams>) -> Result<Self, String> {
+        if surfaces.is_empty() || surfaces.len() > usize::from(u16::MAX) {
+            return Err("a track needs between 1 and 65535 surfaces".into());
+        }
+        let default_surface = find_surface(&surfaces, &def.default_surface, &def.id)?;
+        let mut paths = Vec::new();
+        for p in &def.paths {
+            if paths.iter().any(|g: &PathGeom| g.id == p.id) {
+                return Err(format!("track `{}` defines path `{}` twice", def.id, p.id));
+            }
+            paths.push(PathGeom::build(p)?);
+        }
+        let path_index = |name: &str| {
+            paths
+                .iter()
+                .position(|g| g.id == name)
+                .ok_or_else(|| format!("track `{}` refers to unknown path `{name}`", def.id))
+        };
+        let mut regions = Vec::new();
+        for r in &def.regions {
+            regions.push(match r {
+                RegionDef::Rect {
+                    surface,
+                    center_x,
+                    center_y,
+                    half_length_m,
+                    half_width_m,
+                    heading_deg,
+                    ridges,
+                } => {
+                    if let Some(p) = ridges {
+                        if !(p.pitch_m > 0.0 && p.height_m >= 0.0) {
+                            return Err(format!(
+                                "track `{}`: ridge profile needs a positive pitch",
+                                def.id
+                            ));
+                        }
+                    }
+                    let h = heading_deg.to_radians();
+                    Region::Rect {
+                        cx: *center_x,
+                        cy: *center_y,
+                        cos: fm::cos(h),
+                        sin: fm::sin(h),
+                        half_length: *half_length_m,
+                        half_width: *half_width_m,
+                        surface: find_surface(&surfaces, surface, &def.id)?,
+                        ridges: *ridges,
+                    }
+                }
+                RegionDef::Circle {
+                    surface,
+                    center_x,
+                    center_y,
+                    radius_m,
+                } => Region::Circle {
+                    cx: *center_x,
+                    cy: *center_y,
+                    radius2: radius_m * radius_m,
+                    surface: find_surface(&surfaces, surface, &def.id)?,
+                },
+                RegionDef::Path {
+                    surface,
+                    path,
+                    from_m,
+                    to_m,
+                    half_width_m,
+                } => Region::Path {
+                    path: path_index(path)?,
+                    from: *from_m,
+                    to: *to_m,
+                    half_width: *half_width_m,
+                    surface: find_surface(&surfaces, surface, &def.id)?,
+                },
+            });
+        }
+        let mut cones: Vec<[f64; 2]> = def.cones.iter().map(|c| [c.x, c.y]).collect();
+        for row in &def.cone_pairs {
+            if row.spacing_m.is_nan() || row.spacing_m <= 0.0 {
+                return Err(format!("track `{}`: cone spacing must be positive", def.id));
+            }
+            let geom = &paths[path_index(&row.path)?];
+            let end = row.to_m.min(geom.length());
+            let mut d = row.from_m;
+            while d <= end + 1e-9 {
+                let (p, h) = geom.at(d);
+                let (nx, ny) = (-fm::sin(h), fm::cos(h));
+                cones.push([p[0] + nx * row.half_width_m, p[1] + ny * row.half_width_m]);
+                cones.push([p[0] - nx * row.half_width_m, p[1] - ny * row.half_width_m]);
+                d += row.spacing_m;
+            }
+        }
+        let mut gates = Vec::new();
+        for g in &def.gates {
+            let geom = &paths[path_index(&g.path)?];
+            let (p, h) = geom.at(g.at_m);
+            let (nx, ny) = (-fm::sin(h), fm::cos(h));
+            gates.push(Gate {
+                kind: g.kind,
+                a: [p[0] + nx * g.half_width_m, p[1] + ny * g.half_width_m],
+                b: [p[0] - nx * g.half_width_m, p[1] - ny * g.half_width_m],
+            });
+        }
+        Ok(Self {
+            def,
+            surfaces,
+            default_surface,
+            regions,
+            paths,
+            cones,
+            gates,
+        })
+    }
+
+    /// The definition this track was built from.
+    pub fn def(&self) -> &TrackDef {
+        &self.def
+    }
+
+    /// The session's surface table; a surface index points into it.
+    pub fn surfaces(&self) -> &[SurfaceParams] {
+        &self.surfaces
+    }
+
+    /// All paths.
+    pub fn paths(&self) -> &[PathGeom] {
+        &self.paths
+    }
+
+    /// A path by name.
+    pub fn path(&self, id: &str) -> Option<&PathGeom> {
+        self.paths.iter().find(|p| p.id == id)
+    }
+
+    /// Cone positions.
+    pub fn cones(&self) -> &[[f64; 2]] {
+        &self.cones
+    }
+
+    /// Timing gates.
+    pub fn gates(&self) -> &[Gate] {
+        &self.gates
+    }
+
+    /// Spawn position and heading in radians.
+    pub fn spawn(&self) -> (f64, f64, f64) {
+        (
+            self.def.spawn.x,
+            self.def.spawn.y,
+            self.def.spawn.heading_deg.to_radians(),
+        )
+    }
+
+    /// Surface index and ridge height at a point, ignoring roughness.
+    pub fn surface_at(&self, x: f64, y: f64) -> (u16, f64) {
+        let mut surface = self.default_surface;
+        let mut ridge = 0.0;
+        for region in &self.regions {
+            match region {
+                Region::Rect {
+                    cx,
+                    cy,
+                    cos,
+                    sin,
+                    half_length,
+                    half_width,
+                    surface: s,
+                    ridges,
+                } => {
+                    let (dx, dy) = (x - cx, y - cy);
+                    let u = dx * cos + dy * sin;
+                    let v = -dx * sin + dy * cos;
+                    if u.abs() <= *half_length && v.abs() <= *half_width {
+                        surface = *s;
+                        ridge = match ridges {
+                            Some(p) => {
+                                let phase = (u / p.pitch_m).rem_euclid(1.0);
+                                p.height_m * (1.0 - (2.0 * phase - 1.0).abs())
+                            }
+                            None => 0.0,
+                        };
+                    }
+                }
+                Region::Circle {
+                    cx,
+                    cy,
+                    radius2,
+                    surface: s,
+                } => {
+                    let (dx, dy) = (x - cx, y - cy);
+                    if dx * dx + dy * dy <= *radius2 {
+                        surface = *s;
+                        ridge = 0.0;
+                    }
+                }
+                Region::Path {
+                    path,
+                    from,
+                    to,
+                    half_width,
+                    surface: s,
+                } => {
+                    if self.paths[*path]
+                        .project(x, y, *from, *to, *half_width)
+                        .is_some()
+                    {
+                        surface = *s;
+                        ridge = 0.0;
+                    }
+                }
+            }
+        }
+        (surface, ridge)
+    }
+}
+
+impl Ground for Track {
+    fn sample(&self, x: f64, y: f64) -> GroundSample<'_> {
+        let (index, ridge) = self.surface_at(x, y);
+        let surface = &self.surfaces[usize::from(index)];
+        let rough = if surface.roughness_amplitude_m > 0.0 {
+            let k = 1.0 / surface.roughness_wavelength_m;
+            surface.roughness_amplitude_m * lattice_noise_2d(x * k, y * k)
+        } else {
+            0.0
+        };
+        GroundSample {
+            height: ridge + rough,
+            surface,
+            surface_index: index,
+        }
+    }
+}
+
+/// True if segment `p0→p1` crosses segment `a→b`.
+pub fn segments_cross(p0: [f64; 2], p1: [f64; 2], a: [f64; 2], b: [f64; 2]) -> bool {
+    fn orient(a: [f64; 2], b: [f64; 2], c: [f64; 2]) -> f64 {
+        (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+    }
+    let d1 = orient(a, b, p0);
+    let d2 = orient(a, b, p1);
+    let d3 = orient(p0, p1, a);
+    let d4 = orient(p0, p1, b);
+    // Strict on the travelling segment's start so a point resting exactly on
+    // the gate line does not trigger every tick.
+    ((d1 < 0.0 && d2 >= 0.0) || (d1 > 0.0 && d2 <= 0.0))
+        && ((d3 <= 0.0 && d4 >= 0.0) || (d3 >= 0.0 && d4 <= 0.0))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use qts_tire::test_support::{gravel, tarmac};
+
+    fn def(text: &str) -> TrackDef {
+        toml::from_str(text).unwrap()
+    }
+
+    const BASE: &str = r#"
+        id = "t"
+        name = "Test"
+        default_surface = "tarmac"
+        air_temp_c = 20.0
+        road_temp_c = 25.0
+        ground_half_extent_m = 100.0
+        [spawn]
+        x = 0.0
+        y = 0.0
+        heading_deg = 90.0
+    "#;
+
+    fn surfaces() -> Vec<SurfaceParams> {
+        vec![gravel(), tarmac()]
+    }
+
+    #[test]
+    fn path_follows_straights_and_arcs() {
+        let d = def(&format!(
+            r#"{BASE}
+            [[paths]]
+            id = "p"
+            start_x = 0.0
+            start_y = 0.0
+            start_heading_deg = 0.0
+            segments = [
+                {{ kind = "straight", length_m = 10.0 }},
+                {{ kind = "arc", radius_m = 20.0, angle_deg = 90.0 }},
+                {{ kind = "arc", radius_m = 10.0, angle_deg = -90.0 }},
+            ]
+            "#
+        ));
+        let track = Track::new(d, surfaces()).unwrap();
+        let p = track.path("p").unwrap();
+        let expected_len =
+            10.0 + 20.0 * std::f64::consts::FRAC_PI_2 + 10.0 * std::f64::consts::FRAC_PI_2;
+        assert!((p.length() - expected_len).abs() < 1e-9);
+        // After the left arc: (10 + 20, 20) heading north. After the right
+        // arc of radius 10: (40, 30) heading east.
+        let (end, heading) = p.at(p.length());
+        assert!(
+            (end[0] - 40.0).abs() < 1e-6 && (end[1] - 30.0).abs() < 1e-6,
+            "{end:?}"
+        );
+        assert!(heading.abs() < 1e-9);
+        let (mid, h) = p.at(5.0);
+        assert!((mid[0] - 5.0).abs() < 1e-9 && mid[1].abs() < 1e-9 && h == 0.0);
+    }
+
+    #[test]
+    fn projection_gives_distance_and_signed_offset() {
+        let d = def(&format!(
+            r#"{BASE}
+            [[paths]]
+            id = "p"
+            start_x = 0.0
+            start_y = 0.0
+            start_heading_deg = 0.0
+            segments = [{{ kind = "straight", length_m = 100.0 }}]
+            "#
+        ));
+        let track = Track::new(d, surfaces()).unwrap();
+        let p = track.path("p").unwrap();
+        let (s, off) = p.project(42.3, 1.5, 0.0, 100.0, 5.0).unwrap();
+        assert!((s - 42.3).abs() < 1e-9 && (off - 1.5).abs() < 1e-9);
+        let (_, off) = p.project(42.3, -2.0, 0.0, 100.0, 5.0).unwrap();
+        assert!((off + 2.0).abs() < 1e-9);
+        assert!(p.project(42.3, 6.0, 0.0, 100.0, 5.0).is_none());
+        assert!(p.project(42.3, 1.0, 50.0, 100.0, 5.0).is_none());
+    }
+
+    #[test]
+    fn later_regions_override_earlier_ones_and_the_default() {
+        let d = def(&format!(
+            r#"{BASE}
+            [[paths]]
+            id = "road"
+            start_x = 0.0
+            start_y = 50.0
+            start_heading_deg = 0.0
+            segments = [{{ kind = "straight", length_m = 100.0 }}]
+            [[regions]]
+            kind = "rect"
+            surface = "gravel"
+            center_x = 0.0
+            center_y = 0.0
+            half_length_m = 10.0
+            half_width_m = 5.0
+            heading_deg = 90.0
+            [[regions]]
+            kind = "circle"
+            surface = "tarmac"
+            center_x = 0.0
+            center_y = 8.0
+            radius_m = 3.0
+            [[regions]]
+            kind = "path"
+            surface = "gravel"
+            path = "road"
+            from_m = 20.0
+            to_m = 60.0
+            half_width_m = 3.0
+            "#
+        ));
+        let track = Track::new(d, surfaces()).unwrap();
+        let name = |x, y| track.sample(x, y).surface.id.clone();
+        assert_eq!(name(50.0, -50.0), "tarmac"); // default
+        assert_eq!(name(4.0, 0.0), "gravel"); // inside the rotated rect
+        assert_eq!(name(6.0, 0.0), "tarmac"); // outside its width
+        assert_eq!(name(0.0, 9.0), "tarmac"); // circle painted over the rect
+        assert_eq!(name(0.0, 4.0), "gravel"); // rect outside the circle
+        assert_eq!(name(40.0, 52.0), "gravel"); // on the path strip
+        assert_eq!(name(40.0, 54.0), "tarmac"); // beside it
+        assert_eq!(name(10.0, 50.0), "tarmac"); // before the strip starts
+    }
+
+    #[test]
+    fn ridges_raise_the_ground_and_roughness_is_repeatable() {
+        let d = def(&format!(
+            r#"{BASE}
+            [[regions]]
+            kind = "rect"
+            surface = "tarmac"
+            center_x = 0.0
+            center_y = 0.0
+            half_length_m = 10.0
+            half_width_m = 1.0
+            ridges = {{ height_m = 0.03, pitch_m = 0.5 }}
+            "#
+        ));
+        let track = Track::new(d, surfaces()).unwrap();
+        assert!((track.sample(0.25, 0.0).height - 0.03).abs() < 1e-12);
+        assert!(track.sample(0.5, 0.0).height.abs() < 1e-12);
+        assert_eq!(track.sample(0.25, 5.0).height, 0.0);
+        // Gravel is rough; the same point always returns the same height.
+        let mut s = surfaces();
+        s[1].roughness_amplitude_m = 0.004;
+        let d2 = def(BASE);
+        let rough = Track::new(d2, s).unwrap();
+        let h1 = rough.sample(3.3, -7.1).height;
+        assert_eq!(h1, rough.sample(3.3, -7.1).height);
+        assert!(h1.abs() <= 0.004);
+    }
+
+    #[test]
+    fn cone_pairs_and_gates_are_placed_across_the_path() {
+        let d = def(&format!(
+            r#"{BASE}
+            [[paths]]
+            id = "p"
+            start_x = 0.0
+            start_y = 0.0
+            start_heading_deg = 0.0
+            segments = [{{ kind = "straight", length_m = 30.0 }}]
+            [[cone_pairs]]
+            path = "p"
+            from_m = 0.0
+            to_m = 30.0
+            spacing_m = 10.0
+            half_width_m = 2.0
+            [[cones]]
+            x = 5.0
+            y = 0.0
+            [[gates]]
+            kind = "start"
+            path = "p"
+            at_m = 15.0
+            half_width_m = 3.0
+            "#
+        ));
+        let track = Track::new(d, surfaces()).unwrap();
+        assert_eq!(track.cones().len(), 1 + 2 * 4);
+        assert!(track.cones().contains(&[10.0, 2.0]));
+        assert!(track.cones().contains(&[10.0, -2.0]));
+        let g = track.gates()[0];
+        assert!((g.a[0] - 15.0).abs() < 1e-9 && (g.a[1] - 3.0).abs() < 1e-9);
+        assert!((g.b[1] + 3.0).abs() < 1e-9);
+        assert!(segments_cross([14.9, 0.5], [15.1, 0.5], g.a, g.b));
+        assert!(!segments_cross([14.9, 4.0], [15.1, 4.0], g.a, g.b));
+        assert!(!segments_cross([14.0, 0.5], [14.9, 0.5], g.a, g.b));
+        // Resting on the line does not count as a crossing.
+        assert!(!segments_cross([15.0, 0.5], [15.0, 0.5], g.a, g.b));
+    }
+
+    #[test]
+    fn unknown_names_are_reported() {
+        let d = def(&BASE.replace("\"tarmac\"", "\"sand\""));
+        assert!(Track::new(d, surfaces()).unwrap_err().contains("sand"));
+        let d = def(&format!(
+            r#"{BASE}
+            [[gates]]
+            kind = "finish"
+            path = "nowhere"
+            at_m = 1.0
+            half_width_m = 1.0
+            "#
+        ));
+        assert!(Track::new(d, surfaces()).unwrap_err().contains("nowhere"));
+    }
+}

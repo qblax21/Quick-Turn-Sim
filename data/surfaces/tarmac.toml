@@ -11,5 +11,5 @@ stiffness_scale = { value = 1.0, source = "reference surface by definition; roug
 falloff = { value = 1.0, source = "reference surface by definition; roughness is a guess", confidence = "placeholder" }
 rolling_resistance_add = { value = 0.0, source = "reference surface by definition; roughness is a guess", confidence = "placeholder" }
 plough_coefficient = { value = 0.0, source = "reference surface by definition; roughness is a guess", confidence = "placeholder" }
-roughness_amplitude_m = { value = 0.0008, source = "reference surface by definition; roughness is a guess", confidence = "placeholder" }
-roughness_wavelength_m = { value = 0.35, source = "reference surface by definition; roughness is a guess", confidence = "placeholder" }
+roughness_amplitude_m = { value = 0.0003, source = "reference surface by definition; roughness is a guess", confidence = "placeholder" }
+roughness_wavelength_m = { value = 0.5, source = "reference surface by definition; roughness is a guess", confidence = "placeholder" }

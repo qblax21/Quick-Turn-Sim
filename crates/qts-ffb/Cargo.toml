@@ -9,8 +9,17 @@ rust-version.workspace = true
 publish.workspace = true
 
 [dependencies]
-qts-core.workspace = true
 serde.workspace = true
 
 [lints]
 workspace = true
+
+# The only platform-specific dependency in the workspace. It is compiled on
+# Windows alone and used only by `platform::dinput`.
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_Devices_HumanInterfaceDevice",
+    "Win32_Foundation",
+    "Win32_System_LibraryLoader",
+    "Win32_UI_WindowsAndMessaging",
+] }

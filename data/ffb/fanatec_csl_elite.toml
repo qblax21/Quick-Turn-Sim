@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: CC-BY-4.0
+# Force-feedback preset for a Fanatec CSL Elite wheel base.
+#
+# INITIAL, UNTUNED PRESET. It was written from the pipeline design and the
+# published peak torque of the base, and has NOT been tried on the hardware.
+# In particular the output sign (`invert`) is unverified: use the sign check
+# in the wheel setup screen before driving, and start with low gain.
+
+id = "fanatec_csl_elite"
+name = "Fanatec CSL Elite (initial, untuned)"
+description = "Starting point for the CSL Elite base. Not tuned on hardware."
+tuned = false
+invert = false
+
+device_max_torque_nm = { value = 6.0, source = "peak torque published by the manufacturer for the base", confidence = "estimated" }
+device_rotation_rad = { value = 15.708, source = "assumes the base is set to 900 degrees of rotation", confidence = "placeholder" }
+gain = { value = 0.30, source = "conservative first guess: unassisted column torque of about 20 N.m maps to the 6 N.m of the base", confidence = "placeholder" }
+lowpass_cutoff_hz = { value = 60.0, source = "light smoothing for a belt-driven base, first guess", confidence = "placeholder" }
+slew_limit_nm_per_s = { value = 600.0, source = "limits spikes without dulling steering, first guess", confidence = "placeholder" }
+soft_clip_knee = { value = 0.75, source = "start compressing at three quarters of full output", confidence = "placeholder" }
+damping_nm_s_per_rad = { value = 0.03, source = "small added damping against oscillation, first guess", confidence = "placeholder" }
+friction_nm = { value = 0.0, source = "the belt drive has friction of its own", confidence = "placeholder" }
+friction_smoothing_rad_per_s = { value = 0.5, source = "smoothing speed for the friction effect", confidence = "placeholder" }
+inertia_nm_s2_per_rad = { value = 0.0, source = "no added inertia", confidence = "placeholder" }
+velocity_filter_hz = { value = 30.0, source = "filter on measured wheel velocity, first guess", confidence = "placeholder" }
+road_detail_gain_nm_per_n = { value = 0.0003, source = "first guess", confidence = "placeholder" }
+kerb_gain_nm_per_n = { value = 0.0015, source = "first guess", confidence = "placeholder" }
+detail_highpass_hz = { value = 10.0, source = "keeps steady cornering load out of the detail channels", confidence = "placeholder" }
+detail_limit_nm = { value = 1.0, source = "ceiling on the detail channels", confidence = "placeholder" }
+device_update_rate_hz = { value = 500.0, source = "half the physics rate; the real update limit of the base is not known", confidence = "placeholder" }

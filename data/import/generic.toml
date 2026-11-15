@@ -1,0 +1,104 @@
+# SPDX-License-Identifier: CC-BY-4.0
+# Generic column-mapping profile for logger CSV exports.
+#
+# Each [[channel]] entry maps one or more possible column headers to a
+# canonical channel and gives the multiplier that converts the logger unit
+# to SI. Header names are matched without regard to case. Several entries may
+# feed the same channel (for example speed in km/h or in mph); the first one
+# whose column exists in the file is used.
+#
+# These header names are common guesses, not a specification of any logger.
+# Open your export, look at its header row, and edit or copy this file.
+# See docs/TELEMETRY_IMPORT.md.
+
+name = "generic"
+description = "Common column names in SI and customary units. Adjust to the export of your logger."
+delimiter = ","
+skip_lines = 0
+skip_after_header = 0
+comment_prefix = "#"
+
+[[channel]]
+name = "time_s"
+columns = ["time_s", "time", "time (s)", "elapsed time (s)", "timestamp"]
+scale = 1.0
+
+[[channel]]
+name = "speed_m_s"
+columns = ["speed_m_s", "speed (m/s)", "gps speed (m/s)"]
+scale = 1.0
+
+[[channel]]
+name = "speed_m_s"
+columns = ["speed (km/h)", "speed (kph)", "gps speed (km/h)", "speed_kph"]
+scale = 0.2777777777777778
+
+[[channel]]
+name = "speed_m_s"
+columns = ["speed (mph)", "gps speed (mph)", "speed_mph"]
+scale = 0.44704
+
+[[channel]]
+name = "accel_lat_m_s2"
+columns = ["accel_lat_m_s2", "lateral acceleration (m/s2)"]
+scale = 1.0
+
+[[channel]]
+name = "accel_lat_m_s2"
+columns = ["lateral acceleration (g)", "lateral g", "lat g", "accel y (g)"]
+scale = 9.80665
+
+[[channel]]
+name = "accel_long_m_s2"
+columns = ["accel_long_m_s2", "longitudinal acceleration (m/s2)"]
+scale = 1.0
+
+[[channel]]
+name = "accel_long_m_s2"
+columns = ["longitudinal acceleration (g)", "longitudinal g", "long g", "accel x (g)"]
+scale = 9.80665
+
+[[channel]]
+name = "yaw_rate_rad_s"
+columns = ["yaw_rate_rad_s", "yaw rate (rad/s)"]
+scale = 1.0
+
+[[channel]]
+name = "yaw_rate_rad_s"
+columns = ["yaw rate (deg/s)", "gyro z (deg/s)"]
+scale = 0.017453292519943295
+
+[[channel]]
+name = "steering_wheel_rad"
+columns = ["steering angle (deg)", "steering (deg)"]
+scale = 0.017453292519943295
+
+[[channel]]
+name = "throttle"
+columns = ["throttle (%)", "throttle position (%)", "accelerator (%)"]
+scale = 0.01
+
+[[channel]]
+name = "brake"
+columns = ["brake (%)", "brake position (%)"]
+scale = 0.01
+
+[[channel]]
+name = "engine_rpm"
+columns = ["engine_rpm", "rpm", "engine speed (rpm)"]
+scale = 1.0
+
+[[channel]]
+name = "distance_m"
+columns = ["distance_m", "distance (m)"]
+scale = 1.0
+
+[[channel]]
+name = "latitude_deg"
+columns = ["latitude", "latitude (deg)", "lat"]
+scale = 1.0
+
+[[channel]]
+name = "longitude_deg"
+columns = ["longitude", "longitude (deg)", "lon", "long"]
+scale = 1.0

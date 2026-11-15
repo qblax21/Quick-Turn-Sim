@@ -1,0 +1,77 @@
+# SPDX-License-Identifier: CC-BY-4.0
+# Autocross layout in a parking-lot-like area. Original design, placeholder
+# quality: a lane of cone pairs through a slalom, two 90-degree corners, a
+# chicane and a sweeper. Distances in metres, angles in degrees.
+
+id = "autocross_lot"
+name = "Lot Autocross"
+description = "Cone course on open tarmac: slalom, two right-angle corners, chicane, sweeper."
+default_surface = "tarmac"
+air_temp_c = 20.0
+road_temp_c = 28.0
+ground_half_extent_m = 110.0
+
+[spawn]
+x = -56.0
+y = -28.0
+heading_deg = 0.0
+
+[[paths]]
+id = "course"
+start_x = -50.0
+start_y = -28.0
+start_heading_deg = 0.0
+segments = [
+    { kind = "straight", length_m = 18.0 },
+    { kind = "arc", radius_m = 14.0, angle_deg = 35.0 },
+    { kind = "arc", radius_m = 14.0, angle_deg = -70.0 },
+    { kind = "arc", radius_m = 14.0, angle_deg = 70.0 },
+    { kind = "arc", radius_m = 14.0, angle_deg = -70.0 },
+    { kind = "arc", radius_m = 14.0, angle_deg = 35.0 },
+    { kind = "straight", length_m = 10.0 },
+    { kind = "arc", radius_m = 18.0, angle_deg = 90.0 },
+    { kind = "straight", length_m = 14.0 },
+    { kind = "arc", radius_m = 12.0, angle_deg = 90.0 },
+    { kind = "straight", length_m = 22.0 },
+    { kind = "arc", radius_m = 15.0, angle_deg = -40.0 },
+    { kind = "arc", radius_m = 15.0, angle_deg = 80.0 },
+    { kind = "arc", radius_m = 15.0, angle_deg = -40.0 },
+    { kind = "straight", length_m = 12.0 },
+    { kind = "arc", radius_m = 20.0, angle_deg = 90.0 },
+    { kind = "straight", length_m = 6.0 },
+]
+
+[[cone_pairs]]
+path = "course"
+from_m = 0.0
+to_m = 1000.0
+spacing_m = 6.0
+half_width_m = 2.4
+
+[[gates]]
+kind = "start"
+path = "course"
+at_m = 2.0
+half_width_m = 2.4
+
+[[gates]]
+kind = "finish"
+path = "course"
+at_m = 266.0
+half_width_m = 2.4
+
+[[markers]]
+kind = "line"
+x1 = -70.0
+y1 = -45.0
+x2 = 80.0
+y2 = -45.0
+label = "lot edge"
+
+[[markers]]
+kind = "line"
+x1 = -70.0
+y1 = 35.0
+x2 = 80.0
+y2 = 35.0
+label = "lot edge"
