@@ -1,0 +1,7 @@
+/target/
+/godot/.godot/
+*.dll
+*.so
+*.dylib
+*.pdb
+/out/
