@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: CC-BY-4.0
+# Surface parameters as seen by the tire. Placeholder values, not measured.
+
+id = "dirt"
+name = "Verge (untuned)"
+description = "Soft verge beside a stage road. First-pass model, not tuned against anything."
+tuned = false
+
+friction_scale = { value = 0.5, source = "first-pass guess for a soft verge", confidence = "placeholder" }
+stiffness_scale = { value = 0.4, source = "first-pass guess for a soft verge", confidence = "placeholder" }
+falloff = { value = 0.1, source = "first-pass guess for a soft verge", confidence = "placeholder" }
+rolling_resistance_add = { value = 0.06, source = "first-pass guess for a soft verge", confidence = "placeholder" }
+plough_coefficient = { value = 0.18, source = "first-pass guess for a soft verge", confidence = "placeholder" }
+roughness_amplitude_m = { value = 0.012, source = "first-pass guess for a soft verge", confidence = "placeholder" }
+roughness_wavelength_m = { value = 0.8, source = "first-pass guess for a soft verge", confidence = "placeholder" }

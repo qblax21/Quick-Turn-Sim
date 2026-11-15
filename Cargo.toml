@@ -17,7 +17,6 @@ qts-vehicle = { path = "crates/qts-vehicle" }
 qts-ffb = { path = "crates/qts-ffb" }
 qts-telemetry = { path = "crates/qts-telemetry" }
 qts-sim = { path = "crates/qts-sim" }
-qts-validate = { path = "crates/qts-validate" }
 serde = { version = "1", features = ["derive"] }
 toml = "1"
 

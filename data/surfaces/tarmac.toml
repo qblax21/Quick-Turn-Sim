@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: CC-BY-4.0
+# Surface parameters as seen by the tire. Placeholder values, not measured.
+
+id = "tarmac"
+name = "Tarmac"
+description = "Dry sealed tarmac. The reference surface: tire coefficients apply unscaled."
+tuned = true
+
+friction_scale = { value = 1.0, source = "reference surface by definition; roughness is a guess", confidence = "placeholder" }
+stiffness_scale = { value = 1.0, source = "reference surface by definition; roughness is a guess", confidence = "placeholder" }
+falloff = { value = 1.0, source = "reference surface by definition; roughness is a guess", confidence = "placeholder" }
+rolling_resistance_add = { value = 0.0, source = "reference surface by definition; roughness is a guess", confidence = "placeholder" }
+plough_coefficient = { value = 0.0, source = "reference surface by definition; roughness is a guess", confidence = "placeholder" }
+roughness_amplitude_m = { value = 0.0008, source = "reference surface by definition; roughness is a guess", confidence = "placeholder" }
+roughness_wavelength_m = { value = 0.35, source = "reference surface by definition; roughness is a guess", confidence = "placeholder" }

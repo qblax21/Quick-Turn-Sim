@@ -324,7 +324,13 @@ mod tests {
 
     fn frame_for(i: u64) -> InputFrame {
         let t = i as f64 * 0.013;
-        InputFrame::from_analog(t.sin(), (t * 0.7).cos().abs(), (t * 1.3).sin().abs(), 0.0, 0.0)
+        InputFrame::from_analog(
+            t.sin(),
+            (t * 0.7).cos().abs(),
+            (t * 1.3).sin().abs(),
+            0.0,
+            0.0,
+        )
     }
 
     fn record(ticks: u64) -> (Replay, Toy) {

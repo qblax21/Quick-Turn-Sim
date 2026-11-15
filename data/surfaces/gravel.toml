@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: CC-BY-4.0
+# Surface parameters as seen by the tire. Placeholder values, not measured.
+
+id = "gravel"
+name = "Gravel (untuned)"
+description = "Loose gravel over a hard base. First-pass model, not tuned against anything."
+tuned = false
+
+friction_scale = { value = 0.62, source = "first-pass guess for a loose surface", confidence = "placeholder" }
+stiffness_scale = { value = 0.45, source = "first-pass guess for a loose surface", confidence = "placeholder" }
+falloff = { value = 0.15, source = "first-pass guess for a loose surface", confidence = "placeholder" }
+rolling_resistance_add = { value = 0.035, source = "first-pass guess for a loose surface", confidence = "placeholder" }
+plough_coefficient = { value = 0.14, source = "first-pass guess for a loose surface", confidence = "placeholder" }
+roughness_amplitude_m = { value = 0.007, source = "first-pass guess for a loose surface", confidence = "placeholder" }
+roughness_wavelength_m = { value = 0.55, source = "first-pass guess for a loose surface", confidence = "placeholder" }

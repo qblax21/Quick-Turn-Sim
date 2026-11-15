@@ -1,0 +1,98 @@
+# SPDX-License-Identifier: CC-BY-4.0
+# Placeholder performance road tire for the dual-motor electric sedan.
+#
+# NOT DATA FOR ANY REAL TIRE. Every value is a stand-in chosen so the model
+# behaves like a generic summer road tire. Replace with fitted coefficients
+# when measured data exists. Magic Formula coefficient names follow PAC2002.
+
+id = "performance_235_40r19"
+name = "Performance 235/40 R19 (placeholder)"
+description = "Generic performance summer road tire, placeholder coefficients."
+
+[geometry]
+unloaded_radius_m = { value = 0.335, source = "computed from the nominal size 235/40 R19", confidence = "estimated" }
+width_m = { value = 0.235, source = "nominal size 235/40 R19", confidence = "estimated" }
+
+[vertical]
+stiffness_n_per_m = { value = 260000.0, source = "typical passenger-car radial stiffness range 180-250 kN/m", confidence = "placeholder" }
+damping_n_s_per_m = { value = 450.0, source = "small value for numerical damping of wheel hop", confidence = "placeholder" }
+nominal_load_n = { value = 5000.0, source = "reference load chosen near the car's static corner load", confidence = "placeholder" }
+nominal_pressure_pa = { value = 391000.0, source = "2.9 bar gauge, a typical placard pressure for the class", confidence = "placeholder" }
+rolling_resistance_coefficient = { value = 0.011, source = "typical range 0.008-0.013 for road tires", confidence = "placeholder" }
+
+[magic_formula]
+pcx1 = { value = 1.60, source = "textbook-typical shape factor", confidence = "placeholder" }
+pdx1 = { value = 1.15, source = "generic summer road tire, dry", confidence = "placeholder" }
+pdx2 = { value = -0.08, source = "mild load sensitivity", confidence = "placeholder" }
+pex1 = { value = 0.10, source = "textbook-typical curvature", confidence = "placeholder" }
+pex2 = { value = 0.0, source = "not modelled yet", confidence = "placeholder" }
+pkx1 = { value = 21.0, source = "slip stiffness about 21 x load", confidence = "placeholder" }
+pkx2 = { value = 0.0, source = "not modelled yet", confidence = "placeholder" }
+pkx3 = { value = 0.15, source = "mild load dependence", confidence = "placeholder" }
+pcy1 = { value = 1.35, source = "textbook-typical shape factor", confidence = "placeholder" }
+pdy1 = { value = 1.07, source = "generic summer road tire, dry", confidence = "placeholder" }
+pdy2 = { value = -0.16, source = "load sensitivity giving about 4 percent grip loss per kN", confidence = "placeholder" }
+pdy3 = { value = 2.0, source = "grip loss with camber squared", confidence = "placeholder" }
+pey1 = { value = -0.6, source = "textbook-typical curvature", confidence = "placeholder" }
+pey2 = { value = 0.0, source = "not modelled yet", confidence = "placeholder" }
+pky1 = { value = 21.0, source = "cornering stiffness about 0.26 x load per degree at nominal load", confidence = "placeholder" }
+pky2 = { value = 2.0, source = "cornering stiffness peaks at twice nominal load", confidence = "placeholder" }
+pky3 = { value = 0.3, source = "small camber effect on cornering stiffness", confidence = "placeholder" }
+pvy3 = { value = 1.0, source = "camber thrust about 1.7 percent of load per degree", confidence = "placeholder" }
+rbx1 = { value = 12.0, source = "textbook-typical combined-slip weighting", confidence = "placeholder" }
+rbx2 = { value = 10.0, source = "textbook-typical combined-slip weighting", confidence = "placeholder" }
+rcx1 = { value = 1.0, source = "textbook-typical combined-slip weighting", confidence = "placeholder" }
+rby1 = { value = 10.0, source = "textbook-typical combined-slip weighting", confidence = "placeholder" }
+rby2 = { value = 8.0, source = "textbook-typical combined-slip weighting", confidence = "placeholder" }
+rby3 = { value = 0.0, source = "symmetric tire", confidence = "placeholder" }
+rcy1 = { value = 1.0, source = "textbook-typical combined-slip weighting", confidence = "placeholder" }
+qbz1 = { value = 10.0, source = "textbook-typical pneumatic trail shape", confidence = "placeholder" }
+qbz2 = { value = -1.0, source = "textbook-typical pneumatic trail shape", confidence = "placeholder" }
+qcz1 = { value = 1.1, source = "textbook-typical pneumatic trail shape", confidence = "placeholder" }
+qdz1 = { value = 0.10, source = "peak trail about 3 cm at nominal load", confidence = "placeholder" }
+qdz2 = { value = -0.01, source = "small load dependence", confidence = "placeholder" }
+qez1 = { value = -1.5, source = "textbook-typical pneumatic trail shape", confidence = "placeholder" }
+
+[transient]
+carcass_stiffness_long_n_per_m = { value = 600000.0, source = "gives a longitudinal relaxation length near 0.17 m at nominal load", confidence = "placeholder" }
+carcass_stiffness_lat_n_per_m = { value = 190000.0, source = "gives a lateral relaxation length near 0.4 m at nominal load", confidence = "placeholder" }
+min_relaxation_length_m = { value = 0.02, source = "numerical floor", confidence = "placeholder" }
+low_speed_damping_n_s_per_m = { value = 3000.0, source = "enough to damp standstill oscillation", confidence = "placeholder" }
+low_speed_threshold_m_per_s = { value = 2.5, source = "fade-out speed for the low-speed damping", confidence = "placeholder" }
+slip_ratio_limit = { value = 2.0, source = "anti-windup bound", confidence = "placeholder" }
+slip_tangent_limit = { value = 5.0, source = "anti-windup bound, about 79 degrees", confidence = "placeholder" }
+
+[thermal]
+surface_heat_capacity_j_per_k = { value = 800.0, source = "thin tread layer, order of magnitude", confidence = "placeholder" }
+core_heat_capacity_j_per_k = { value = 7500.0, source = "tread bulk, order of magnitude", confidence = "placeholder" }
+carcass_heat_capacity_j_per_k = { value = 11000.0, source = "carcass and sidewalls, order of magnitude", confidence = "placeholder" }
+gas_heat_capacity_j_per_k = { value = 100.0, source = "about 0.14 kg of air at constant volume", confidence = "estimated" }
+conductance_surface_core_w_per_k = { value = 120.0, source = "order of magnitude", confidence = "placeholder" }
+conductance_core_carcass_w_per_k = { value = 60.0, source = "order of magnitude", confidence = "placeholder" }
+conductance_carcass_gas_w_per_k = { value = 15.0, source = "order of magnitude", confidence = "placeholder" }
+conductance_surface_road_w_per_k = { value = 40.0, source = "order of magnitude", confidence = "placeholder" }
+convection_surface_w_per_k = { value = 8.0, source = "order of magnitude", confidence = "placeholder" }
+convection_surface_speed_gain = { value = 2.0, source = "order of magnitude", confidence = "placeholder" }
+convection_carcass_w_per_k = { value = 6.0, source = "order of magnitude", confidence = "placeholder" }
+convection_carcass_speed_gain = { value = 0.6, source = "order of magnitude", confidence = "placeholder" }
+friction_heat_fraction = { value = 0.6, source = "share of sliding heat entering the tire rather than the road", confidence = "placeholder" }
+hysteresis_core_fraction = { value = 0.5, source = "even split of rolling loss between tread and carcass", confidence = "placeholder" }
+optimal_temp_c = { value = 60.0, source = "road tire works over a wide, cool window", confidence = "placeholder" }
+temp_window_c = { value = 50.0, source = "wide window for a road compound", confidence = "placeholder" }
+min_grip_factor = { value = 0.85, source = "grip floor far from the optimum", confidence = "placeholder" }
+surface_weight = { value = 0.6, source = "surface dominates the grip temperature", confidence = "placeholder" }
+stiffness_temp_sensitivity_per_k = { value = 0.002, source = "tire softens slightly when hot", confidence = "placeholder" }
+reference_temp_c = { value = 40.0, source = "temperature the stiffness coefficients are taken to apply at", confidence = "placeholder" }
+
+[pressure]
+cold_pressure_pa = { value = 391000.0, source = "2.9 bar gauge set cold", confidence = "placeholder" }
+cold_temp_c = { value = 20.0, source = "temperature at which the cold pressure is set", confidence = "placeholder" }
+ppx1 = { value = -0.3, source = "slip stiffness falls with pressure", confidence = "placeholder" }
+ppx3 = { value = -0.1, source = "friction falls slightly with pressure", confidence = "placeholder" }
+ppx4 = { value = 0.0, source = "not modelled yet", confidence = "placeholder" }
+ppy1 = { value = 0.4, source = "peak cornering stiffness rises with pressure", confidence = "placeholder" }
+ppy2 = { value = 1.3, source = "load of peak cornering stiffness rises with pressure", confidence = "placeholder" }
+ppy3 = { value = -0.1, source = "friction falls slightly with pressure", confidence = "placeholder" }
+ppy4 = { value = 0.0, source = "not modelled yet", confidence = "placeholder" }
+pfz1 = { value = 0.7, source = "vertical stiffness rises with pressure", confidence = "placeholder" }
+carcass_stiffness_sensitivity = { value = 0.5, source = "carcass stiffens with pressure", confidence = "placeholder" }

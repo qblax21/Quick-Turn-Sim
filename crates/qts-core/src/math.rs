@@ -297,16 +297,6 @@ impl Quat {
         Quat::from_axis_angle(Vec3::Z, yaw)
     }
 
-    /// Hamilton product `self * o`: apply `o` first, then `self`.
-    pub fn mul(self, o: Quat) -> Quat {
-        Quat {
-            w: self.w * o.w - self.x * o.x - self.y * o.y - self.z * o.z,
-            x: self.w * o.x + self.x * o.w + self.y * o.z - self.z * o.y,
-            y: self.w * o.y - self.x * o.z + self.y * o.w + self.z * o.x,
-            z: self.w * o.z + self.x * o.y - self.y * o.x + self.z * o.w,
-        }
-    }
-
     /// Conjugate, which is the inverse for a unit quaternion.
     #[inline]
     pub fn conjugate(self) -> Quat {
@@ -357,7 +347,7 @@ impl Quat {
             return self;
         }
         let axis = omega_body.normalized_or(Vec3::Z);
-        self.mul(Quat::from_axis_angle(axis, angle)).normalized()
+        (self * Quat::from_axis_angle(axis, angle)).normalized()
     }
 
     /// Heading angle about world z of the body x axis, radians.
@@ -382,6 +372,19 @@ impl Quat {
     /// True when every component is finite.
     pub fn is_finite(self) -> bool {
         self.w.is_finite() && self.x.is_finite() && self.y.is_finite() && self.z.is_finite()
+    }
+}
+
+/// Hamilton product `a * b`: apply `b` first, then `a`.
+impl Mul<Quat> for Quat {
+    type Output = Quat;
+    fn mul(self, o: Quat) -> Quat {
+        Quat {
+            w: self.w * o.w - self.x * o.x - self.y * o.y - self.z * o.z,
+            x: self.w * o.x + self.x * o.w + self.y * o.z - self.z * o.y,
+            y: self.w * o.y - self.x * o.z + self.y * o.w + self.z * o.x,
+            z: self.w * o.z + self.x * o.y - self.y * o.x + self.z * o.w,
+        }
     }
 }
 
