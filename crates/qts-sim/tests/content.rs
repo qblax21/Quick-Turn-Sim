@@ -159,7 +159,7 @@ fn cars_are_fictional_and_names_come_from_one_place() {
 #[test]
 fn the_autocross_is_timed_and_counts_cones() {
     let mut s = session("hatch_tern_gt", "autocross_lot");
-    assert_eq!(s.track().cones().len(), 92);
+    assert_eq!(s.track().cones().len(), 69);
     let path = s.track().path("course").unwrap().clone();
     let mut driver = PathFollower::new(&path, PathFollowerConfig::default());
     let mut saw_running = false;

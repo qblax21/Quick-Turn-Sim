@@ -340,3 +340,46 @@ little lift-off oversteer, so its rear anti-roll bar went from 16 to
 20 kN/m and rear toe-in was halved. The sources in the car file say so.
 These are still placeholders; a subjective impression is not a measurement.
 The driver's-seat camera became the default view.
+
+## D-044 Autocross course is marked with gates, not a lane of cones
+
+Driver feedback: the first course had too many cones, one width and little
+variety. It was a continuous lane of cone pairs every 6 m. The new course
+(412 m, 69 cones) is marked the way a club course is: gates of two cones
+where the line needs defining, single cones for a five-cone slalom, and a
+width that changes with the element (2.7 m half-width at the offset, 5 m in
+the sweeper). Elements: slalom, wide sweeper, offset, hairpin, tightening
+right, fast straight, medium right. The path in the file is the weaving
+driving line, so the scripted driver still runs it clean. No format change:
+the existing `cones` and several `cone_pairs` entries were enough. It is an
+original layout, not a copy of any real event course.
+
+## D-045 Placeholder sound is synthesised in the front end
+
+The brief had no sound. The driver asked for engine and tire sound to
+judge the cars by, so the front end now makes it: short loops generated at
+start-up (sums of sines for the engine and motor, filtered noise for tire
+squeal, loose-surface noise, road and wind), with pitch and volume driven
+by values the core already publishes (engine speed, slip, load, surface,
+speed). No recorded samples, so no asset licences, and no change to the
+core or the bridge. It is a cue for the driver, not a model of the real
+sound of anything, and it has not been tuned by ear.
+
+## D-046 First graphics pass, at the driver's request
+
+The brief said not to spend effort on graphics; the driver has since asked
+to start. Kept to what helps judging the car: a sky and a sun with shadows,
+a generated grain on the ground mapped in world space (so the ground
+visibly moves, which gives a sense of speed), grass beyond the drawn
+ground, banded cones, and a bare interior in the seat view (dashboard,
+screen pillars, a steering wheel that turns with the simulated one). Still
+no art assets and no car models.
+
+## D-047 Sedan assist raised to 0.40
+
+Second drive: the sedan's steering was still a bit heavy at 0.25. Raised to
+0.40. Its power was left alone: the driver felt it "should maybe be
+faster", but it already meets its placeholder acceleration and top-speed
+targets (0-60 mph in 3.26 s), and the drive was done without sound and
+with a featureless ground, both of which hide speed. To be judged again
+with D-045 and D-046 in place.

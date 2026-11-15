@@ -10,6 +10,7 @@ const InputReader := preload("res://scripts/input_reader.gd")
 const World := preload("res://scripts/world.gd")
 const CarView := preload("res://scripts/car_view.gd")
 const Hud := preload("res://scripts/hud.gd")
+const Audio := preload("res://scripts/audio.gd")
 
 var sim  # SimBridge, from the binding library
 var reader
@@ -18,10 +19,10 @@ var setup
 var world
 var car_view
 var hud
+var audio
 var camera: Camera3D
 # The driver's seat is the default view; C switches to the chase camera.
 var cockpit_view := true
-var seat_offset := Vector3(-0.36, 0.6, 0.3)
 var paused := false
 var telemetry_on := false
 var replay_on := false
@@ -41,19 +42,38 @@ func _ready() -> void:
 
 	reader = InputReader.new()
 	add_child(reader)
+	audio = Audio.new()
+	add_child(audio)
 
+	# Lighting: a sun with shadows under a plain procedural sky.
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-55.0, 35.0, 0.0)
+	sun.rotation_degrees = Vector3(-48.0, 35.0, 0.0)
+	sun.light_energy = 1.2
+	sun.shadow_enabled = true
+	sun.directional_shadow_max_distance = 140.0
 	add_child(sun)
+	var horizon := Color(0.70, 0.79, 0.88)
+	var sky_material := ProceduralSkyMaterial.new()
+	sky_material.sky_top_color = Color(0.24, 0.44, 0.78)
+	sky_material.sky_horizon_color = horizon
+	sky_material.ground_horizon_color = horizon
+	sky_material.ground_bottom_color = Color(0.30, 0.36, 0.28)
+	var sky := Sky.new()
+	sky.sky_material = sky_material
 	var env := Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.62, 0.74, 0.86)
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.75, 0.78, 0.82)
-	env.ambient_light_energy = 0.7
+	env.background_mode = Environment.BG_SKY
+	env.sky = sky
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	env.ambient_light_energy = 0.9
+	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	env.ssao_enabled = true
+	env.fog_enabled = true
+	env.fog_light_color = horizon
+	env.fog_density = 0.0007
 	var world_env := WorldEnvironment.new()
 	world_env.environment = env
 	add_child(world_env)
+	get_viewport().msaa_3d = Viewport.MSAA_4X
 
 	camera = Camera3D.new()
 	camera.far = 3000.0
@@ -104,6 +124,8 @@ func _clear_session() -> void:
 	world = null
 	car_view = null
 	hud = null
+	if audio:
+		audio.stop()
 	if sim and sim.is_running():
 		sim.stop_session()
 	telemetry_on = false
@@ -127,11 +149,7 @@ func _start_driving(car_id: String, track_id: String, auto_clutch: bool, auto_sh
 	add_child(car_view)
 	var info: Dictionary = sim.car_info()
 	car_view.build(info)
-	# Eye point of a left-hand-drive seat, relative to the centre of gravity:
-	# 55 percent of the wheelbase behind the front axle, near roof height.
-	var eye_height: float = info.get("ground_clearance", 0.13) + 0.82 * info.get("height", 1.25)
-	var behind_cg: float = 0.55 * info.get("wheelbase", 2.6) - info.get("cg_to_front_axle", 1.2)
-	seat_offset = Vector3(-0.36, eye_height - info.get("cg_height", 0.5), behind_cg)
+	audio.start(info, sim.track_info())
 	hud = Hud.new()
 	add_child(hud)
 	hud.setup(sim)
@@ -146,18 +164,20 @@ func _process(delta: float) -> void:
 	var input: Dictionary = reader.read(delta)
 	sim.set_input(input.steer, input.throttle, input.brake, input.clutch, input.handbrake, input.buttons, -128)
 	var car_xform: Transform3D = sim.car_transform()
-	car_view.update(car_xform, sim.wheel_states())
+	var values: Dictionary = sim.hud()
+	car_view.update(car_xform, sim.wheel_states(), values.get("steering_wheel_angle", 0.0))
 	world.update_cones(sim.cones_down())
-	hud.update(sim.hud(), sim.status(), input, telemetry_on, replay_on)
+	hud.update(values, sim.status(), input, telemetry_on, replay_on)
+	audio.update(values, input, delta, paused)
 	_update_camera(car_xform, delta)
 
 
 func _update_camera(car_xform: Transform3D, delta: float) -> void:
 	if cockpit_view:
-		camera.global_transform = car_xform * Transform3D(Basis.IDENTITY, seat_offset)
-		car_view.set_cabin_visible(false)
+		camera.global_transform = car_xform * Transform3D(Basis.IDENTITY, car_view.seat_offset)
+		car_view.set_seat_view(true)
 		return
-	car_view.set_cabin_visible(true)
+	car_view.set_seat_view(false)
 	# Chase camera: behind and above, easing toward its target.
 	var back := car_xform.basis.z
 	back.y = 0.0
@@ -176,6 +196,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_show_menu()
 		KEY_C:
 			cockpit_view = not cockpit_view
+		KEY_M:
+			audio.toggle_mute()
 		KEY_P:
 			paused = not paused
 			sim.set_paused(paused)

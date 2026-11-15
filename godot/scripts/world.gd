@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Builds placeholder geometry for a track from what the simulation core
-# reports: ground, surface regions, cones, gates and painted markers. Flat
-# colours only; no art.
+# reports: ground, surface regions, cones, gates and painted markers. Colours
+# and one generated grain texture only; no art.
 extends Node3D
 
 const SURFACE_COLORS := {
@@ -15,6 +15,7 @@ const CONE_DOWN_COLOR := Color(0.45, 0.2, 0.05)
 
 var cone_nodes: Array = []
 var cone_was_down := PackedByteArray()
+var grain: NoiseTexture2D
 
 
 func _material(color: Color) -> StandardMaterial3D:
@@ -22,6 +23,31 @@ func _material(color: Color) -> StandardMaterial3D:
 	m.albedo_color = color
 	m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	m.roughness = 0.95
+	return m
+
+
+# Ground material: the surface colour times a generated grain, mapped in world
+# space so the ground visibly moves under the car.
+func _ground_material(color: Color) -> StandardMaterial3D:
+	if grain == null:
+		var noise := FastNoiseLite.new()
+		noise.seed = 7
+		noise.frequency = 0.06
+		noise.fractal_octaves = 4
+		var ramp := Gradient.new()
+		ramp.set_color(0, Color(0.62, 0.62, 0.62))
+		ramp.set_color(1, Color(1.0, 1.0, 1.0))
+		grain = NoiseTexture2D.new()
+		grain.width = 512
+		grain.height = 512
+		grain.seamless = true
+		grain.noise = noise
+		grain.color_ramp = ramp
+	var m := _material(color)
+	m.albedo_texture = grain
+	m.uv1_triplanar = true
+	m.uv1_world_triplanar = true
+	m.uv1_scale = Vector3(0.11, 0.11, 0.11)
 	return m
 
 
@@ -37,8 +63,16 @@ func build(sim) -> void:
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(extent * 2.0, extent * 2.0)
 	ground.mesh = plane
-	ground.material_override = _material(_surface_color(info.get("default_surface", "tarmac")))
+	ground.material_override = _ground_material(_surface_color(info.get("default_surface", "tarmac")))
 	add_child(ground)
+	# Grass out to the horizon around the drawn ground.
+	var surround := MeshInstance3D.new()
+	var surround_plane := PlaneMesh.new()
+	surround_plane.size = Vector2(6000.0, 6000.0)
+	surround.mesh = surround_plane
+	surround.material_override = _ground_material(Color(0.30, 0.42, 0.22))
+	surround.position.y = -0.03
+	add_child(surround)
 
 	var paths := {}
 	for path in sim.track_paths():
@@ -57,7 +91,7 @@ func build(sim) -> void:
 				# The long axis of the region lies along local -Z (forward).
 				mesh.size = Vector3(region.half_width * 2.0, height, region.half_length * 2.0)
 				box.mesh = mesh
-				box.material_override = _material(color)
+				box.material_override = _ground_material(color)
 				box.position = region.center + Vector3(0.0, layer + height * 0.5, 0.0)
 				box.rotation.y = region.heading
 				add_child(box)
@@ -68,14 +102,14 @@ func build(sim) -> void:
 				cyl.bottom_radius = region.radius
 				cyl.height = 0.004
 				disc.mesh = cyl
-				disc.material_override = _material(color)
+				disc.material_override = _ground_material(color)
 				disc.position = region.center + Vector3(0.0, layer, 0.0)
 				add_child(disc)
 			"path":
 				if paths.has(region.path):
 					var strip := _path_strip(paths[region.path], region.from, region.to, region.half_width, layer)
 					if strip:
-						strip.material_override = _material(color)
+						strip.material_override = _ground_material(color)
 						add_child(strip)
 		layer += 0.004
 
@@ -84,11 +118,29 @@ func build(sim) -> void:
 	cone_mesh.top_radius = 0.03
 	cone_mesh.bottom_radius = 0.14
 	cone_mesh.height = 0.45
+	var band_mesh := CylinderMesh.new()
+	band_mesh.top_radius = 0.072
+	band_mesh.bottom_radius = 0.094
+	band_mesh.height = 0.09
+	var base_mesh := BoxMesh.new()
+	base_mesh.size = Vector3(0.3, 0.02, 0.3)
+	var white := _material(Color(0.95, 0.95, 0.95))
 	for p in sim.track_cones():
 		var cone := MeshInstance3D.new()
 		cone.mesh = cone_mesh
 		cone.material_override = _material(CONE_COLOR)
 		cone.position = p + Vector3(0.0, 0.225, 0.0)
+		# White band and a square base, as children so they tip over with it.
+		var band := MeshInstance3D.new()
+		band.mesh = band_mesh
+		band.material_override = white
+		band.position.y = 0.04
+		cone.add_child(band)
+		var base := MeshInstance3D.new()
+		base.mesh = base_mesh
+		base.material_override = _material(CONE_COLOR)
+		base.position.y = -0.215
+		cone.add_child(base)
 		add_child(cone)
 		cone_nodes.append(cone)
 	cone_was_down.resize(cone_nodes.size())

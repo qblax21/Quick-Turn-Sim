@@ -114,7 +114,7 @@ plausible range. It is not evidence of realism.
 ### Content
 - Tern GT, a fictional front-drive hot hatch, with a limited-slip variant.
 - Halden E4, a fictional dual-motor electric sedan.
-- Lot Autocross (271 m cone course, 92 cones), Proving Ground (timed
+- Lot Autocross (412 m cone course, 69 cones: slalom, sweeper, offset, hairpin), Proving Ground (timed
   quarter-mile strip, 30 m skidpad, kerb strip, gravel patch), Quarry Road
   Stage (1001 m, gravel changing to tarmac at 758 m).
 
@@ -144,7 +144,7 @@ plausible range. It is not evidence of realism.
 - **Cross-platform determinism**: not solved; the plan is in
   `ARCHITECTURE.md` section 5.
 - **Steam**: nothing integrated; see `docs/STEAM.md`.
-- **Audio**: none.
+- **Audio**: synthesised placeholder loops for engine, motor, tires, road and wind (D-045). Not tuned by ear; no recorded samples.
 
 ## What is untuned
 

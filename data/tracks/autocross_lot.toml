@@ -1,77 +1,201 @@
 # SPDX-License-Identifier: CC-BY-4.0
 # Autocross layout in a parking-lot-like area. Original design, placeholder
-# quality: a lane of cone pairs through a slalom, two 90-degree corners, a
-# chicane and a sweeper. Distances in metres, angles in degrees.
+# quality. Distances in metres, angles in degrees.
+#
+# The course is marked the way a club course is: gates of two cones at the
+# places that define the line, not a wall of cones. Width changes with the
+# element: narrow at the offset, wide through the big sweeper.
+#
+#   1. launch straight
+#   2. five-cone slalom, 18 m between cones (single cones on the line y = -40;
+#      the path below is the weaving line around them)
+#   3. wide 150-degree left sweeper, radius 28 m
+#   4. offset gate (a quick right-left), radius 12 m
+#   5. tight left hairpin, radius 9 m
+#   6. tightening right: radius 14 m, then 8 m
+#   7. fast straight
+#   8. medium right, radius 16 m, into the finish and a stop box
 
 id = "autocross_lot"
 name = "Lot Autocross"
-description = "Cone course on open tarmac: slalom, two right-angle corners, chicane, sweeper."
+description = "Cone course on open tarmac: slalom, wide sweeper, offset, hairpin, tightening right, fast straight."
 default_surface = "tarmac"
 air_temp_c = 20.0
 road_temp_c = 28.0
-ground_half_extent_m = 110.0
+ground_half_extent_m = 120.0
 
 [spawn]
-x = -56.0
-y = -28.0
+x = -67.0
+y = -42.41
 heading_deg = 0.0
 
 [[paths]]
 id = "course"
-start_x = -50.0
-start_y = -28.0
+start_x = -62.0
+start_y = -42.41
 start_heading_deg = 0.0
 segments = [
-    { kind = "straight", length_m = 18.0 },
-    { kind = "arc", radius_m = 14.0, angle_deg = 35.0 },
-    { kind = "arc", radius_m = 14.0, angle_deg = -70.0 },
-    { kind = "arc", radius_m = 14.0, angle_deg = 70.0 },
-    { kind = "arc", radius_m = 14.0, angle_deg = -70.0 },
-    { kind = "arc", radius_m = 14.0, angle_deg = 35.0 },
-    { kind = "straight", length_m = 10.0 },
-    { kind = "arc", radius_m = 18.0, angle_deg = 90.0 },
+    # 1. launch
+    { kind = "straight", length_m = 32.0 },
+    # 2. slalom: each 60-degree arc of radius 18 m spans one 18 m cone gap
+    { kind = "arc", radius_m = 18.0, angle_deg = 30.0 },
+    { kind = "arc", radius_m = 18.0, angle_deg = -60.0 },
+    { kind = "arc", radius_m = 18.0, angle_deg = 60.0 },
+    { kind = "arc", radius_m = 18.0, angle_deg = -60.0 },
+    { kind = "arc", radius_m = 18.0, angle_deg = 60.0 },
+    # 3. sweeper
+    { kind = "arc", radius_m = 28.0, angle_deg = 150.0 },
+    { kind = "straight", length_m = 20.0 },
+    # 4. offset
+    { kind = "arc", radius_m = 12.0, angle_deg = -40.0 },
+    { kind = "arc", radius_m = 12.0, angle_deg = 40.0 },
+    { kind = "straight", length_m = 15.0 },
+    # 5. hairpin
+    { kind = "arc", radius_m = 9.0, angle_deg = 180.0 },
     { kind = "straight", length_m = 14.0 },
-    { kind = "arc", radius_m = 12.0, angle_deg = 90.0 },
-    { kind = "straight", length_m = 22.0 },
-    { kind = "arc", radius_m = 15.0, angle_deg = -40.0 },
-    { kind = "arc", radius_m = 15.0, angle_deg = 80.0 },
-    { kind = "arc", radius_m = 15.0, angle_deg = -40.0 },
-    { kind = "straight", length_m = 12.0 },
-    { kind = "arc", radius_m = 20.0, angle_deg = 90.0 },
-    { kind = "straight", length_m = 6.0 },
+    # 6. tightening right
+    { kind = "arc", radius_m = 14.0, angle_deg = -90.0 },
+    { kind = "arc", radius_m = 8.0, angle_deg = -90.0 },
+    # 7. fast straight
+    { kind = "straight", length_m = 40.0 },
+    # 8. medium right and finish
+    { kind = "arc", radius_m = 16.0, angle_deg = -90.0 },
+    { kind = "straight", length_m = 28.0 },
 ]
 
+# Slalom cones, on the line the path weaves around.
+[[cones]]
+x = -30.0
+y = -40.0
+
+[[cones]]
+x = -12.0
+y = -40.0
+
+[[cones]]
+x = 6.0
+y = -40.0
+
+[[cones]]
+x = 24.0
+y = -40.0
+
+[[cones]]
+x = 42.0
+y = -40.0
+
+# Start box.
 [[cone_pairs]]
 path = "course"
 from_m = 0.0
-to_m = 1000.0
+to_m = 6.0
+spacing_m = 3.0
+half_width_m = 2.5
+
+# Sweeper: wide.
+[[cone_pairs]]
+path = "course"
+from_m = 122.0
+to_m = 190.0
+spacing_m = 11.3
+half_width_m = 5.0
+
+# One gate on the short straight after the sweeper.
+[[cone_pairs]]
+path = "course"
+from_m = 200.0
+to_m = 200.0
+spacing_m = 10.0
+half_width_m = 3.5
+
+# Offset: narrow.
+[[cone_pairs]]
+path = "course"
+from_m = 210.13
+to_m = 227.0
+spacing_m = 8.38
+half_width_m = 2.7
+
+# Hairpin.
+[[cone_pairs]]
+path = "course"
+from_m = 242.0
+to_m = 270.0
+spacing_m = 7.0
+half_width_m = 3.6
+
+# Tightening right.
+[[cone_pairs]]
+path = "course"
+from_m = 284.5
+to_m = 318.5
+spacing_m = 8.5
+half_width_m = 3.3
+
+# One gate halfway down the fast straight.
+[[cone_pairs]]
+path = "course"
+from_m = 338.0
+to_m = 338.0
+spacing_m = 10.0
+half_width_m = 4.0
+
+# Medium right.
+[[cone_pairs]]
+path = "course"
+from_m = 359.0
+to_m = 384.0
+spacing_m = 8.3
+half_width_m = 3.6
+
+# Finish and stop box.
+[[cone_pairs]]
+path = "course"
+from_m = 396.0
+to_m = 408.0
 spacing_m = 6.0
-half_width_m = 2.4
+half_width_m = 2.6
 
 [[gates]]
 kind = "start"
 path = "course"
 at_m = 2.0
-half_width_m = 2.4
+half_width_m = 2.5
 
 [[gates]]
 kind = "finish"
 path = "course"
-at_m = 266.0
-half_width_m = 2.4
+at_m = 396.0
+half_width_m = 2.6
 
 [[markers]]
 kind = "line"
-x1 = -70.0
-y1 = -45.0
-x2 = 80.0
-y2 = -45.0
+x1 = -78.0
+y1 = -48.0
+x2 = 74.0
+y2 = -48.0
 label = "lot edge"
 
 [[markers]]
 kind = "line"
-x1 = -70.0
-y1 = 35.0
-x2 = 80.0
-y2 = 35.0
+x1 = -78.0
+y1 = 34.0
+x2 = 74.0
+y2 = 34.0
+label = "lot edge"
+
+[[markers]]
+kind = "line"
+x1 = -78.0
+y1 = -48.0
+x2 = -78.0
+y2 = 34.0
+label = "lot edge"
+
+[[markers]]
+kind = "line"
+x1 = 74.0
+y1 = -48.0
+x2 = 74.0
+y2 = 34.0
 label = "lot edge"
