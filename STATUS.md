@@ -116,7 +116,8 @@ plausible range. It is not evidence of realism.
 - Halden E4, a fictional dual-motor electric sedan.
 - Lot Autocross (412 m cone course, 69 cones: slalom, sweeper, offset, hairpin), Proving Ground (timed
   quarter-mile strip, 30 m skidpad, kerb strip, gravel patch), Quarry Road
-  Stage (1001 m, gravel changing to tarmac at 758 m).
+  Stage (1001 m, gravel changing to tarmac at 758 m), Ridgeline Circuit
+  (fictional 2.85 km closed circuit, 38 m of elevation, banked corners).
 
 ## What is stubbed or missing
 
@@ -124,7 +125,11 @@ plausible range. It is not evidence of realism.
   matchmaking, ranking or anti-cheat, by design.
 - **Torque vectoring**: the hook exists; the only strategy is a fixed
   front/rear split.
-- **Elevation**: the ground is flat apart from roughness and kerb ridges.
+- **Elevation**: one path per track can carry an elevation and banking
+  profile (D-049); only Ridgeline Circuit uses it. Each wheel sees the
+  ground as a tilted plane, so sharp edges and kerbs as geometry are still
+  missing. The terrain away from the road is a smooth interpolation, not a
+  modelled landscape, and the drawn terrain sits 8 cm below the real one.
 - **Linux force-feedback output**: none. The trait and the null device are
   there; a backend is not.
 - **Replay playback in the front end**: replays can be recorded and are
@@ -198,8 +203,8 @@ Everything numeric. In particular:
 4. **Deepen the tire model where the data points**: fit Magic Formula
    coefficients to real tire data, extend the coefficient set as needed, and
    tune or replace the loose-surface pass for gravel.
-5. **Elevation and kerbs as geometry**: heightfield tracks through the
-   existing ground query, so the stage can have crests and camber and the
+5. **Kerbs and bumps as geometry**: elevation and banking exist now; give
+   the gravel stage crests and camber, and add kerbs and bumps so the
    suspension and force-feedback detail channels get real inputs.
 
 After those: a Linux force-feedback backend, replay playback in the front

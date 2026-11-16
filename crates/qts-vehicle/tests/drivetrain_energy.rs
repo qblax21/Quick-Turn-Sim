@@ -34,12 +34,14 @@ impl Ground for SplitGround {
         if y > 0.0 {
             GroundSample {
                 height: 0.0,
+                normal: qts_core::math::Vec3::Z,
                 surface: &self.slippery,
                 surface_index: 1,
             }
         } else {
             GroundSample {
                 height: 0.0,
+                normal: qts_core::math::Vec3::Z,
                 surface: &self.grippy,
                 surface_index: 0,
             }

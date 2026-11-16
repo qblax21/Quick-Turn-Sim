@@ -348,3 +348,85 @@ fn identical_inputs_give_identical_hashes_every_tick() {
         assert_eq!(state_hash(&a), state_hash(&b), "diverged at tick {i}");
     }
 }
+
+/// A tilted plane rising along +x and +y.
+struct Slope {
+    surface: qts_tire::SurfaceParams,
+    grade_x: f64,
+    grade_y: f64,
+}
+
+impl qts_vehicle::Ground for Slope {
+    fn sample(&self, x: f64, y: f64) -> qts_vehicle::GroundSample<'_> {
+        qts_vehicle::GroundSample {
+            height: self.grade_x * x + self.grade_y * y,
+            normal: Vec3::new(-self.grade_x, -self.grade_y, 1.0).normalized_or(Vec3::Z),
+            surface: &self.surface,
+            surface_index: 0,
+        }
+    }
+}
+
+fn run_on(car: &mut qts_vehicle::Car, slope: &Slope, c: &DriverControls, seconds: f64) {
+    let e = env();
+    for _ in 0..(seconds / DT).round() as usize {
+        car.step(c, &MANUAL, slope, &e, DT);
+    }
+}
+
+#[test]
+fn a_car_in_neutral_rolls_back_down_a_grade_at_about_g_sin_theta() {
+    let slope = Slope {
+        surface: qts_tire::test_support::tarmac(),
+        grade_x: 0.10,
+        grade_y: 0.0,
+    };
+    let mut car = build(no_aero(car_engine_manual(false)));
+    // Hold it on the brake while it settles, then let go.
+    run_on(&mut car, &slope, &controls(0.0, 0.0, 1.0), 2.0);
+    assert!(
+        car.state.vel.length() < 0.02,
+        "crept at {:?}",
+        car.state.vel
+    );
+    let total: f64 = car.output().wheels.iter().map(|w| w.load).sum();
+    let theta = (0.10f64).atan();
+    let weight = car.params().total_mass_kg() * env().gravity;
+    assert!(
+        (total - weight * theta.cos()).abs() < 0.01 * weight,
+        "tire loads {total} against {}",
+        weight * theta.cos()
+    );
+    run_on(&mut car, &slope, &DriverControls::default(), 1.0);
+    let v1 = car.state.vel;
+    run_on(&mut car, &slope, &DriverControls::default(), 2.0);
+    let v2 = car.state.vel;
+    // Speed gained along the slope, downhill being -x.
+    let gained = ((v2 - v1).length()) / 2.0;
+    let ideal = env().gravity * theta.sin();
+    assert!(v2.x < v1.x && v2.z < v1.z, "should roll back downhill");
+    assert!(
+        gained > 0.80 * ideal && gained < 1.0 * ideal,
+        "acceleration {gained} against g sin(theta) = {ideal}"
+    );
+    // The body sits parallel to the slope, nose up.
+    assert!((car.state.rot.pitch().abs() - theta).abs() < 0.01);
+}
+
+#[test]
+fn a_braked_car_holds_on_a_cross_slope() {
+    let slope = Slope {
+        surface: qts_tire::test_support::tarmac(),
+        grade_x: 0.0,
+        grade_y: 0.08,
+    };
+    let mut car = build(car_engine_manual(false));
+    run_on(&mut car, &slope, &controls(0.0, 0.0, 1.0), 2.0);
+    let start = car.state.pos;
+    run_on(&mut car, &slope, &controls(0.0, 0.0, 1.0), 3.0);
+    let moved = car.state.pos - start;
+    assert!(moved.length() < 0.05, "slid {moved:?}");
+    // The downhill (right-hand) tires carry more.
+    let w = car.output().wheels;
+    assert!(w[FR].load > w[FL].load && w[RR].load > w[RL].load);
+}

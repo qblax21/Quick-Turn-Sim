@@ -39,7 +39,7 @@ func _run() -> void:
 	var tracks: PackedStringArray = sim.list_ids("tracks")
 	var presets: PackedStringArray = sim.list_ids("ffb")
 	check(cars.size() >= 2, "at least two cars")
-	check(tracks.size() == 3, "three tracks")
+	check(tracks.size() >= 4, "four tracks")
 	check(presets.size() >= 1, "a force-feedback preset")
 	check(sim.describe("cars", cars[0]).get("name", "") != "", "car has a name")
 	check(sim.ffb_devices() is Array, "device enumeration returns a list")

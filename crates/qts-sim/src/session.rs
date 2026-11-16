@@ -203,7 +203,7 @@ impl Session {
             tire_temp,
         )?;
         let (x, y, heading) = assets.track.spawn();
-        car.place(x, y, heading, 0.0);
+        car.place(x, y, heading, assets.track.ground_height(x, y));
         let timing = Timing::new(assets.track.cones().len());
         Ok(Self {
             config,
@@ -298,7 +298,8 @@ impl Session {
     /// Puts the car back at the spawn point and clears the current run.
     fn reset_to_spawn(&mut self) {
         let (x, y, heading) = self.track.spawn();
-        self.car.place(x, y, heading, 0.0);
+        self.car
+            .place(x, y, heading, self.track.ground_height(x, y));
         self.timing.running = false;
         self.timing.stand_cones_up();
     }

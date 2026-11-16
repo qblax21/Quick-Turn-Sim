@@ -7,7 +7,12 @@ use qts_sim::DataRoot;
 use qts_vehicle::Assists;
 
 pub const CARS: [&str; 3] = ["hatch_tern_gt", "hatch_tern_gt_lsd", "sedan_halden_e4"];
-pub const TRACKS: [&str; 3] = ["autocross_lot", "test_track", "gravel_stage"];
+pub const TRACKS: [&str; 4] = [
+    "autocross_lot",
+    "test_track",
+    "gravel_stage",
+    "ridgeline_circuit",
+];
 
 /// The repository's `data/` directory.
 pub fn data() -> DataRoot {

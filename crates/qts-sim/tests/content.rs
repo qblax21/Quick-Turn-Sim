@@ -327,3 +327,127 @@ fn telemetry_rows_match_the_documented_channels() {
         );
     }
 }
+
+#[test]
+fn the_circuit_closes_has_no_cliffs_and_matches_its_profile() {
+    let s = session("hatch_tern_gt", "ridgeline_circuit");
+    let track = s.track();
+    let path = track.path("circuit").unwrap();
+    let n = path.points.len();
+    let (first, last) = (path.points[0], path.points[n - 1]);
+    assert!((first[0] - last[0]).abs() < 0.01 && (first[1] - last[1]).abs() < 0.01);
+    assert!((path.heading[n - 1].to_degrees() - 360.0).abs() < 0.01);
+
+    // Parts of the lap that are not neighbours stay further apart than the
+    // shaped strip and its blend on both sides, so the ground has no step.
+    let terrain = track.def().terrain.as_ref().unwrap();
+    let reach = 2.0 * (terrain.corridor_half_width_m + terrain.blend_m);
+    let length = path.length();
+    for i in (0..n).step_by(4) {
+        for j in ((i + 1)..n).step_by(4) {
+            let apart = path.s[j] - path.s[i];
+            if apart < 160.0 || length - apart < 160.0 {
+                continue;
+            }
+            let (dx, dy) = (
+                path.points[i][0] - path.points[j][0],
+                path.points[i][1] - path.points[j][1],
+            );
+            let d = (dx * dx + dy * dy).sqrt();
+            assert!(
+                d > reach,
+                "{:.0} m and {:.0} m are {d:.1} m apart",
+                path.s[i],
+                path.s[j]
+            );
+        }
+    }
+
+    // The centre line follows the elevation points, and the banked corner
+    // is lower on the inside.
+    assert!(track.ground_height(0.0, 0.0).abs() < 1e-9);
+    for p in &terrain.elevation {
+        let (pos, _) = path.at(p.at_m);
+        let h = track.ground_height(pos[0], pos[1]);
+        assert!((h - p.height_m).abs() < 0.05, "at {} m: {h}", p.at_m);
+    }
+    let (pos, heading) = path.at(690.0);
+    let (left_x, left_y) = (-heading.sin(), heading.cos());
+    let inside = track.ground_height(pos[0] + 5.0 * left_x, pos[1] + 5.0 * left_y);
+    let outside = track.ground_height(pos[0] - 5.0 * left_x, pos[1] - 5.0 * left_y);
+    assert!(
+        (outside - inside - 10.0 * 5.0f64.to_radians().tan()).abs() < 0.02,
+        "banking gives {inside} inside and {outside} outside"
+    );
+
+    // No cliffs anywhere a car could reach, and every normal is a unit
+    // vector pointing up.
+    let step = 2.0;
+    let mut steepest = 0.0f64;
+    let mut y = -180.0;
+    while y < 520.0 {
+        let mut x = -220.0;
+        while x < 820.0 {
+            let h = track.ground_height(x, y);
+            let slope_x = (track.ground_height(x + step, y) - h).abs() / step;
+            let slope_y = (track.ground_height(x, y + step) - h).abs() / step;
+            steepest = steepest.max(slope_x).max(slope_y);
+            x += step;
+        }
+        y += step;
+    }
+    assert!(steepest < 0.5, "steepest ground slope is {steepest}");
+    let normal = track.ground_normal(600.0, 100.0);
+    assert!((normal.length() - 1.0).abs() < 1e-12 && normal.z > 0.8);
+}
+
+#[test]
+fn both_cars_lap_the_circuit_on_the_road() {
+    for car in ["hatch_tern_gt", "sedan_halden_e4"] {
+        let mut s = session(car, "ridgeline_circuit");
+        let path = s.track().path("circuit").unwrap().clone();
+        let config = PathFollowerConfig {
+            max_speed: 45.0,
+            lateral_accel: 6.0,
+            brake_decel: 5.0,
+            closed: true,
+            ..PathFollowerConfig::default()
+        };
+        let mut driver = PathFollower::new(&path, config);
+        let (mut low, mut high) = (f64::INFINITY, f64::NEG_INFINITY);
+        let mut off_road_ticks = 0u32;
+        for _ in 0..240_000 {
+            let frame = driver.frame(&s);
+            s.step(&frame);
+            let z = s.car().state.pos.z;
+            low = low.min(z);
+            high = high.max(z);
+            let out = s.car().output();
+            if out
+                .wheels
+                .iter()
+                .any(|w| s.track().surfaces()[usize::from(w.surface_index)].id != "tarmac")
+            {
+                off_road_ticks += 1;
+            }
+            assert!(
+                out.body_contacts == 0,
+                "{car} bottomed out at tick {}",
+                s.tick()
+            );
+            if s.timing().runs == 1 {
+                break;
+            }
+        }
+        assert_eq!(s.timing().runs, 1, "{car} did not complete a lap");
+        assert_eq!(off_road_ticks, 0, "{car} put a wheel off the road");
+        let seconds = s.ticks_to_seconds(s.timing().last_ticks);
+        assert!(
+            (90.0..200.0).contains(&seconds),
+            "{car} lapped in {seconds} s"
+        );
+        // It climbed and descended with the road.
+        assert!(high - low > 36.0, "{car} saw heights {low}..{high}");
+        assert!(s.car().is_finite());
+    }
+}

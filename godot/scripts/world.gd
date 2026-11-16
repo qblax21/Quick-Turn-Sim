@@ -15,6 +15,11 @@ const CONE_DOWN_COLOR := Color(0.45, 0.2, 0.05)
 
 var cone_nodes: Array = []
 var cone_was_down := PackedByteArray()
+var sim_ref
+var has_terrain := false
+# The terrain mesh is drawn this far below the true ground so its coarse
+# grid never pokes through the exactly shaped road.
+const TERRAIN_DROP := 0.08
 var grain: NoiseTexture2D
 
 
@@ -65,6 +70,9 @@ func build(sim) -> void:
 	ground.mesh = plane
 	ground.material_override = _ground_material(_surface_color(info.get("default_surface", "tarmac")))
 	add_child(ground)
+	sim_ref = sim
+	has_terrain = info.get("has_terrain", false)
+	ground.visible = not has_terrain
 	# Grass out to the horizon around the drawn ground.
 	var surround := MeshInstance3D.new()
 	var surround_plane := PlaneMesh.new()
@@ -77,6 +85,8 @@ func build(sim) -> void:
 	var paths := {}
 	for path in sim.track_paths():
 		paths[path.id] = path
+	if has_terrain:
+		surround.position.y = _build_terrain(paths, _surface_color(info.get("default_surface", "tarmac")))
 
 	# Regions are stacked slightly above the ground in the order the core
 	# applies them, so later ones draw on top.
@@ -175,6 +185,71 @@ func build(sim) -> void:
 				add_child(_ground_line(p0, p1, 0.15, paint, layer + 0.008))
 
 
+# Terrain as a grid of heights asked from the core, covering the paths and a
+# margin around them. Toward its edge it levels out to a plain just below
+# its lowest point; the height of that plain is returned so the surrounding
+# plane can meet it. Drawing only.
+func _build_terrain(paths: Dictionary, color: Color) -> float:
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for id in paths:
+		var path_points: PackedVector3Array = paths[id].points
+		for p in path_points:
+			lo.x = minf(lo.x, p.x)
+			lo.y = minf(lo.y, p.z)
+			hi.x = maxf(hi.x, p.x)
+			hi.y = maxf(hi.y, p.z)
+	var margin := 350.0
+	var step := 5.0
+	lo -= Vector2(margin, margin)
+	hi += Vector2(margin, margin)
+	var nx := int(ceil((hi.x - lo.x) / step)) + 1
+	var nz := int(ceil((hi.y - lo.y) / step)) + 1
+	var points := PackedVector3Array()
+	points.resize(nx * nz)
+	for j in range(nz):
+		for i in range(nx):
+			points[j * nx + i] = Vector3(lo.x + i * step, 0.0, lo.y + j * step)
+	points = sim_ref.ground_heights(points)
+	# Level the edge of the grid out to a plain just below the lowest point.
+	var far := INF
+	for p in points:
+		far = minf(far, p.y)
+	far -= 1.0
+	for k in range(points.size()):
+		var p := points[k]
+		var edge := minf(minf(p.x - lo.x, hi.x - p.x), minf(p.z - lo.y, hi.y - p.z))
+		var t := clampf(edge / (margin * 0.6), 0.0, 1.0)
+		t = t * t * (3.0 - 2.0 * t)
+		p.y = lerpf(far, p.y, t) - TERRAIN_DROP
+		points[k] = p
+	var normals := PackedVector3Array()
+	normals.resize(nx * nz)
+	var indices := PackedInt32Array()
+	for j in range(nz):
+		for i in range(nx):
+			var k := j * nx + i
+			var west := points[k - 1].y if i > 0 else points[k].y
+			var east := points[k + 1].y if i < nx - 1 else points[k].y
+			var north := points[k - nx].y if j > 0 else points[k].y
+			var south := points[k + nx].y if j < nz - 1 else points[k].y
+			normals[k] = Vector3(west - east, 2.0 * step, north - south).normalized()
+			if i < nx - 1 and j < nz - 1:
+				indices.append_array(PackedInt32Array([k, k + 1, k + nx, k + 1, k + nx + 1, k + nx]))
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = points
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var instance := MeshInstance3D.new()
+	instance.mesh = mesh
+	instance.material_override = _ground_material(color)
+	add_child(instance)
+	return far - TERRAIN_DROP - 0.05
+
+
 # A flat strip of the given half-width along part of a path.
 func _path_strip(path: Dictionary, from: float, to: float, half_width: float, height: float) -> MeshInstance3D:
 	var points: PackedVector3Array = path.points
@@ -197,6 +272,13 @@ func _path_strip(path: Dictionary, from: float, to: float, half_width: float, he
 		vertices.append(base + side * half_width)
 		normals.append(Vector3.UP)
 		normals.append(Vector3.UP)
+	if has_terrain:
+		# Put both edges on the banked road surface.
+		vertices = sim_ref.ground_heights(vertices)
+		for k in range(vertices.size()):
+			var v := vertices[k]
+			v.y += height
+			vertices[k] = v
 	var rows := vertices.size() / 2
 	if rows < 2:
 		return null

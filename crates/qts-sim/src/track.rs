@@ -3,14 +3,16 @@
 //!
 //! A track file describes a flat world: a default surface, regions that
 //! override it (rectangles, circles, and strips along a path), cones, and
-//! timing gates. The ground is flat apart from surface roughness and the
-//! ridge profile a region may carry (used for kerbs); elevation is not
-//! modelled yet (see `DECISIONS.md`, D-015).
+//! timing gates. A track may also carry a `terrain` section: an elevation
+//! and banking profile along one path, which shapes the road exactly and
+//! blends into smooth terrain away from it (see `DECISIONS.md`, D-049).
+//! Without it the ground is flat apart from surface roughness and the ridge
+//! profile a region may carry (used for kerbs).
 //!
 //! Everything here is a pure function of position, as the determinism rules
 //! require: no caches that depend on query order.
 
-use qts_core::math::{fm, lattice_noise_2d};
+use qts_core::math::{fm, lattice_noise_2d, smoothstep, Vec3};
 use qts_tire::SurfaceParams;
 use qts_vehicle::{Ground, GroundSample};
 use serde::Deserialize;
@@ -63,6 +65,124 @@ pub struct TrackDef {
     /// Painted markings, for drawing only.
     #[serde(default)]
     pub markers: Vec<MarkerDef>,
+    /// Elevation and banking along one path.
+    #[serde(default)]
+    pub terrain: Option<TerrainDef>,
+}
+
+/// Elevation and banking of the ground, defined along one path.
+///
+/// Within `corridor_half_width_m` of the path the ground is the road
+/// surface: the profile height at that distance along the path, tilted
+/// across the path by the banking angle. Over the next `blend_m` it blends
+/// into smooth terrain interpolated from the elevation points; beyond that
+/// it is that terrain alone. Parts of the path that are not neighbours must
+/// stay further apart than twice `corridor_half_width_m + blend_m`, or the
+/// ground between them has a step.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct TerrainDef {
+    /// Path the profile runs along.
+    pub path: String,
+    /// Half width of the exactly shaped strip, m.
+    pub corridor_half_width_m: f64,
+    /// Width of the blend from that strip into the terrain, m.
+    pub blend_m: f64,
+    /// Height along the path, in increasing order of distance. The profile
+    /// is level at its first and last point.
+    pub elevation: Vec<ElevationPoint>,
+    /// Banking along the path, in increasing order of distance.
+    #[serde(default)]
+    pub banking: Vec<BankingPoint>,
+}
+
+/// One point of an elevation profile.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ElevationPoint {
+    /// Distance along the path, m.
+    pub at_m: f64,
+    /// Height of the path centre line, m.
+    pub height_m: f64,
+}
+
+/// One point of a banking profile.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct BankingPoint {
+    /// Distance along the path, m.
+    pub at_m: f64,
+    /// Cross slope, degrees. Positive raises the left edge of the path.
+    pub angle_deg: f64,
+}
+
+/// Smoothing length of the terrain interpolation, m.
+const TERRAIN_SMOOTHING_M: f64 = 40.0;
+/// Step used to measure the ground slope, m.
+const SLOPE_STEP_M: f64 = 0.25;
+
+/// Smooth curve through `(distance, value)` points: a cubic Hermite spline
+/// that stays between its points, level at both ends and constant beyond
+/// them.
+fn profile(points: &[(f64, f64)], s: f64) -> f64 {
+    let Some(&(first_s, first_v)) = points.first() else {
+        return 0.0;
+    };
+    let (last_s, last_v) = points[points.len() - 1];
+    if s <= first_s {
+        return first_v;
+    }
+    if s >= last_s {
+        return last_v;
+    }
+    let mut lo = 0usize;
+    let mut hi = points.len() - 1;
+    while hi - lo > 1 {
+        let mid = (lo + hi) / 2;
+        if points[mid].0 <= s {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    let tangent = |i: usize| {
+        if i == 0 || i == points.len() - 1 {
+            return 0.0;
+        }
+        let before = (points[i].1 - points[i - 1].1) / (points[i].0 - points[i - 1].0);
+        let after = (points[i + 1].1 - points[i].1) / (points[i + 1].0 - points[i].0);
+        // Level at a peak, a dip or the end of a level stretch; otherwise
+        // the harmonic mean of the two slopes. This keeps the curve between
+        // its points, so a profile never overshoots the values written.
+        if before * after <= 0.0 {
+            0.0
+        } else {
+            2.0 * before * after / (before + after)
+        }
+    };
+    let (s0, v0) = points[lo];
+    let (s1, v1) = points[hi];
+    let h = s1 - s0;
+    let t = (s - s0) / h;
+    let (t2, t3) = (t * t, t * t * t);
+    (2.0 * t3 - 3.0 * t2 + 1.0) * v0
+        + (t3 - 2.0 * t2 + t) * h * tangent(lo)
+        + (-2.0 * t3 + 3.0 * t2) * v1
+        + (t3 - t2) * h * tangent(hi)
+}
+
+/// Terrain built from a [`TerrainDef`].
+#[derive(Clone, Debug)]
+struct Terrain {
+    path: usize,
+    corridor: f64,
+    blend: f64,
+    /// `(distance, height)`.
+    elevation: Vec<(f64, f64)>,
+    /// `(distance, tangent of the banking angle)`.
+    banking: Vec<(f64, f64)>,
+    /// Elevation points as world positions `[x, y, height]`.
+    anchors: Vec<[f64; 3]>,
 }
 
 /// Start position and heading.
@@ -500,6 +620,7 @@ pub struct Track {
     paths: Vec<PathGeom>,
     cones: Vec<[f64; 2]>,
     gates: Vec<Gate>,
+    terrain: Option<Terrain>,
 }
 
 fn find_surface(surfaces: &[SurfaceParams], id: &str, track: &str) -> Result<u16, String> {
@@ -615,6 +736,45 @@ impl Track {
                 b: [p[0] - nx * g.half_width_m, p[1] - ny * g.half_width_m],
             });
         }
+        let terrain = match &def.terrain {
+            None => None,
+            Some(t) => {
+                let path = path_index(&t.path)?;
+                let increasing = |d: &[f64]| d.windows(2).all(|w| w[1] > w[0]);
+                let elevation_at: Vec<f64> = t.elevation.iter().map(|p| p.at_m).collect();
+                let banking_at: Vec<f64> = t.banking.iter().map(|p| p.at_m).collect();
+                if t.elevation.is_empty()
+                    || !increasing(&elevation_at)
+                    || !increasing(&banking_at)
+                    || !(t.corridor_half_width_m > 0.0 && t.blend_m > 0.0)
+                {
+                    return Err(format!(
+                        "track `{}`: terrain needs elevation points in increasing order of \
+                         distance and a positive corridor and blend width",
+                        def.id
+                    ));
+                }
+                Some(Terrain {
+                    path,
+                    corridor: t.corridor_half_width_m,
+                    blend: t.blend_m,
+                    elevation: t.elevation.iter().map(|p| (p.at_m, p.height_m)).collect(),
+                    banking: t
+                        .banking
+                        .iter()
+                        .map(|p| (p.at_m, fm::tan(p.angle_deg.to_radians())))
+                        .collect(),
+                    anchors: t
+                        .elevation
+                        .iter()
+                        .map(|p| {
+                            let (pos, _) = paths[path].at(p.at_m);
+                            [pos[0], pos[1], p.height_m]
+                        })
+                        .collect(),
+                })
+            }
+        };
         Ok(Self {
             def,
             surfaces,
@@ -623,6 +783,7 @@ impl Track {
             paths,
             cones,
             gates,
+            terrain,
         })
     }
 
@@ -663,6 +824,51 @@ impl Track {
             self.def.spawn.y,
             self.def.spawn.heading_deg.to_radians(),
         )
+    }
+
+    /// Height of the shaped ground at a point, m: the road and terrain,
+    /// without kerb ridges or surface roughness. Zero on a flat track.
+    pub fn ground_height(&self, x: f64, y: f64) -> f64 {
+        let Some(t) = &self.terrain else {
+            return 0.0;
+        };
+        // Smooth terrain: the elevation points, weighted by closeness.
+        let mut sum = 0.0;
+        let mut weight = 0.0;
+        for a in &t.anchors {
+            let (dx, dy) = (x - a[0], y - a[1]);
+            let d2 = dx * dx + dy * dy + TERRAIN_SMOOTHING_M * TERRAIN_SMOOTHING_M;
+            let w = 1.0 / (d2 * d2);
+            sum += w * a[2];
+            weight += w;
+        }
+        let terrain = sum / weight;
+        let path = &self.paths[t.path];
+        match path.project(x, y, 0.0, path.length(), t.corridor + t.blend) {
+            None => terrain,
+            Some((s, offset)) => {
+                let across = offset.clamp(-t.corridor, t.corridor);
+                let road = profile(&t.elevation, s) + across * profile(&t.banking, s);
+                let blend = smoothstep((offset.abs() - t.corridor) / t.blend);
+                road + (terrain - road) * blend
+            }
+        }
+    }
+
+    /// Unit normal of the shaped ground at a point.
+    pub fn ground_normal(&self, x: f64, y: f64) -> Vec3 {
+        if self.terrain.is_none() {
+            return Vec3::Z;
+        }
+        let d = SLOPE_STEP_M;
+        let slope_x = (self.ground_height(x + d, y) - self.ground_height(x - d, y)) / (2.0 * d);
+        let slope_y = (self.ground_height(x, y + d) - self.ground_height(x, y - d)) / (2.0 * d);
+        Vec3::new(-slope_x, -slope_y, 1.0).normalized_or(Vec3::Z)
+    }
+
+    /// True if the track has elevation.
+    pub fn has_terrain(&self) -> bool {
+        self.terrain.is_some()
     }
 
     /// Surface index and ridge height at a point, ignoring roughness.
@@ -739,7 +945,8 @@ impl Ground for Track {
             0.0
         };
         GroundSample {
-            height: ridge + rough,
+            height: self.ground_height(x, y) + ridge + rough,
+            normal: self.ground_normal(x, y),
             surface,
             surface_index: index,
         }

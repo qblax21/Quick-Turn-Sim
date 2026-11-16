@@ -44,7 +44,23 @@ func _run() -> void:
 	var began := Time.get_ticks_msec()
 	while Time.get_ticks_msec() - began < int(float(args[2]) * 1000.0):
 		await process_frame
-	if args.size() > 6 and args[6] == "side":
+	if args.size() > 6 and args[6] == "top":
+		# Freeze the scene and look straight down at the whole track, without fog.
+		for child in main.get_children():
+			if child is WorldEnvironment:
+				child.environment.fog_enabled = false
+		main.set_process(false)
+		var lo := Vector3(INF, 0.0, INF)
+		var hi := Vector3(-INF, 0.0, -INF)
+		for path in main.sim.track_paths():
+			for p in path.points:
+				lo = Vector3(minf(lo.x, p.x), 0.0, minf(lo.z, p.z))
+				hi = Vector3(maxf(hi.x, p.x), 0.0, maxf(hi.z, p.z))
+		var span := maxf(hi.x - lo.x, hi.z - lo.z)
+		main.camera.global_position = (lo + hi) * 0.5 + Vector3.UP * span * 0.95
+		main.camera.look_at((lo + hi) * 0.5, Vector3.FORWARD)
+		await process_frame
+	elif args.size() > 6 and args[6] == "side":
 		# Freeze the scene and look at the car from its front-right quarter.
 		main.set_process(false)
 		var xform: Transform3D = main.sim.car_transform()

@@ -393,3 +393,37 @@ from 137 + 220 to 160 + 250 kW; the simulated time fell from 3.26 s to
 2.98 s. The validation target moved from 3.4 s to 2.95 s. Both the car
 values and the target are a driver's expectation for a fictional car, still
 marked placeholder, not a measurement of any real vehicle.
+
+## D-049 Elevation and banking as a profile along a path
+
+Replaces D-015. A track may carry a `terrain` section: heights and banking
+angles at distances along one path. Within a corridor around the path the
+ground is exactly the road surface (profile height plus cross slope); over
+a blend width it merges into smooth terrain interpolated from the elevation
+points, and beyond that it is that terrain alone. This was the simplest
+form that gives a designed road with crests, dips and banking, stays a pure
+function of position (determinism), and needs no heightfield assets.
+
+The ground query now returns a unit normal. Each wheel and each body
+contact point treats the ground as a plane through the point below it:
+load acts along the normal, tire forces lie in that plane, and camber is
+measured against it. On level ground this reduces to the previous model.
+Tests: a car in neutral rolls back down a 10 percent grade at about
+g sin(theta), a braked car holds on a cross slope, and both cars lap the
+circuit on the road without touching the ground with the body.
+
+Known limits: the plane approximation ignores curvature within the contact
+patch; non-neighbouring parts of the path must be further apart than twice
+the corridor plus blend (checked by a test for the shipped circuit); the
+profile is level at both ends, so a lap must start and end level.
+
+## D-050 The circuit is fictional, not a real one
+
+The driver suggested three well-known real circuits. The project rules say
+no licensed content and no fabricated real-world data, and both apply: a
+real circuit's name and likeness are licensed in commercial sims, and with
+no survey data any "recreation" would be invented geometry under a real
+name. Ridgeline Circuit is an original 2.85 km layout that borrows only
+general ideas found on many circuits (a banked carousel, a climb, a blind
+crest into a steep downhill sequence). A real circuit can be added later
+as a data file if survey data and permission exist.

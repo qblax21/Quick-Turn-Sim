@@ -518,17 +518,19 @@ impl Car {
         let mut body_contacts = 0u8;
         for point in self.contact_points {
             let world = self.state.pos + rot.rotate(point);
-            let ground_height = ground.sample(world.x, world.y).height;
-            let penetration = ground_height - world.z;
+            let under = ground.sample(world.x, world.y);
+            let n = under.normal;
+            // Depth below the local ground plane, measured along its normal.
+            let penetration = (under.height - world.z) * n.z;
             if penetration <= 0.0 {
                 continue;
             }
             body_contacts += 1;
             let v_world = rot.rotate(vel_body + omega.cross(point));
             let normal = (b.contact_stiffness_n_per_m * penetration
-                - b.contact_damping_n_s_per_m * v_world.z)
-                .max(0.0);
-            let tangential = Vec3::new(v_world.x, v_world.y, 0.0);
+                - b.contact_damping_n_s_per_m * v_world.dot(n))
+            .max(0.0);
+            let tangential = v_world - n * v_world.dot(n);
             let slide = tangential.length();
             let friction = if slide > 1e-9 {
                 tangential
@@ -537,7 +539,7 @@ impl Car {
             } else {
                 Vec3::ZERO
             };
-            let f_body = rot.inverse_rotate(Vec3::new(friction.x, friction.y, normal));
+            let f_body = rot.inverse_rotate(friction + n * normal);
             force += f_body;
             torque += point.cross(f_body);
         }
@@ -561,13 +563,21 @@ impl Car {
             let unloaded = tire.geometry.unloaded_radius_m;
             let center_vel_body = vel_body + omega.cross(rho[i]) + corner.travel_dir * zeta_rate;
             let center_vel_world = rot.rotate(center_vel_body);
-            let height_above_ground = center_world.z - sample.height;
+            // The ground under the wheel is treated as a plane through the
+            // point below the centre; distances are measured along its normal.
+            let n = sample.normal;
+            let height_above_ground = (center_world.z - sample.height) * n.z;
             let deflection = unloaded - height_above_ground;
-            let load = vertical_load(tire, &self.state.tires[i], deflection, -center_vel_world.z);
+            let load = vertical_load(
+                tire,
+                &self.state.tires[i],
+                deflection,
+                -center_vel_world.dot(n),
+            );
             let rolling_radius = clamp(height_above_ground, MIN_ROLLING_RADIUS, unloaded);
 
-            // Contact point directly below the wheel centre.
-            let contact_world = Vec3::new(center_world.x, center_world.y, sample.height);
+            // Contact point: the foot of the normal from the wheel centre.
+            let contact_world = center_world - n * height_above_ground;
             let contact_body = rot.inverse_rotate(contact_world - self.state.pos);
             let contact_vel_world =
                 rot.rotate(vel_body + omega.cross(contact_body) + corner.travel_dir * zeta_rate);
@@ -581,10 +591,10 @@ impl Car {
             };
             let (sin_d, cos_d) = (fm::sin(steer_angle), fm::cos(steer_angle));
             let heading = rot.rotate(Vec3::new(cos_d, sin_d, 0.0));
-            let x_w = Vec3::new(heading.x, heading.y, 0.0).normalized_or(Vec3::X);
-            let y_w = Vec3::new(-x_w.y, x_w.x, 0.0);
+            let x_w = (heading - n * heading.dot(n)).normalized_or(Vec3::X);
+            let y_w = n.cross(x_w);
             let spin_axis = rot.rotate(Vec3::new(-sin_d, cos_d, 0.0));
-            let camber = -fm::asin(clamp(spin_axis.z, -1.0, 1.0))
+            let camber = -fm::asin(clamp(spin_axis.dot(n), -1.0, 1.0))
                 + corner.side * (ax.static_camber_rad + ax.camber_gain_rad_per_m * zeta);
 
             let out = tire_model::step(
@@ -604,9 +614,9 @@ impl Car {
                 dt,
             );
 
-            let f_world = x_w * out.fx + y_w * out.fy + Vec3::Z * load;
+            let f_world = x_w * out.fx + y_w * out.fy + n * load;
             let f_body = rot.inverse_rotate(f_world);
-            let mz_body = rot.inverse_rotate(Vec3::Z * out.mz);
+            let mz_body = rot.inverse_rotate(n * out.mz);
             let weight = g_body * corner.unsprung_mass;
             tire_force_body[i] = f_body;
             wheel_travel_force[i] = corner.travel_dir.dot(f_body + weight);
@@ -923,8 +933,9 @@ impl Car {
                 let diff = z - s.susp[i + 1];
                 e += 0.5 * ax.anti_roll_bar_n_per_m * diff * diff;
             }
-            let height = ground.sample(center.x, center.y).height;
-            let deflection = tire.geometry.unloaded_radius_m - (center.z - height);
+            let under = ground.sample(center.x, center.y);
+            let deflection =
+                tire.geometry.unloaded_radius_m - (center.z - under.height) * under.normal.z;
             if deflection > 0.0 {
                 e += 0.5 * vertical_stiffness(tire, &s.tires[i]) * deflection * deflection;
             }

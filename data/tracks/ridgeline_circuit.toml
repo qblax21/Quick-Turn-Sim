@@ -1,0 +1,133 @@
+# SPDX-License-Identifier: CC-BY-4.0
+# Ridgeline Circuit: a FICTIONAL closed road circuit with elevation.
+#
+# Original layout, placeholder quality. It is not a copy of any real circuit
+# and no dimension here was taken from one. Distances in metres, angles in
+# degrees; positive arc angles turn left, so the lap runs counter-clockwise.
+#
+#   distance  element
+#       0     start/finish straight (472 m in all), level
+#     450     T1: right, radius 90 m, slightly downhill
+#     544     T2: long banked left, 150 degrees, radius 110 m, at the low point
+#     832     climb: 320 m straight at about 7 percent
+#    1152     T3: left, radius 60 m, still rising
+#    1427     T4-T6: fast right-left-right esses along the ridge, radius 90 m
+#    1741     T7: left, radius 50 m, into the infield descent
+#    1939     T8: banked right hairpin, radius 35 m, at the bottom of a dip
+#    2049     climb back up to the ridge
+#    2169     T9: left, radius 50 m
+#    2338     T10: left over the crest, radius 50 m, the highest point
+#    2486     T11-T13: the drop, right-left-right, radius 45 m, falling 21 m
+#             in 190 m (about 11 percent)
+#    2719     T14: banked left, radius 70 m, back onto the straight
+
+id = "ridgeline_circuit"
+name = "Ridgeline Circuit"
+description = "Fictional 2.85 km circuit with 38 m of elevation: banked carousel, climb, ridge esses, hairpin in a dip, blind crest and a steep drop."
+default_surface = "dirt"
+air_temp_c = 20.0
+road_temp_c = 28.0
+ground_half_extent_m = 900.0
+
+[spawn]
+x = 0.0
+y = 0.0
+heading_deg = 0.0
+
+[[paths]]
+id = "circuit"
+start_x = 0.0
+start_y = 0.0
+start_heading_deg = 0.0
+segments = [
+    { kind = "straight", length_m = 450.0 },
+    { kind = "arc", radius_m = 90.0, angle_deg = -60.0 },
+    { kind = "arc", radius_m = 110.0, angle_deg = 150.0 },
+    { kind = "straight", length_m = 320.0 },
+    { kind = "arc", radius_m = 60.0, angle_deg = 90.0 },
+    { kind = "straight", length_m = 180.0 },
+    { kind = "arc", radius_m = 90.0, angle_deg = -50.0 },
+    { kind = "arc", radius_m = 90.0, angle_deg = 100.0 },
+    { kind = "arc", radius_m = 90.0, angle_deg = -50.0 },
+    { kind = "arc", radius_m = 50.0, angle_deg = 90.0 },
+    { kind = "straight", length_m = 120.0 },
+    { kind = "arc", radius_m = 35.0, angle_deg = -180.0 },
+    { kind = "straight", length_m = 120.0 },
+    { kind = "arc", radius_m = 50.0, angle_deg = 90.0 },
+    { kind = "straight", length_m = 90.0 },
+    { kind = "arc", radius_m = 50.0, angle_deg = 90.0 },
+    { kind = "straight", length_m = 70.0 },
+    { kind = "arc", radius_m = 45.0, angle_deg = -60.0 },
+    { kind = "arc", radius_m = 45.0, angle_deg = 120.0 },
+    { kind = "arc", radius_m = 45.0, angle_deg = -60.0 },
+    # The last two straights are sized so the lap closes on the start point.
+    { kind = "straight", length_m = 44.115 },
+    { kind = "arc", radius_m = 70.0, angle_deg = 90.0 },
+    { kind = "straight", length_m = 22.571 },
+]
+
+[[regions]]
+kind = "path"
+surface = "tarmac"
+path = "circuit"
+from_m = 0.0
+to_m = 2852.0
+half_width_m = 6.0
+
+[[gates]]
+kind = "start_finish"
+path = "circuit"
+at_m = 30.0
+half_width_m = 6.0
+
+[terrain]
+path = "circuit"
+corridor_half_width_m = 9.0
+blend_m = 16.0
+elevation = [
+    { at_m = 0.0, height_m = 0.0 },
+    { at_m = 100.0, height_m = 0.0 },
+    { at_m = 300.0, height_m = -0.5 },
+    { at_m = 450.0, height_m = -2.0 },
+    { at_m = 544.0, height_m = -5.0 },
+    { at_m = 690.0, height_m = -8.0 },
+    { at_m = 832.0, height_m = -6.0 },
+    { at_m = 990.0, height_m = 5.0 },
+    { at_m = 1152.0, height_m = 16.0 },
+    { at_m = 1246.0, height_m = 20.0 },
+    { at_m = 1426.0, height_m = 24.0 },
+    { at_m = 1583.0, height_m = 27.0 },
+    { at_m = 1740.0, height_m = 26.0 },
+    { at_m = 1819.0, height_m = 24.0 },
+    { at_m = 1939.0, height_m = 16.0 },
+    { at_m = 1994.0, height_m = 14.0 },
+    { at_m = 2049.0, height_m = 15.0 },
+    { at_m = 2169.0, height_m = 24.0 },
+    { at_m = 2247.0, height_m = 27.0 },
+    { at_m = 2337.0, height_m = 30.0 },
+    { at_m = 2400.0, height_m = 30.5 },
+    { at_m = 2486.0, height_m = 27.0 },
+    { at_m = 2580.0, height_m = 16.0 },
+    { at_m = 2675.0, height_m = 6.0 },
+    { at_m = 2719.0, height_m = 3.0 },
+    { at_m = 2790.0, height_m = 0.5 },
+    { at_m = 2829.0, height_m = 0.0 },
+    { at_m = 2851.4, height_m = 0.0 },
+]
+# Positive raises the left edge, so a left-hand corner banks with a negative
+# angle.
+banking = [
+    { at_m = 0.0, angle_deg = 0.0 },
+    { at_m = 520.0, angle_deg = 0.0 },
+    { at_m = 600.0, angle_deg = -5.0 },
+    { at_m = 780.0, angle_deg = -5.0 },
+    { at_m = 850.0, angle_deg = 0.0 },
+    { at_m = 1920.0, angle_deg = 0.0 },
+    { at_m = 1960.0, angle_deg = 3.0 },
+    { at_m = 2030.0, angle_deg = 3.0 },
+    { at_m = 2070.0, angle_deg = 0.0 },
+    { at_m = 2700.0, angle_deg = 0.0 },
+    { at_m = 2740.0, angle_deg = -3.0 },
+    { at_m = 2810.0, angle_deg = -3.0 },
+    { at_m = 2845.0, angle_deg = 0.0 },
+]

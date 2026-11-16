@@ -480,7 +480,7 @@ the session because the headless binary needed all three.
 | 4 | DirectInput behaviour varies by driver | Device may refuse exclusive access or the effect type | Null backend fallback; errors surfaced in UI; device code isolated |
 | 5 | Stiff couplings at 1000 Hz | Clutch, brake or differential chatter; instability at standstill | Synchronising-torque solves; low-speed tire damping; soak test |
 | 6 | Reduced Magic Formula subset | Cannot load a published tire file directly | Coefficient names kept compatible; subset documented; extension is additive |
-| 7 | Flat ground only | No elevation, banking or kerb geometry beyond a height profile | Track query returns height and normal already; heightfields are a data change |
+| 7 | Simple ground shape | Elevation and banking come from one profile along a path (D-049); no kerb or bump geometry beyond a height profile, and each wheel sees a tilted plane | Track query returns height and normal; richer ground is a data and query change |
 | 8 | Godot and binding version drift | Extension fails to load on a newer editor | Pin versions in docs; binding is thin; CI builds it |
 | 9 | Driver models in validation | A metric can reflect the test driver, not the car | Driver models are simple, documented and reported with each metric |
 | 10 | Real-time thread scheduling on Windows | Tick jitter adds force-feedback latency | Host measures and logs tick jitter; catch-up is bounded |

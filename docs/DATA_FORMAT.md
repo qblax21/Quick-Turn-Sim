@@ -146,8 +146,32 @@ radius_m = 30.0
 label = "skidpad"
 ```
 
-The world is x forward (east on a map), y left (north), in metres. The
-ground is flat apart from roughness and ridge profiles.
+A track may add elevation and banking along one of its paths:
+
+```toml
+[terrain]
+path = "circuit"
+corridor_half_width_m = 9.0    # the road surface is shaped exactly this far out
+blend_m = 16.0                 # then blends into smooth terrain over this width
+elevation = [                  # height of the centre line, in order of distance
+    { at_m = 0.0, height_m = 0.0 },
+    { at_m = 450.0, height_m = -2.0 },
+]
+banking = [                    # optional; positive raises the left edge
+    { at_m = 600.0, angle_deg = -5.0 },
+]
+```
+
+Heights and banking are joined by a smooth curve that never goes outside the
+values written, and is level at the first and last point (so a closed lap
+should start and end level, at the same height). Away from the road the
+ground is interpolated from the elevation points. Parts of the path that are
+not neighbours must stay further apart than twice
+`corridor_half_width_m + blend_m`, or the ground between them has a step.
+
+The world is x forward (east on a map), y left (north), in metres. Without
+a `terrain` section the ground is flat apart from roughness and ridge
+profiles.
 `qts-sim track-info <id>` prints path lengths, bounds, how close a path
 comes to itself, and the surface along it.
 

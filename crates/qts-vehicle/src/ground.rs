@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //! What the vehicle needs to know about the world under it.
 
+use qts_core::math::Vec3;
 use qts_tire::SurfaceParams;
 
 /// Ground properties at one point.
@@ -8,6 +9,9 @@ use qts_tire::SurfaceParams;
 pub struct GroundSample<'a> {
     /// Height of the ground above the world origin, m.
     pub height: f64,
+    /// Unit normal of the ground, pointing up out of it. `Vec3::Z` on
+    /// level ground.
+    pub normal: Vec3,
     /// Surface at this point.
     pub surface: &'a SurfaceParams,
     /// Index of the surface in the session's surface table.
@@ -32,6 +36,7 @@ impl Ground for FlatGround {
     fn sample(&self, _x: f64, _y: f64) -> GroundSample<'_> {
         GroundSample {
             height: 0.0,
+            normal: Vec3::Z,
             surface: &self.surface,
             surface_index: 0,
         }

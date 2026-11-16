@@ -485,12 +485,31 @@ impl SimBridge {
             "description" => gstr(&def.description),
             "ground_half_extent" => def.ground_half_extent_m,
             "default_surface" => gstr(&def.default_surface),
-            "spawn" => ground_to_godot([x, y], 0.0),
+            "spawn" => ground_to_godot([x, y], l.track.ground_height(x, y)),
+            "has_terrain" => l.track.has_terrain(),
             "spawn_heading" => heading,
             "surface_ids" => ids,
             "surface_names" => names,
             "surface_tuned" => tuned,
         }
+    }
+
+    /// The given points moved vertically onto the shaped ground (road and
+    /// terrain, without kerb ridges or roughness). For drawing only.
+    #[func]
+    fn ground_heights(&self, points: PackedVector3Array) -> PackedVector3Array {
+        let Some(l) = &self.loaded else {
+            return points;
+        };
+        points
+            .as_slice()
+            .iter()
+            .map(|p| {
+                // Godot (x, y, z) is simulation (-y, z, -x).
+                let (x, y) = (-f64::from(p.z), -f64::from(p.x));
+                Vector3::new(p.x, l.track.ground_height(x, y) as f32, p.z)
+            })
+            .collect()
     }
 
     /// Cone positions on the ground.
@@ -501,7 +520,7 @@ impl SimBridge {
                 .track
                 .cones()
                 .iter()
-                .map(|c| ground_to_godot(*c, 0.0))
+                .map(|c| ground_to_godot(*c, l.track.ground_height(c[0], c[1])))
                 .collect(),
             None => PackedVector3Array::new(),
         }
@@ -516,7 +535,7 @@ impl SimBridge {
                 let points: PackedVector3Array = path
                     .points
                     .iter()
-                    .map(|p| ground_to_godot(*p, 0.0))
+                    .map(|p| ground_to_godot(*p, l.track.ground_height(p[0], p[1])))
                     .collect();
                 let distances: PackedFloat32Array = path.s.iter().map(|s| *s as f32).collect();
                 out.push(&vd! {
@@ -601,8 +620,8 @@ impl SimBridge {
                 };
                 out.push(&vd! {
                     "kind" => gstr(kind),
-                    "a" => ground_to_godot(gate.a, 0.0),
-                    "b" => ground_to_godot(gate.b, 0.0),
+                    "a" => ground_to_godot(gate.a, l.track.ground_height(gate.a[0], gate.a[1])),
+                    "b" => ground_to_godot(gate.b, l.track.ground_height(gate.b[0], gate.b[1])),
                 });
             }
         }

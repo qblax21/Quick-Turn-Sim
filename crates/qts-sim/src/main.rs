@@ -443,10 +443,15 @@ fn cmd_track_info(args: &Args) -> Result<(), String> {
         }
         // Closest approach between parts of the path at least 30 m apart
         // along its length: a small value means the layout overlaps itself.
+        let last = path.points[path.points.len() - 1];
+        let closed =
+            (last[0] - path.points[0][0]).abs() < 0.5 && (last[1] - path.points[0][1]).abs() < 0.5;
         let mut closest = f64::INFINITY;
         for i in 0..path.points.len() {
             for j in (i + 1)..path.points.len() {
-                if path.s[j] - path.s[i] < 30.0 {
+                let apart = path.s[j] - path.s[i];
+                // On a closed lap the two ends are neighbours too.
+                if apart < 30.0 || (closed && path.length() - apart < 30.0) {
                     continue;
                 }
                 let (dx, dy) = (
@@ -466,6 +471,35 @@ fn cmd_track_info(args: &Args) -> Result<(), String> {
             max_y,
             closest
         );
+        let (end, end_heading) = path.at(path.length());
+        println!(
+            "        ends at ({:.3}, {:.3}) heading {:.3} deg; starts at ({:.3}, {:.3})",
+            end[0],
+            end[1],
+            end_heading.to_degrees(),
+            path.points[0][0],
+            path.points[0][1]
+        );
+        if track.has_terrain() {
+            // Height and steepest grade along the centre line.
+            let (mut low, mut high, mut steepest) = (f64::INFINITY, f64::NEG_INFINITY, 0.0f64);
+            let mut previous = track.ground_height(path.points[0][0], path.points[0][1]);
+            for i in 0..path.points.len() {
+                let h = track.ground_height(path.points[i][0], path.points[i][1]);
+                low = low.min(h);
+                high = high.max(h);
+                if i > 0 && path.s[i] > path.s[i - 1] {
+                    steepest = steepest.max(((h - previous) / (path.s[i] - path.s[i - 1])).abs());
+                }
+                previous = h;
+            }
+            println!(
+                "        height {:.1}..{:.1} m, steepest grade {:.1} percent",
+                low,
+                high,
+                steepest * 100.0
+            );
+        }
         // Surface along the path, as runs.
         let mut run_start = 0.0;
         let mut current: Option<u16> = None;
