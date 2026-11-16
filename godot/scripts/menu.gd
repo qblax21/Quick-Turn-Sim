@@ -4,8 +4,10 @@ extends CanvasLayer
 
 signal drive_requested(car_id, track_id, auto_clutch, auto_shift, ffb_preset, device_id, direct_steering)
 signal input_setup_requested
+signal settings_requested
 
 var sim
+var settings
 var car_list: OptionButton
 var track_list: OptionButton
 var preset_list: OptionButton
@@ -21,8 +23,9 @@ var preset_ids: PackedStringArray
 var device_ids: Array = []
 
 
-func setup(bridge) -> void:
+func setup(bridge, store) -> void:
 	sim = bridge
+	settings = store
 
 
 func _ready() -> void:
@@ -57,21 +60,24 @@ func _ready() -> void:
 	description = Label.new()
 	description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(description)
+	_restore(car_list, car_ids, "menu/car")
+	_restore(track_list, track_ids, "menu/track")
 	car_list.item_selected.connect(func(_i: int) -> void: _describe())
 	track_list.item_selected.connect(func(_i: int) -> void: _describe())
 
 	auto_clutch = CheckBox.new()
 	auto_clutch.text = "Automatic clutch"
-	auto_clutch.button_pressed = true
+	auto_clutch.button_pressed = settings.get_value("menu/auto_clutch")
 	box.add_child(auto_clutch)
 	auto_shift = CheckBox.new()
 	auto_shift.text = "Automatic gears"
-	auto_shift.button_pressed = true
+	auto_shift.button_pressed = settings.get_value("menu/auto_shift")
 	box.add_child(auto_shift)
 
 	box.add_child(HSeparator.new())
 	preset_ids = sim.list_ids("ffb")
 	preset_list = _add_choice(box, "Force-feedback preset", preset_ids, "ffb")
+	_restore(preset_list, preset_ids, "menu/ffb_preset")
 	device_list = OptionButton.new()
 	device_list.add_item("No force-feedback device")
 	device_ids = [""]
@@ -101,6 +107,11 @@ func _ready() -> void:
 	setup_button.custom_minimum_size = Vector2(0, 44)
 	setup_button.pressed.connect(func() -> void: input_setup_requested.emit())
 	buttons.add_child(setup_button)
+	var settings_button := Button.new()
+	settings_button.text = "Settings"
+	settings_button.custom_minimum_size = Vector2(0, 44)
+	settings_button.pressed.connect(func() -> void: settings_requested.emit())
+	buttons.add_child(settings_button)
 	var quit := Button.new()
 	quit.text = "Quit"
 	quit.custom_minimum_size = Vector2(0, 44)
@@ -113,7 +124,7 @@ func _ready() -> void:
 	box.add_child(error_label)
 
 	var keys := Label.new()
-	keys.text = "Keyboard: W/S or arrows = pedals, A/D = steer, Space = handbrake, E/Q = shift, Shift = clutch, R = reset.\nWhile driving: Esc = menu, C = seat or chase camera, M = mute sound, P = pause, F1 = tire and FFB overlay, F2 = telemetry, F3 = replay."
+	keys.text = "Keyboard: W/S or arrows = pedals, A/D = steer, Space = handbrake, E/Q = shift, Shift = clutch, R = reset.\nWhile driving: Esc = menu, C = seat or chase camera, G = ghost of the best lap, M = mute sound, P = pause, F1 = tire and FFB overlay, F2 = telemetry, F3 = replay."
 	keys.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	keys.add_theme_font_size_override("font_size", 13)
 	box.add_child(keys)
@@ -138,6 +149,22 @@ func _add_choice(parent: Control, caption: String, ids: PackedStringArray, kind:
 		list.add_item(info.get("name", id))
 	_add_row(parent, caption, list)
 	return list
+
+
+# Selects the entry remembered from the last session, if it still exists.
+func _restore(list: OptionButton, ids: PackedStringArray, key: String) -> void:
+	var index := ids.find(settings.get_value(key))
+	if index >= 0:
+		list.select(index)
+
+
+# Stores the current choices so the menu opens the same way next time.
+func remember_choices() -> void:
+	settings.set_value("menu/car", _selected(car_ids, car_list))
+	settings.set_value("menu/track", _selected(track_ids, track_list))
+	settings.set_value("menu/auto_clutch", auto_clutch.button_pressed)
+	settings.set_value("menu/auto_shift", auto_shift.button_pressed)
+	settings.set_value("menu/ffb_preset", _selected(preset_ids, preset_list))
 
 
 func _selected(ids: PackedStringArray, list: OptionButton) -> String:

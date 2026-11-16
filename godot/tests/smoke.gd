@@ -12,6 +12,8 @@ const Hud := preload("res://scripts/hud.gd")
 const InputReader := preload("res://scripts/input_reader.gd")
 const Menu := preload("res://scripts/menu.gd")
 const InputSetup := preload("res://scripts/input_setup.gd")
+const Settings := preload("res://scripts/settings.gd")
+const SettingsScreen := preload("res://scripts/settings_screen.gd")
 
 var failures := 0
 
@@ -47,18 +49,28 @@ func _run() -> void:
 	# The menu and setup screens build without errors.
 	var reader = InputReader.new()
 	root.add_child(reader)
+	# Settings are read but never saved here, so a test run leaves the
+	# player's file alone.
+	var settings = Settings.new()
+	root.add_child(settings)
 	var menu = Menu.new()
-	menu.setup(sim)
+	menu.setup(sim, settings)
 	root.add_child(menu)
 	await process_frame
 	menu.queue_free()
 	check(sim.ffb_load_preset(presets[0]), "preset loads")
 	var setup = InputSetup.new()
-	setup.setup(sim, reader)
+	setup.setup(sim, reader, settings)
 	root.add_child(setup)
 	await process_frame
 	await process_frame
 	setup.queue_free()
+	var screen = SettingsScreen.new()
+	screen.setup(settings)
+	root.add_child(screen)
+	await process_frame
+	screen.queue_free()
+	check(settings.get_value("display/fov") > 0.0, "settings have defaults")
 	check(sim.ffb_set("gain", 0.25), "gain can be changed")
 	check(not sim.ffb_set("soft_clip_knee", 2.0), "an invalid setting is rejected")
 	check(absf(sim.ffb_config().gain - 0.25) < 1e-9, "the change is visible")
@@ -75,6 +87,12 @@ func _run() -> void:
 			var view = CarView.new()
 			root.add_child(view)
 			view.build(sim.car_info())
+			var ghost_view = CarView.new()
+			root.add_child(ghost_view)
+			ghost_view.build(sim.car_info())
+			ghost_view.make_ghost()
+			check(sim.ghost().has("visible"), label + " reports a ghost state")
+			ghost_view.queue_free()
 			var hud = Hud.new()
 			root.add_child(hud)
 			hud.setup(sim)

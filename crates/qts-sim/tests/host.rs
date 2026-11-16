@@ -19,6 +19,7 @@ fn options() -> HostOptions {
         ffb: data().load_ffb("generic_wheel").unwrap().value,
         max_catch_up_ticks: 100,
         interpolate_inputs: true,
+        ghost_path: None,
     }
 }
 

@@ -61,6 +61,20 @@ This builds every crate in release mode and copies the binding library to
 
 On Linux: `tools/build.sh` (add `--test` for the tests).
 
+## Package a standalone folder (Windows)
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\package.ps1
+```
+
+This writes `out\<name>\` with the executable, the game pack, the
+simulation library and the data files; it runs on a machine with neither
+Rust nor the Godot project. With Godot's export templates installed
+(Editor > Manage Export Templates) it is a release executable. Without
+them the script makes a development package that uses a copy of the Godot
+editor binary as its runtime: it plays the same but is larger and is not
+what should be shipped.
+
 ## Run
 
 ### With the front end

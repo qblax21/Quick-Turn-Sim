@@ -33,6 +33,8 @@ const FFB_SLIDERS := [
 
 var sim
 var reader
+var settings
+var preset_id := ""
 var status: Label
 var rows := {}           # action -> {"value": Label, "bar": ProgressBar}
 var listening := ""      # action waiting for an axis or button
@@ -43,9 +45,10 @@ var cal_min := 0.0
 var cal_max := 0.0
 
 
-func setup(bridge, input_reader) -> void:
+func setup(bridge, input_reader, store) -> void:
 	sim = bridge
 	reader = input_reader
+	settings = store
 
 
 func _ready() -> void:
@@ -98,7 +101,9 @@ func _ready() -> void:
 		var presets: PackedStringArray = sim.list_ids("ffb")
 		if presets.size() > 0:
 			sim.ffb_load_preset(presets[0])
+			settings.apply_ffb(sim)
 			config = sim.ffb_config()
+	preset_id = config.get("id", "")
 	var preset_label := Label.new()
 	preset_label.text = "Preset: %s%s" % [config.get("name", "none"), "" if config.get("tuned", false) else "\nThis preset has not been tuned on hardware. Start with low gain."]
 	preset_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -106,7 +111,9 @@ func _ready() -> void:
 	var invert := CheckBox.new()
 	invert.text = "Invert force direction"
 	invert.button_pressed = config.get("invert", false)
-	invert.toggled.connect(func(on: bool) -> void: sim.ffb_set("invert", 1.0 if on else 0.0))
+	invert.toggled.connect(func(on: bool) -> void:
+		sim.ffb_set("invert", 1.0 if on else 0.0)
+		settings.set_ffb(preset_id, "invert", 1.0 if on else 0.0))
 	right.add_child(invert)
 	var sign_help := Label.new()
 	sign_help.text = "Sign check: drive slowly and turn. The wheel should resist and return to centre when released. If it pulls further into the turn, tick Invert."
@@ -116,7 +123,7 @@ func _ready() -> void:
 	for entry in FFB_SLIDERS:
 		_ffb_slider(right, entry, config)
 	var note := Label.new()
-	note.text = "Changes apply at once and last until the application closes. To keep them, edit the preset file in data/ffb."
+	note.text = "Changes apply at once and are remembered for this preset when you save. The preset file in data/ffb is not changed."
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	note.add_theme_font_size_override("font_size", 13)
 	right.add_child(note)
@@ -126,6 +133,7 @@ func _ready() -> void:
 	done.custom_minimum_size = Vector2(200, 44)
 	done.pressed.connect(func() -> void:
 		reader.save_config()
+		settings.save()
 		closed.emit())
 	right.add_child(done)
 
@@ -218,7 +226,9 @@ func _ffb_slider(parent: Control, entry: Array, config: Dictionary) -> void:
 	row.add_child(readout)
 	slider.value_changed.connect(func(v: float) -> void:
 		readout.text = str(snappedf(v, entry[4]))
-		if not sim.ffb_set(key, v):
+		if sim.ffb_set(key, v):
+			settings.set_ffb(preset_id, key, v)
+		else:
 			status.text = sim.last_error())
 	parent.add_child(row)
 

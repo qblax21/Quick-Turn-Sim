@@ -83,6 +83,7 @@ pub struct SimBridge {
     loaded: Option<Loaded>,
     ffb: Option<FfbConfig>,
     last_error: String,
+    ghost_dir: Option<std::path::PathBuf>,
     base: Base<RefCounted>,
 }
 
@@ -258,6 +259,11 @@ impl SimBridge {
                 },
                 ..SessionConfig::default()
             };
+            // One ghost file per car and track.
+            let ghost_path = self
+                .ghost_dir
+                .as_ref()
+                .map(|dir| dir.join(format!("{car_id}__{track_id}.ghost")));
             let session = Session::new(assets, config)?;
             let host = RealtimeHost::start(
                 session,
@@ -265,6 +271,7 @@ impl SimBridge {
                     ffb: ffb.clone(),
                     max_catch_up_ticks: 100,
                     interpolate_inputs: true,
+                    ghost_path,
                 },
             )?;
             Ok((host, loaded, ffb))
@@ -365,6 +372,48 @@ impl SimBridge {
             out.extend_from_slice(&[p.x, p.y, p.z, w.steer_angle as f32, w.spin_angle as f32]);
         }
         PackedFloat32Array::from(out)
+    }
+
+    /// Directory where best-lap ghosts are kept, one file per car and
+    /// track. Takes effect at the next session start; an empty path keeps
+    /// ghosts in memory only.
+    #[func]
+    fn set_ghost_dir(&mut self, path: GString) {
+        let path = path.to_string();
+        self.ghost_dir = if path.is_empty() {
+            None
+        } else {
+            Some(std::path::PathBuf::from(path))
+        };
+    }
+
+    /// The best-lap ghost: `time` is that lap's time in seconds (zero if
+    /// there is none); `visible` is true while a run is in progress and the
+    /// ghost has not finished its lap, and then `transform` and `wheels`
+    /// are laid out like `car_transform` and `wheel_states`.
+    #[func]
+    fn ghost(&self) -> VarDictionary {
+        let Some(host) = &self.host else {
+            return VarDictionary::new();
+        };
+        let (pose, time) = host.ghost();
+        let Some(pose) = pose else {
+            return vd! { "visible" => false, "time" => time };
+        };
+        let mut wheels = Vec::with_capacity(20);
+        for w in &pose.wheels {
+            let p = to_godot(w.center_body);
+            wheels.extend_from_slice(&[p.x, p.y, p.z, w.steer_angle as f32, w.spin_angle as f32]);
+        }
+        vd! {
+            "visible" => true,
+            "time" => time,
+            "transform" => Transform3D::new(
+                Basis::from_quaternion(quat_to_godot(pose.rot)),
+                to_godot(pose.pos),
+            ),
+            "wheels" => PackedFloat32Array::from(wheels),
+        }
     }
 
     /// Values for the HUD and the debug overlay.

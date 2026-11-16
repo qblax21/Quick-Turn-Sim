@@ -17,6 +17,7 @@
 
 pub mod data;
 pub mod drivers;
+pub mod ghost;
 pub mod host;
 pub mod session;
 pub mod telemetry;

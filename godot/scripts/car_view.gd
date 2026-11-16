@@ -134,6 +134,23 @@ func build(info: Dictionary) -> void:
 		wheels.append(pivot)
 
 
+# Turns this car into the best-lap ghost: one translucent material, no
+# shadow, no interior.
+func make_ghost() -> void:
+	var material := StandardMaterial3D.new()
+	material.albedo_color = Color(0.75, 0.9, 1.0, 0.32)
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	if interior:
+		interior.queue_free()
+		interior = null
+		steering_rim = null
+	for node in find_children("*", "MeshInstance3D", true, false):
+		node.material_override = material
+		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	visible = false
+
+
 # In the driver's-seat view the cabin box is hidden, so it does not block the
 # view, and the interior is shown.
 func set_seat_view(on: bool) -> void:

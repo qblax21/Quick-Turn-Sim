@@ -11,6 +11,7 @@
 //! clock. The clock decides how many ticks to run and nothing else; no time
 //! value ever reaches [`Simulation::step`].
 
+use crate::ghost::{GhostLap, GhostRecorder};
 use crate::session::Session;
 use crate::telemetry;
 use qts_core::input::{InputFrame, AXIS_MAX};
@@ -45,6 +46,10 @@ pub struct HostOptions {
     /// input updates, so frame-rate input does not reach the physics as a
     /// staircase.
     pub interpolate_inputs: bool,
+    /// File holding the best-lap ghost for this car and track. It is read
+    /// at start if it exists and fits the session, and rewritten whenever
+    /// a faster lap is driven. `None` keeps the ghost in memory only.
+    pub ghost_path: Option<PathBuf>,
 }
 
 /// Pose of one wheel for drawing.
@@ -293,6 +298,8 @@ struct Published {
     alpha: f64,
     hud: HudState,
     cones_down: Vec<bool>,
+    ghost: Option<RenderPose>,
+    ghost_time_s: f64,
 }
 
 struct Shared {
@@ -348,6 +355,8 @@ impl RealtimeHost {
                 alpha: 1.0,
                 hud: HudState::of(&session),
                 cones_down: session.timing().cone_down.clone(),
+                ghost: None,
+                ghost_time_s: 0.0,
             }),
             status: Mutex::new(HostStatus {
                 ffb_enabled: true,
@@ -382,6 +391,14 @@ impl RealtimeHost {
     pub fn render(&self) -> (RenderPose, HudState) {
         let p = lock(&self.shared.published);
         (RenderPose::lerp(&p.previous, &p.current, p.alpha), p.hud)
+    }
+
+    /// Pose of the best-lap ghost at this moment of the current run, if a
+    /// run is in progress and a best lap exists, and that lap's time in
+    /// seconds (zero if there is none).
+    pub fn ghost(&self) -> (Option<RenderPose>, f64) {
+        let p = lock(&self.shared.published);
+        (p.ghost, p.ghost_time_s)
     }
 
     /// Which cones are currently knocked down, in track cone order.
@@ -421,6 +438,7 @@ struct SimThread {
     paused: bool,
     telemetry: Option<TelemetryWriter<BufWriter<File>>>,
     recorder: Option<ReplayRecorder>,
+    ghost: GhostRecorder,
     row: Vec<f64>,
     // Input interpolation.
     seen_sequence: u64,
@@ -461,7 +479,15 @@ impl SimThread {
         let pose = RenderPose::of(&session);
         let rate = f64::from(session.tick_rate_hz());
         let device_divider = (rate / options.ffb.device_update_rate_hz).round().max(1.0) as u32;
+        // A missing, unreadable or mismatched ghost file just means no ghost.
+        let saved = options
+            .ghost_path
+            .as_ref()
+            .and_then(|path| std::fs::read(path).ok())
+            .and_then(|bytes| GhostLap::from_bytes(&bytes).ok())
+            .filter(|lap| lap.fits(&session));
         Self {
+            ghost: GhostRecorder::new(saved),
             session,
             pipeline,
             options,
@@ -703,6 +729,22 @@ impl SimThread {
         }
         self.previous = self.current;
         self.current = RenderPose::of(&self.session);
+        if self.ghost.observe(&self.session, &self.current) {
+            self.save_ghost();
+        }
+    }
+
+    /// Writes the best lap to the ghost file, if one was asked for.
+    fn save_ghost(&mut self) {
+        let (Some(path), Some(lap)) = (self.options.ghost_path.as_ref(), self.ghost.best()) else {
+            return;
+        };
+        if let Some(dir) = path.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        if let Err(e) = std::fs::write(path, lap.to_bytes()) {
+            self.last_error = Some(format!("ghost {}: {e}", path.display()));
+        }
     }
 
     fn run(mut self) -> Session {
@@ -749,6 +791,8 @@ impl SimThread {
                 p.cones_down.clear();
                 p.cones_down
                     .extend_from_slice(&self.session.timing().cone_down);
+                p.ghost = self.ghost.pose_now(&self.session, p.alpha);
+                p.ghost_time_s = self.ghost.best().map_or(0.0, GhostLap::seconds);
             }
             {
                 let mut s = lock(&self.shared.status);

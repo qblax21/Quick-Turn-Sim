@@ -427,3 +427,33 @@ name. Ridgeline Circuit is an original 2.85 km layout that borrows only
 general ideas found on many circuits (a banked carousel, a climb, a blind
 crest into a steep downhill sequence). A real circuit can be added later
 as a data file if survey data and permission exist.
+
+## D-051 The ghost is a recording of poses, not a replay of inputs
+
+The best timed run is shown as a translucent car on later runs. The host
+records the car's pose every 20 ticks through each run and keeps the
+fastest; the ghost file (one per car and track, in the user folder) holds
+those poses. Re-simulating the best lap from its inputs would be exact,
+but it doubles the physics cost and the file would stop working whenever
+the physics or the data changed. The recorder only reads the session, so
+it cannot affect determinism. Any completed run counts: there are no track
+limits yet, and cone penalties are not applied.
+
+## D-052 Player settings live in the front end's user folder
+
+Display, sound, view, last menu choices and force-feedback adjustments per
+preset are stored in `user://settings.cfg` by the front end. Force-feedback
+values are still applied by the core; the front end only remembers what the
+player changed and passes it on after the preset loads. Preset files in
+`data/ffb` are never written.
+
+## D-053 Packaging, with a fallback when export templates are missing
+
+`tools/package.ps1` produces a standalone folder. The proper path is a
+Godot export, which needs the export templates (a download of about 1 GB).
+Without them the script packs the project and uses a copy of the Godot
+editor binary as the runtime, which the engine's licence allows and which
+plays identically, so the game can be handed to someone without installing
+anything. That fallback is a development convenience, not a release. The
+front end finds `data/` beside the executable first, then beside the
+project.

@@ -98,7 +98,15 @@ Passing them shows the harness works and the placeholder cars are in a
 plausible range. It is not evidence of realism.
 
 ### Front end
-- Menu, car and track selection, assists, wheel and preset selection.
+- Menu, car and track selection, assists, wheel and preset selection; the
+  last choices are remembered.
+- Settings screen (display, sound, view) and force-feedback adjustments
+  saved per preset (D-052).
+- Ghost of the best lap per car and track, saved between sessions (D-051).
+  The recorder is tested; the ghost has not yet been seen on screen by
+  anyone, because that needs a completed lap by a person.
+- Standalone package via `tools/package.ps1` (D-053). Only the fallback
+  development package has been built: export templates are not installed.
 - Placeholder world built from track data: ground, surface regions, road
   strip, cones that tip when hit, timing gates, painted markers.
 - Placeholder car with steering and spinning wheels, chase and cockpit

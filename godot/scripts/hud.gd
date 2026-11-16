@@ -123,6 +123,8 @@ func update(hud: Dictionary, status: Dictionary, input: Dictionary, telemetry_on
 	var run_line := "run   %s" % _format_time(hud.run_time) if hud.run_active else "run   waiting for the start gate"
 	time_label.text = "%s\nlast  %s   cones %d\nbest  %s\ncones this run: %d" % [
 		run_line, _format_time(hud.last_time), hud.last_cones_hit, _format_time(hud.best_time), hud.cones_hit]
+	if hud.get("ghost_time", 0.0) > 0.0:
+		time_label.text += "\nghost %s" % _format_time(hud.ghost_time)
 
 	input_bars["steer"].value = -input.steer
 	input_bars["throttle"].value = input.throttle

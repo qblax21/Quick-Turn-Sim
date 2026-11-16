@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Development tool: renders the start menu and saves a screenshot.
-#   godot --path godot --script res://tests/menu_shot.gd -- OUTPUT.png [setup]
+#   godot --path godot --script res://tests/menu_shot.gd -- OUTPUT.png [setup|settings]
 extends SceneTree
 
 
@@ -14,6 +14,10 @@ func _run() -> void:
 	root.add_child(main)
 	for i in range(5):
 		await process_frame
+	if args.size() > 1 and args[1] == "settings":
+		main._show_settings()
+		for i in range(5):
+			await process_frame
 	if args.size() > 1 and args[1] == "setup":
 		main._show_input_setup()
 		for i in range(5):
