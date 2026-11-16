@@ -32,10 +32,10 @@ confidence = "placeholder"
 
 [[target]]
 metric = "accel_0_60"
-value = 3.4
+value = 2.95
 unit = "s"
 tolerance_percent = 10.0
-source = "approximate class-typical 0-60 mph time for a performance dual-motor sedan, without rollout"
+source = "driver expectation for the fastest cars of this class: just under 3 s without rollout; not a measurement"
 confidence = "placeholder"
 
 [[target]]

@@ -101,29 +101,29 @@ front_torque_share = { value = 0.38, source = "rear-biased split, typical of the
 torque_vectoring = "none"
 
 [drivetrain.front_motor]
-peak_torque_nm = { value = 240.0, source = "class-typical front induction or permanent-magnet unit", confidence = "placeholder" }
-peak_power_w = { value = 137000.0, source = "class-typical front unit", confidence = "placeholder" }
+peak_torque_nm = { value = 280.0, source = "raised after driver feedback that the car should reach 60 mph in just under 3 s; not a measurement", confidence = "placeholder" }
+peak_power_w = { value = 160000.0, source = "raised after driver feedback that the car should reach 60 mph in just under 3 s; not a measurement", confidence = "placeholder" }
 max_speed_rad_per_s = { value = 2050.0, source = "about 19 600 rpm, sets the top speed with the reduction", confidence = "placeholder" }
 reduction_ratio = { value = 9.0, source = "class-typical single-speed reduction", confidence = "placeholder" }
 rotor_inertia_kg_m2 = { value = 0.045, source = "order of magnitude", confidence = "placeholder" }
 efficiency = { value = 0.92, source = "flat motor-plus-inverter efficiency, no map", confidence = "placeholder" }
-regen_torque_limit_nm = { value = 120.0, source = "half of peak torque", confidence = "placeholder" }
+regen_torque_limit_nm = { value = 140.0, source = "half of peak torque", confidence = "placeholder" }
 regen_power_limit_w = { value = 60000.0, source = "guess", confidence = "placeholder" }
 
 [drivetrain.rear_motor]
-peak_torque_nm = { value = 420.0, source = "class-typical rear permanent-magnet unit", confidence = "placeholder" }
-peak_power_w = { value = 220000.0, source = "class-typical rear unit", confidence = "placeholder" }
+peak_torque_nm = { value = 480.0, source = "raised after driver feedback that the car should reach 60 mph in just under 3 s; not a measurement", confidence = "placeholder" }
+peak_power_w = { value = 250000.0, source = "raised after driver feedback that the car should reach 60 mph in just under 3 s; not a measurement", confidence = "placeholder" }
 max_speed_rad_per_s = { value = 2050.0, source = "about 19 600 rpm, sets the top speed with the reduction", confidence = "placeholder" }
 reduction_ratio = { value = 9.0, source = "class-typical single-speed reduction", confidence = "placeholder" }
 rotor_inertia_kg_m2 = { value = 0.06, source = "order of magnitude", confidence = "placeholder" }
 efficiency = { value = 0.93, source = "flat motor-plus-inverter efficiency, no map", confidence = "placeholder" }
-regen_torque_limit_nm = { value = 210.0, source = "half of peak torque", confidence = "placeholder" }
+regen_torque_limit_nm = { value = 240.0, source = "half of peak torque", confidence = "placeholder" }
 regen_power_limit_w = { value = 90000.0, source = "guess", confidence = "placeholder" }
 
 [drivetrain.battery]
 capacity_j = { value = 2.7e8, source = "75 kWh usable, class-typical", confidence = "placeholder" }
 initial_soc = { value = 0.9, source = "session default", confidence = "placeholder" }
-max_discharge_power_w = { value = 400000.0, source = "above combined motor power so the motors are the limit", confidence = "placeholder" }
+max_discharge_power_w = { value = 480000.0, source = "above combined motor power so the motors are the limit", confidence = "placeholder" }
 max_charge_power_w = { value = 150000.0, source = "guess", confidence = "placeholder" }
 
 [drivetrain.regen]

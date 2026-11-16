@@ -383,3 +383,13 @@ faster", but it already meets its placeholder acceleration and top-speed
 targets (0-60 mph in 3.26 s), and the drive was done without sound and
 with a featureless ground, both of which hide speed. To be judged again
 with D-045 and D-046 in place.
+
+## D-048 Sedan power raised
+
+With sound and the new ground in place the driver still wanted the sedan
+quicker, expecting the fastest cars of its class to reach 60 mph in just
+under 3 s. Motor torque went from 240 + 420 to 280 + 480 N.m and power
+from 137 + 220 to 160 + 250 kW; the simulated time fell from 3.26 s to
+2.98 s. The validation target moved from 3.4 s to 2.95 s. Both the car
+values and the target are a driver's expectation for a fictional car, still
+marked placeholder, not a measurement of any real vehicle.
