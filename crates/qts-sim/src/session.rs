@@ -2,13 +2,10 @@
 //! A session: one car on one track, stepped deterministically.
 
 use crate::data::{DataError, DataRoot};
-use crate::track::{segments_cross, GateKind, Track, CONE_RADIUS_M};
-
-/// Share of the lap distance a run must cover before a start/finish gate
-/// will end it.
-const MIN_LAP_FRACTION: f64 = 0.8;
+use crate::track::{segments_cross, GateKind, Track, CONE_RADIUS_M, WALL_RADIUS_M};
 use qts_core::constants::{build_id, DEFAULT_TICK_RATE_HZ};
 use qts_core::input::{buttons, InputFrame, GEAR_NO_REQUEST};
+use qts_core::math::fm;
 use qts_core::provenance::Provenance;
 use qts_core::replay::ReplayHeader;
 use qts_core::snapshot::{fnv1a64, Snapshot, SnapshotError, StateReader, StateWriter};
@@ -179,7 +176,21 @@ pub struct Session {
     half_length: f64,
     half_width: f64,
     box_center_x: f64,
+    /// Total mass and yaw inertia, for contacts with trees and barriers.
+    mass: f64,
+    yaw_inertia: f64,
 }
+
+/// Share of the lap distance a run must cover before a start/finish gate
+/// will end it.
+const MIN_LAP_FRACTION: f64 = 0.8;
+/// Share of the closing speed returned when the body hits a tree or barrier.
+const OBSTACLE_RESTITUTION: f64 = 0.15;
+/// Friction of the body sliding along a tree or barrier.
+const OBSTACLE_FRICTION: f64 = 0.4;
+/// Overlap left in place after a contact, m, so a car resting against a
+/// barrier does not jitter.
+const OBSTACLE_SLOP_M: f64 = 0.002;
 
 impl Session {
     /// Builds a session with the car at the track's spawn point.
@@ -202,6 +213,10 @@ impl Session {
         let half_width = 0.5 * body.width_m;
         let box_center_x =
             0.5 * (body.cg_to_front_axle_m - (body.wheelbase_m - body.cg_to_front_axle_m));
+        let susp = &assets.car.suspension;
+        let mass =
+            body.sprung_mass_kg + 2.0 * (susp.front.unsprung_mass_kg + susp.rear.unsprung_mass_kg);
+        let yaw_inertia = body.inertia_yaw_kg_m2 * mass / body.sprung_mass_kg;
         let mut car = Car::new(
             assets.car,
             assets.tire_front,
@@ -225,6 +240,8 @@ impl Session {
             half_length,
             half_width,
             box_center_x,
+            mass,
+            yaw_inertia,
         })
     }
 
@@ -350,6 +367,145 @@ impl Session {
         }
     }
 
+    /// Stops the body outline passing through trees and barriers. The body
+    /// is treated as a rectangle seen from above and each contact as a
+    /// rigid impact in the ground plane: an impulse that removes the
+    /// closing speed, with a little bounce and sliding friction, and a
+    /// shift that removes the overlap. Height is ignored.
+    fn resolve_obstacles(&mut self) {
+        if self.track.trees().is_empty() && self.track.walls().is_empty() {
+            return;
+        }
+        let reach = self.half_length + self.half_width;
+        // Where the body was at the start of the pass, for cheap rejection;
+        // a contact moves it by far less than the margin.
+        let (cx, cy) = self.box_center();
+        let near = reach + 1.0;
+        for i in 0..self.track.trees().len() {
+            let tree = self.track.trees()[i];
+            if (tree.pos[0] - cx).abs() > near || (tree.pos[1] - cy).abs() > near {
+                continue;
+            }
+            self.contact_circle(tree.pos, tree.trunk_radius, reach);
+        }
+        for i in 0..self.track.walls().len() {
+            let wall = self.track.walls()[i];
+            // Cheap rejection against the bounding box of the piece.
+            let pad = near;
+            if cx < wall.a[0].min(wall.b[0]) - pad
+                || cx > wall.a[0].max(wall.b[0]) + pad
+                || cy < wall.a[1].min(wall.b[1]) - pad
+                || cy > wall.a[1].max(wall.b[1]) + pad
+            {
+                continue;
+            }
+            // The ends of the piece against the body, then the corners of
+            // the body against the piece.
+            self.contact_circle(wall.a, WALL_RADIUS_M, reach);
+            self.contact_circle(wall.b, WALL_RADIUS_M, reach);
+            for (sx, sy) in [(1.0, 1.0), (1.0, -1.0), (-1.0, 1.0), (-1.0, -1.0)] {
+                let (cx, cy) = self.box_center();
+                let yaw = self.car.state.rot.yaw();
+                let (sin, cos) = (fm::sin(yaw), fm::cos(yaw));
+                let (lx, ly) = (sx * self.half_length, sy * self.half_width);
+                let corner = [cx + cos * lx - sin * ly, cy + sin * lx + cos * ly];
+                let (dx, dy) = (wall.b[0] - wall.a[0], wall.b[1] - wall.a[1]);
+                let len2 = dx * dx + dy * dy;
+                let t = if len2 > 0.0 {
+                    (((corner[0] - wall.a[0]) * dx + (corner[1] - wall.a[1]) * dy) / len2)
+                        .clamp(0.0, 1.0)
+                } else {
+                    0.0
+                };
+                let nearest = [wall.a[0] + dx * t, wall.a[1] + dy * t];
+                let (ox, oy) = (nearest[0] - corner[0], nearest[1] - corner[1]);
+                let dist = ox.hypot(oy);
+                if dist < WALL_RADIUS_M && dist > 1e-9 {
+                    self.apply_contact(corner, [ox / dist, oy / dist], WALL_RADIUS_M - dist);
+                }
+            }
+        }
+    }
+
+    /// Centre of the body outline in the world.
+    fn box_center(&self) -> (f64, f64) {
+        let s = &self.car.state;
+        let yaw = s.rot.yaw();
+        (
+            s.pos.x + fm::cos(yaw) * self.box_center_x,
+            s.pos.y + fm::sin(yaw) * self.box_center_x,
+        )
+    }
+
+    /// Contact between the body outline and a solid circle.
+    fn contact_circle(&mut self, center: [f64; 2], radius: f64, reach: f64) {
+        let (cx, cy) = self.box_center();
+        let (dx, dy) = (center[0] - cx, center[1] - cy);
+        let far = reach + radius;
+        if dx.abs() > far || dy.abs() > far {
+            return;
+        }
+        let yaw = self.car.state.rot.yaw();
+        let (sin, cos) = (fm::sin(yaw), fm::cos(yaw));
+        // The centre of the circle in the frame of the body.
+        let lx = dx * cos + dy * sin;
+        let ly = -dx * sin + dy * cos;
+        let px = lx.clamp(-self.half_length, self.half_length);
+        let py = ly.clamp(-self.half_width, self.half_width);
+        let (ox, oy) = (lx - px, ly - py);
+        let dist = ox.hypot(oy);
+        // Normal from the body toward the circle, and the overlap.
+        let (nx, ny, depth) = if dist > 1e-9 {
+            if dist >= radius {
+                return;
+            }
+            (ox / dist, oy / dist, radius - dist)
+        } else {
+            // The centre is inside the outline: leave by the nearest side.
+            let to_x = self.half_length - lx.abs();
+            let to_y = self.half_width - ly.abs();
+            if to_x < to_y {
+                (lx.signum(), 0.0, to_x + radius)
+            } else {
+                (0.0, ly.signum(), to_y + radius)
+            }
+        };
+        let point = [cx + cos * px - sin * py, cy + sin * px + cos * py];
+        let normal = [cos * nx - sin * ny, sin * nx + cos * ny];
+        self.apply_contact(point, normal, depth);
+    }
+
+    /// Applies one contact at `point` with `normal` pointing from the body
+    /// into the obstacle and `depth` of overlap.
+    fn apply_contact(&mut self, point: [f64; 2], normal: [f64; 2], depth: f64) {
+        let s = &mut self.car.state;
+        let (rx, ry) = (point[0] - s.pos.x, point[1] - s.pos.y);
+        let mut spin = s.rot.rotate(s.ang_vel);
+        let (vx, vy) = (s.vel.x - spin.z * ry, s.vel.y + spin.z * rx);
+        let closing = vx * normal[0] + vy * normal[1];
+        if closing > 0.0 {
+            let arm_n = rx * normal[1] - ry * normal[0];
+            let j = (1.0 + OBSTACLE_RESTITUTION) * closing
+                / (1.0 / self.mass + arm_n * arm_n / self.yaw_inertia);
+            let tangent = [-normal[1], normal[0]];
+            let sliding = vx * tangent[0] + vy * tangent[1];
+            let arm_t = rx * tangent[1] - ry * tangent[0];
+            let jt = (sliding / (1.0 / self.mass + arm_t * arm_t / self.yaw_inertia))
+                .clamp(-OBSTACLE_FRICTION * j, OBSTACLE_FRICTION * j);
+            let (px, py) = (
+                -j * normal[0] - jt * tangent[0],
+                -j * normal[1] - jt * tangent[1],
+            );
+            s.vel.x += px / self.mass;
+            s.vel.y += py / self.mass;
+            spin.z += (rx * py - ry * px) / self.yaw_inertia;
+            s.ang_vel = s.rot.inverse_rotate(spin);
+        }
+        let shift = (depth - OBSTACLE_SLOP_M).max(0.0);
+        s.pos.x -= normal[0] * shift;
+        s.pos.y -= normal[1] * shift;
+    }
+
     fn update_cones(&mut self) {
         if self.timing.cone_down.is_empty() {
             return;
@@ -415,6 +571,7 @@ impl Simulation for Session {
             &self.env,
             self.dt,
         );
+        self.resolve_obstacles();
         self.tick += 1;
         let after = [self.car.state.pos.x, self.car.state.pos.y];
         self.update_timing(before, after);

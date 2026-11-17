@@ -538,3 +538,27 @@ an optimal-lap solution, it ignores elevation and speed, and it does not
 change grip. The track map now has three modes, cycled with N and
 remembered: the whole track north up, a zoomed view north up, and a
 zoomed view with the car's heading up.
+
+## D-060 Solid trees and barriers
+
+Trees and barriers are now part of the track in the core, because the
+front end may not hold anything the physics depends on. A track file can
+have a `[trees]` table (trees scattered beside every path from a seed) and
+`[[barriers]]` entries (a barrier at a fixed offset from part of a path).
+The front end draws what the core reports.
+
+Contact is the simplest model that stops the car: the body is a rectangle
+seen from above, a tree is a circle and a barrier a row of thick line
+pieces, and each contact is a rigid impact in the ground plane (an impulse
+that removes the closing speed with 15 percent bounce and sliding
+friction 0.4, plus a shift out of the overlap). It acts on the whole
+car's velocity and yaw rate. There is no deformation, damage, roll or
+pitch from an impact, no force through the suspension, no sound and no
+force-feedback kick, and height is ignored. The restitution and friction
+are guesses.
+
+Trees stand 22 m or more from the centre of the circuit (16 m from the
+road edge) and 11 m from the centre of the gravel stage. The circuit has
+barriers either side of the start straight only. The soak test asks for
+less distance on tracks with trees, because its driver never reverses and
+ends up held against one.

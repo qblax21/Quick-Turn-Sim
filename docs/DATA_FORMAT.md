@@ -176,6 +176,23 @@ profiles.
 `qts-sim track-info <id>` prints path lengths, bounds, how close a path
 comes to itself, and the surface along it.
 
+Solid trees and barriers are optional. The car is stopped by both.
+
+```toml
+[trees]                        # scattered beside every path
+seed = 20                      # same seed, same trees
+spacing_m = 8.0                # trees are placed from points this far apart
+per_point = 3                  # tries at each point
+keep_clear_m = 22.0            # no tree closer than this to any path
+reach_m = 95.0                 # no tree farther than this from its path
+
+[[barriers]]                   # one side of part of a path
+path = "circuit"
+from_m = 5.0
+to_m = 440.0
+offset_m = 11.0                # positive is left of the path direction
+```
+
 ## Validation targets
 
 ```toml

@@ -575,6 +575,44 @@ impl SimBridge {
         }
     }
 
+    /// Solid trees: where each stands on the ground.
+    #[func]
+    fn track_trees(&self) -> PackedVector3Array {
+        match &self.loaded {
+            Some(l) => l
+                .track
+                .trees()
+                .iter()
+                .map(|t| ground_to_godot(t.pos, l.track.ground_height(t.pos[0], t.pos[1])))
+                .collect(),
+            None => PackedVector3Array::new(),
+        }
+    }
+
+    /// Size of each tree relative to a standard one, in the order of
+    /// `track_trees`.
+    #[func]
+    fn track_tree_sizes(&self) -> PackedFloat32Array {
+        match &self.loaded {
+            Some(l) => l.track.trees().iter().map(|t| t.size as f32).collect(),
+            None => PackedFloat32Array::new(),
+        }
+    }
+
+    /// Solid barrier pieces: two points on the ground per piece.
+    #[func]
+    fn track_walls(&self) -> PackedVector3Array {
+        let mut out = PackedVector3Array::new();
+        if let Some(l) = &self.loaded {
+            for w in l.track.walls() {
+                for p in [w.a, w.b] {
+                    out.push(ground_to_godot(p, l.track.ground_height(p[0], p[1])));
+                }
+            }
+        }
+        out
+    }
+
     /// Paths as polylines on the ground.
     #[func]
     fn track_paths(&self) -> Array<VarDictionary> {

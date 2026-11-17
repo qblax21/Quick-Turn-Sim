@@ -11,7 +11,7 @@ says so.
 | Area | State |
 | --- | --- |
 | Workspace builds with one command on Windows | Verified (`tools\build.ps1`, GNU toolchain) |
-| Test suite | 159 tests pass in release |
+| Test suite | 162 tests pass in release |
 | Headless sim runs and replays exactly | Verified |
 | Both cars drivable on all three tracks | Verified with scripted drivers and the front-end smoke test |
 | Front end renders, HUD and overlay work | Verified by screenshots |
@@ -115,7 +115,9 @@ plausible range. It is not evidence of realism.
   spoked wheels (D-055); chase and driver's-seat cameras.
 - Track map with three modes (N), painted edge lines, distance boards
   before corners, rubber on an approximate fast line and trackside trees
-  (D-056, D-059). Drawing only; trees cannot be hit.
+  (D-056, D-059).
+- Solid trees and barriers (D-060): the car is stopped by them. A simple
+  flat impact model with no damage, sound or force-feedback kick.
 - HUD: speed, gear, engine speed or battery, run timer, last and best time,
   cones. Debug overlay: per-wheel slip, slip angle, load, three
   temperatures, pressure and surface; steering torque; force-feedback
@@ -150,6 +152,8 @@ plausible range. It is not evidence of realism.
 - **H-pattern shifter in the front end**: the core accepts a direct gear
   selection; the front end only sends sequential shifts.
 - **Cones** are detected and counted, not simulated as objects.
+- **Impacts**: trees and barriers stop the car with a rigid impulse on the
+  whole car. No damage, no deformation, nothing through the suspension.
 - **Power steering**: a fixed assist fraction per car, not a speed-sensitive
   model.
 - **Stability control**: none. Traction control exists but cannot be

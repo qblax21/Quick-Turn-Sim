@@ -70,3 +70,11 @@ kind = "finish"
 path = "stage"
 at_m = 985.0
 half_width_m = 3.2
+
+# Solid trees beside the stage, close as on a forest road.
+[trees]
+seed = 7
+spacing_m = 8.0
+per_point = 3
+keep_clear_m = 11.0
+reach_m = 70.0

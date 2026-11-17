@@ -353,9 +353,9 @@ func _sample_path(path: Dictionary, step: float) -> PackedVector3Array:
 
 
 # Trackside furniture that helps a driver judge distance and speed: painted
-# edge lines, distance boards before the corners that end a straight, and
-# trees beside roads that run through open country. Drawing only: none of
-# it exists for the physics.
+# edge lines, distance boards before the corners that end a straight, rubber
+# on the fast line, and the trees and barriers the core placed. The trees
+# and barriers are solid in the core; the rest is drawing only.
 func _build_trackside(info: Dictionary, paths: Dictionary, regions: Array, height: float) -> void:
 	var paint := _material(Color(0.93, 0.93, 0.90))
 	for region in regions:
@@ -370,8 +370,8 @@ func _build_trackside(info: Dictionary, paths: Dictionary, regions: Array, heigh
 				add_child(line)
 		_build_boards(paths[region.path], region)
 		_build_rubber(paths[region.path], region, height - 0.006)
-	if not paths.is_empty() and info.get("default_surface", "tarmac") != "tarmac":
-		_build_trees(paths)
+	_build_trees()
+	_build_walls()
 
 
 func _wrap_index(k: int, n: int, closed: bool) -> int:
@@ -486,48 +486,51 @@ func _tree_mesh() -> ArrayMesh:
 	return mesh
 
 
-# Conifers scattered beside the road, thicker close to it. Positions come
-# from a fixed seed, so a track always looks the same.
-func _build_trees(paths: Dictionary) -> void:
-	var road := PackedVector2Array()
-	var sides: Array = []
-	for id in paths:
-		var pts := _sample_path(paths[id], 8.0)
-		for j in range(pts.size()):
-			road.append(Vector2(pts[j].x, pts[j].z))
-			var ahead: Vector3 = pts[mini(j + 1, pts.size() - 1)] - pts[maxi(j - 1, 0)]
-			sides.append(Vector2(-ahead.z, ahead.x).normalized())
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 20
-	var keep_clear := 15.0
-	var spots := PackedVector3Array()
-	for j in range(road.size()):
-		for k in range(3):
-			var u := rng.randf()
-			var reach := keep_clear + 1.0 + 95.0 * u * u
-			var side := -1.0 if rng.randf() < 0.5 else 1.0
-			var spot: Vector2 = road[j] + sides[j] * side * reach + Vector2(rng.randf_range(-4.0, 4.0), rng.randf_range(-4.0, 4.0))
-			var clear := true
-			for r in road:
-				if spot.distance_squared_to(r) < keep_clear * keep_clear:
-					clear = false
-					break
-			if clear:
-				spots.append(Vector3(spot.x, 0.0, spot.y))
+# The trees the core placed. They are solid there: each trunk is drawn at
+# the radius the car collides with.
+func _build_trees() -> void:
+	if not sim_ref.has_method("track_trees"):
+		return
+	var spots: PackedVector3Array = sim_ref.track_trees()
+	var sizes: PackedFloat32Array = sim_ref.track_tree_sizes()
 	if spots.is_empty():
 		return
-	spots = sim_ref.ground_heights(spots)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 20
 	var multi := MultiMesh.new()
 	multi.transform_format = MultiMesh.TRANSFORM_3D
 	multi.mesh = _tree_mesh()
 	multi.instance_count = spots.size()
 	for i in range(spots.size()):
-		var size := rng.randf_range(0.7, 1.5)
+		var size: float = sizes[i]
 		var basis := Basis(Vector3.UP, rng.randf_range(0.0, TAU)).scaled(Vector3(size, size, size))
 		multi.set_instance_transform(i, Transform3D(basis, spots[i] - Vector3(0.0, 0.3, 0.0)))
 	var instance := MultiMeshInstance3D.new()
 	instance.multimesh = multi
 	add_child(instance)
+
+
+# Barriers: a rail on posts along each solid piece.
+func _build_walls() -> void:
+	if not sim_ref.has_method("track_walls"):
+		return
+	var ends: PackedVector3Array = sim_ref.track_walls()
+	var rail := _material(Color(0.78, 0.79, 0.80))
+	var stripe := _material(Color(0.80, 0.16, 0.14))
+	for i in range(0, ends.size() - 1, 2):
+		var a := ends[i]
+		var b := ends[i + 1]
+		var length := a.distance_to(b)
+		if length < 0.01:
+			continue
+		var piece := MeshInstance3D.new()
+		var mesh := BoxMesh.new()
+		# As thick as the solid barrier in the core.
+		mesh.size = Vector3(0.5, 0.75, length)
+		piece.mesh = mesh
+		piece.material_override = stripe if (i / 2) % 2 == 0 else rail
+		add_child(piece)
+		piece.look_at_from_position((a + b) * 0.5 + Vector3(0.0, 0.375, 0.0), b + Vector3(0.0, 0.375, 0.0), Vector3.UP)
 
 
 # One pass count of smoothing on the lateral offsets `d` of a line through

@@ -131,3 +131,24 @@ banking = [
     { at_m = 2810.0, angle_deg = -3.0 },
     { at_m = 2845.0, angle_deg = 0.0 },
 ]
+
+# Solid trees beside the road, 16 m or more from its edge.
+[trees]
+seed = 20
+spacing_m = 8.0
+per_point = 3
+keep_clear_m = 22.0
+reach_m = 95.0
+
+# Barriers either side of the start straight, 5 m from the road edge.
+[[barriers]]
+path = "circuit"
+from_m = 5.0
+to_m = 440.0
+offset_m = 11.0
+
+[[barriers]]
+path = "circuit"
+from_m = 5.0
+to_m = 440.0
+offset_m = -11.0

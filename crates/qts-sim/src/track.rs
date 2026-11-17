@@ -25,6 +25,12 @@ const PATH_STEP_RAD: f64 = 0.05;
 const CHUNK: usize = 16;
 /// Radius of a cone base, m.
 pub const CONE_RADIUS_M: f64 = 0.14;
+/// Half the thickness of a barrier, m.
+pub const WALL_RADIUS_M: f64 = 0.25;
+/// Trunk radius of a tree of size 1, m.
+const TRUNK_RADIUS_M: f64 = 0.22;
+/// Length of one straight piece of a barrier, m.
+const WALL_STEP_M: f64 = 4.0;
 
 /// A track file, as written in `data/tracks`.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
@@ -68,6 +74,64 @@ pub struct TrackDef {
     /// Elevation and banking along one path.
     #[serde(default)]
     pub terrain: Option<TerrainDef>,
+    /// Solid trees scattered beside the paths.
+    #[serde(default)]
+    pub trees: Option<TreesDef>,
+    /// Solid barriers running beside a path.
+    #[serde(default)]
+    pub barriers: Vec<BarrierDef>,
+}
+
+/// Trees scattered beside every path from a fixed seed, so a track always
+/// has the same ones. Each is a solid trunk.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct TreesDef {
+    /// Seed of the placement.
+    pub seed: u64,
+    /// Distance between the points along a path that trees are placed from, m.
+    pub spacing_m: f64,
+    /// Trees tried at each of those points.
+    pub per_point: u32,
+    /// No tree stands closer than this to any path, m.
+    pub keep_clear_m: f64,
+    /// No tree stands farther than this from the path it was placed from, m.
+    pub reach_m: f64,
+}
+
+/// A barrier at a fixed offset from part of a path.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct BarrierDef {
+    /// Path name.
+    pub path: String,
+    /// Start, distance along the path, m.
+    pub from_m: f64,
+    /// End, distance along the path, m.
+    pub to_m: f64,
+    /// Offset from the path, m; positive is to the left of its direction.
+    pub offset_m: f64,
+}
+
+/// A solid tree: a trunk the car cannot pass through.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Tree {
+    /// Position.
+    pub pos: [f64; 2],
+    /// Radius of the trunk, m.
+    pub trunk_radius: f64,
+    /// Size relative to a standard tree, for drawing.
+    pub size: f64,
+}
+
+/// One straight piece of a barrier, solid out to [`WALL_RADIUS_M`] from the
+/// line between its ends.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Wall {
+    /// One end.
+    pub a: [f64; 2],
+    /// The other end.
+    pub b: [f64; 2],
 }
 
 /// Elevation and banking of the ground, defined along one path.
@@ -621,6 +685,50 @@ pub struct Track {
     cones: Vec<[f64; 2]>,
     gates: Vec<Gate>,
     terrain: Option<Terrain>,
+    trees: Vec<Tree>,
+    walls: Vec<Wall>,
+}
+
+/// Places trees beside the paths: from points along each path, a few tries
+/// each at a random distance to either side, thicker close to the road,
+/// keeping only those clear of every path.
+fn scatter_trees(def: &TreesDef, paths: &[PathGeom]) -> Vec<Tree> {
+    let mut rng = crate::drivers::Rng::new(def.seed);
+    let mut road: Vec<([f64; 2], f64)> = Vec::new();
+    for path in paths {
+        let mut d = 0.0;
+        while d <= path.length() {
+            road.push(path.at(d));
+            d += def.spacing_m;
+        }
+    }
+    let clear2 = def.keep_clear_m * def.keep_clear_m;
+    let mut trees = Vec::new();
+    for &(p, h) in &road {
+        for _ in 0..def.per_point {
+            let u = rng.unit();
+            let reach = def.keep_clear_m + 1.0 + (def.reach_m - def.keep_clear_m - 1.0) * u * u;
+            let side = if rng.unit() < 0.5 { -1.0 } else { 1.0 };
+            let jitter = [rng.range(-4.0, 4.0), rng.range(-4.0, 4.0)];
+            let size = rng.range(0.7, 1.5);
+            let pos = [
+                p[0] - fm::sin(h) * side * reach + jitter[0],
+                p[1] + fm::cos(h) * side * reach + jitter[1],
+            ];
+            let clear = road.iter().all(|(r, _)| {
+                let (dx, dy) = (pos[0] - r[0], pos[1] - r[1]);
+                dx * dx + dy * dy >= clear2
+            });
+            if clear {
+                trees.push(Tree {
+                    pos,
+                    trunk_radius: TRUNK_RADIUS_M * size,
+                    size,
+                });
+            }
+        }
+    }
+    trees
 }
 
 fn find_surface(surfaces: &[SurfaceParams], id: &str, track: &str) -> Result<u16, String> {
@@ -775,6 +883,41 @@ impl Track {
                 })
             }
         };
+        let trees = match &def.trees {
+            None => Vec::new(),
+            Some(t) => {
+                if !(t.spacing_m > 0.0 && t.keep_clear_m > 0.0 && t.reach_m > t.keep_clear_m) {
+                    return Err(format!(
+                        "track `{}`: trees need a positive spacing and a reach beyond the clear strip",
+                        def.id
+                    ));
+                }
+                scatter_trees(t, &paths)
+            }
+        };
+        let mut walls = Vec::new();
+        for b in &def.barriers {
+            let geom = &paths[path_index(&b.path)?];
+            let end = b.to_m.min(geom.length());
+            if end.is_nan() || end <= b.from_m {
+                return Err(format!("track `{}`: a barrier has no length", def.id));
+            }
+            let pieces = ((end - b.from_m) / WALL_STEP_M).ceil().max(1.0) as usize;
+            let at = |i: usize| {
+                let d = b.from_m + (end - b.from_m) * i as f64 / pieces as f64;
+                let (p, h) = geom.at(d);
+                [
+                    p[0] - fm::sin(h) * b.offset_m,
+                    p[1] + fm::cos(h) * b.offset_m,
+                ]
+            };
+            for i in 0..pieces {
+                walls.push(Wall {
+                    a: at(i),
+                    b: at(i + 1),
+                });
+            }
+        }
         Ok(Self {
             def,
             surfaces,
@@ -784,6 +927,8 @@ impl Track {
             cones,
             gates,
             terrain,
+            trees,
+            walls,
         })
     }
 
@@ -815,6 +960,16 @@ impl Track {
     /// Timing gates.
     pub fn gates(&self) -> &[Gate] {
         &self.gates
+    }
+
+    /// Solid trees.
+    pub fn trees(&self) -> &[Tree] {
+        &self.trees
+    }
+
+    /// Solid barrier pieces.
+    pub fn walls(&self) -> &[Wall] {
+        &self.walls
     }
 
     /// Spawn position and heading in radians.
