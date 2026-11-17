@@ -152,3 +152,88 @@ path = "circuit"
 from_m = 5.0
 to_m = 440.0
 offset_m = -11.0
+
+# Barriers on the outside of every corner, 7 m from the road edge.
+[[barriers]]
+path = "circuit"
+from_m = 435.0
+to_m = 559.2
+offset_m = 13.0
+
+[[barriers]]
+path = "circuit"
+from_m = 529.2
+to_m = 847.2
+offset_m = -13.0
+
+[[barriers]]
+path = "circuit"
+from_m = 1137.2
+to_m = 1261.5
+offset_m = -13.0
+
+[[barriers]]
+path = "circuit"
+from_m = 1411.5
+to_m = 1520.0
+offset_m = 13.0
+
+[[barriers]]
+path = "circuit"
+from_m = 1490.0
+to_m = 1677.1
+offset_m = -13.0
+
+[[barriers]]
+path = "circuit"
+from_m = 1647.1
+to_m = 1755.6
+offset_m = 13.0
+
+[[barriers]]
+path = "circuit"
+from_m = 1725.6
+to_m = 1834.2
+offset_m = -13.0
+
+[[barriers]]
+path = "circuit"
+from_m = 1924.2
+to_m = 2064.1
+offset_m = 13.0
+
+[[barriers]]
+path = "circuit"
+from_m = 2154.1
+to_m = 2262.7
+offset_m = -13.0
+
+[[barriers]]
+path = "circuit"
+from_m = 2322.7
+to_m = 2431.2
+offset_m = -13.0
+
+[[barriers]]
+path = "circuit"
+from_m = 2471.2
+to_m = 2548.3
+offset_m = 13.0
+
+[[barriers]]
+path = "circuit"
+from_m = 2518.3
+to_m = 2642.6
+offset_m = -13.0
+
+[[barriers]]
+path = "circuit"
+from_m = 2612.6
+to_m = 2689.7
+offset_m = 13.0
+
+[[barriers]]
+path = "circuit"
+from_m = 2703.8
+to_m = 2843.8
+offset_m = -13.0

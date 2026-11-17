@@ -178,6 +178,12 @@ pub struct Session {
     box_center_x: f64,
     /// Total mass and yaw inertia, for contacts with trees and barriers.
     mass: f64,
+    /// Report of the last hit on a tree or barrier, for sound and force
+    /// feedback. Not part of the simulated state: nothing in the physics
+    /// reads it.
+    impact_count: u32,
+    impact_impulse_ns: f64,
+    impact_kick_nm: f64,
     yaw_inertia: f64,
 }
 
@@ -188,6 +194,14 @@ const MIN_LAP_FRACTION: f64 = 0.8;
 const OBSTACLE_RESTITUTION: f64 = 0.15;
 /// Friction of the body sliding along a tree or barrier.
 const OBSTACLE_FRICTION: f64 = 0.4;
+/// Closing speed above which a contact is reported as a hit, m/s.
+const IMPACT_REPORT_SPEED: f64 = 0.5;
+/// Largest steering kick a hit adds, N·m at the column.
+const IMPACT_KICK_NM: f64 = 12.0;
+/// Impulse at which the kick is at its largest, N·s.
+const IMPACT_KICK_FULL_NS: f64 = 6000.0;
+/// Time constant with which the kick dies away, s.
+const IMPACT_KICK_DECAY_S: f64 = 0.07;
 /// Overlap left in place after a contact, m, so a car resting against a
 /// barrier does not jitter.
 const OBSTACLE_SLOP_M: f64 = 0.002;
@@ -241,6 +255,9 @@ impl Session {
             half_width,
             box_center_x,
             mass,
+            impact_count: 0,
+            impact_impulse_ns: 0.0,
+            impact_kick_nm: 0.0,
             yaw_inertia,
         })
     }
@@ -270,6 +287,18 @@ impl Session {
     /// The track.
     pub fn track(&self) -> &Track {
         &self.track
+    }
+
+    /// Hits on trees and barriers so far, and the impulse of the last one
+    /// in N·s. For sound; not simulated state.
+    pub fn impact(&self) -> (u32, f64) {
+        (self.impact_count, self.impact_impulse_ns)
+    }
+
+    /// Steering-column torque added by recent hits, N·m: a short kick that
+    /// dies away. For force feedback; not simulated state.
+    pub fn impact_kick_nm(&self) -> f64 {
+        self.impact_kick_nm
     }
 
     /// Timing state.
@@ -487,6 +516,17 @@ impl Session {
             let arm_n = rx * normal[1] - ry * normal[0];
             let j = (1.0 + OBSTACLE_RESTITUTION) * closing
                 / (1.0 / self.mass + arm_n * arm_n / self.yaw_inertia);
+            if closing > IMPACT_REPORT_SPEED {
+                // Which side of the car was hit decides the way the wheel kicks.
+                let yaw = s.rot.yaw();
+                let lateral = -normal[0] * fm::sin(yaw) + normal[1] * fm::cos(yaw);
+                let side = if lateral < 0.0 { -1.0 } else { 1.0 };
+                self.impact_count = self.impact_count.wrapping_add(1);
+                self.impact_impulse_ns = j;
+                self.impact_kick_nm = (self.impact_kick_nm
+                    + side * IMPACT_KICK_NM * (j / IMPACT_KICK_FULL_NS).min(1.0))
+                .clamp(-IMPACT_KICK_NM, IMPACT_KICK_NM);
+            }
             let tangent = [-normal[1], normal[0]];
             let sliding = vx * tangent[0] + vy * tangent[1];
             let arm_t = rx * tangent[1] - ry * tangent[0];
@@ -571,6 +611,7 @@ impl Simulation for Session {
             &self.env,
             self.dt,
         );
+        self.impact_kick_nm *= (1.0 - self.dt / IMPACT_KICK_DECAY_S).max(0.0);
         self.resolve_obstacles();
         self.tick += 1;
         let after = [self.car.state.pos.x, self.car.state.pos.y];

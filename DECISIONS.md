@@ -573,3 +573,21 @@ its own marks while a tire slides (slip ratio above 0.18 or a slip angle
 above about 7 degrees, from the values the core reports); the last 6000
 pieces are kept for the session. Both are drawing only: the track does
 not gain grip where rubber lies. The slip thresholds are guesses.
+
+## D-062 Barriers round the circuit, and hits you can hear and feel
+
+Ridgeline Circuit now has a barrier on the outside of every corner, 13 m
+from the road centre (7 m of runoff), from 15 m before the corner to 15 m
+after it, as well as the pair along the start straight. The track map
+draws them.
+
+The session reports each hit on a tree or barrier with a closing speed
+above 0.5 m/s: a running count and the impulse of the last one. The front
+end plays a synthesised thud, louder for a larger impulse. The same hit
+adds a short kick to the steering-column torque that goes into the
+force-feedback pipeline, up to 12 N·m, toward the side that was hit,
+dying away with a 70 ms time constant. The kick is an effect, not
+physics: a real impact reaches the steering through the wheels and
+suspension, which the flat contact model does not represent. The report
+is not part of the simulated state and nothing in the physics reads it.
+All the numbers are guesses and none has been felt on a wheel.

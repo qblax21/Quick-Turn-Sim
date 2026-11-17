@@ -16,10 +16,13 @@ const START_COLOR := Color(0.25, 0.95, 0.35)
 const FINISH_COLOR := Color(0.95, 0.95, 0.95)
 const CAR_COLOR := Color(1.0, 0.85, 0.15)
 const GHOST_COLOR := Color(0.6, 0.85, 1.0, 0.9)
+const WALL_COLOR := Color(0.95, 0.35, 0.3, 0.9)
 
 var lines: Array = []
 var cones := PackedVector2Array()
 var gates: Array = []
+# Barrier pieces, two points each.
+var walls := PackedVector2Array()
 var origin := Vector2.ZERO
 var scale_px := 1.0
 var usable := false
@@ -62,6 +65,10 @@ func setup(sim) -> void:
 	for p in sim.track_cones():
 		cones.append(_flat(p))
 	all.append(cones)
+	if sim.has_method("track_walls"):
+		for p in sim.track_walls():
+			walls.append(_flat(p))
+		all.append(walls)
 	for gate in sim.track_gates():
 		var ends := PackedVector2Array([_flat(gate.a), _flat(gate.b)])
 		gates.append([ends, gate.kind == "start"])
@@ -121,6 +128,8 @@ func _draw() -> void:
 	draw_set_transform_matrix(view)
 	for line in lines:
 		draw_polyline(line, TRACK_COLOR, 2.5 * pixel, true)
+	if walls.size() >= 2:
+		draw_multiline(walls, WALL_COLOR, 1.2 * pixel)
 	for p in cones:
 		draw_circle(p, 1.3 * pixel, CONE_COLOR)
 	for gate in gates:

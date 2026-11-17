@@ -29,13 +29,20 @@ fn trees_and_barriers_stand_where_the_track_files_say() {
         );
         assert!(tree.trunk_radius > 0.1 && tree.trunk_radius < 0.5);
     }
-    assert!(!track.walls().is_empty());
+    assert!(
+        track.walls().len() > 300,
+        "only {} barrier pieces",
+        track.walls().len()
+    );
     for wall in track.walls() {
         for end in [wall.a, wall.b] {
-            let (_, offset) = path
-                .project(end[0], end[1], 0.0, 450.0, 12.0)
-                .expect("barriers run beside the start straight");
-            assert!((offset.abs() - 11.0).abs() < 0.05, "offset {offset}");
+            // Every piece stands off the road with at least 4 m of runoff,
+            // whichever part of the lap it is nearest to.
+            assert!(
+                path.project(end[0], end[1], 0.0, path.length(), 10.0)
+                    .is_none(),
+                "a barrier stands within 10 m of the road centre at {end:?}"
+            );
         }
     }
     assert!(!session("hatch_tern_gt", "gravel_stage")
@@ -116,4 +123,29 @@ fn a_barrier_keeps_the_car_on_its_side() {
         widest < 11.0,
         "the centre of the car got {widest:.2} m from the road centre, past the barrier at 11 m"
     );
+}
+
+#[test]
+fn a_hit_is_reported_and_kicks_the_steering_briefly() {
+    let mut session = session("hatch_tern_gt", "ridgeline_circuit");
+    let turning = InputFrame::from_analog(0.25, 0.5, 0.0, 0.0, 0.0);
+    assert_eq!(session.impact(), (0, 0.0));
+    let mut strongest_kick: f64 = 0.0;
+    for _ in 0..12_000 {
+        session.step(&turning);
+        strongest_kick = strongest_kick.max(session.impact_kick_nm().abs());
+    }
+    let (count, impulse) = session.impact();
+    assert!(count > 0 && impulse > 0.0, "no hit was reported");
+    assert!(
+        strongest_kick > 0.5 && strongest_kick <= 12.0,
+        "kick of {strongest_kick:.2} N·m"
+    );
+    // With no contact there is no kick at all.
+    let mut clear = common::session("hatch_tern_gt", "ridgeline_circuit");
+    for _ in 0..500 {
+        clear.step(&InputFrame::default());
+    }
+    assert_eq!(clear.impact(), (0, 0.0));
+    assert_eq!(clear.impact_kick_nm(), 0.0);
 }

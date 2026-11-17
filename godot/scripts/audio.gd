@@ -18,6 +18,9 @@ var electric := false
 var loose := PackedByteArray()
 var active := false
 var muted := false
+# One-shot thump for hits on trees and barriers.
+var thump: AudioStreamPlayer
+var impacts_heard := -1
 
 
 func _ready() -> void:
@@ -30,6 +33,7 @@ func _ready() -> void:
 	_add("loose", _noise(rng, 2.0, [[500.0, 0.6, 1.0], [1800.0, 0.8, 0.5]], true))
 	_add("road", _noise(rng, 2.0, [[140.0, 0.7, 1.0]], false))
 	_add("wind", _noise(rng, 2.0, [[1500.0, 0.5, 1.0]], false))
+	_add_thump(rng)
 
 
 func _add(key: String, samples: PackedFloat32Array) -> void:
@@ -54,6 +58,29 @@ func _add(key: String, samples: PackedFloat32Array) -> void:
 	add_child(player)
 	players[key] = player
 	levels[key] = 0.0
+
+
+# A short thud: a low tone and a burst of noise, both dying away quickly.
+func _add_thump(rng: RandomNumberGenerator) -> void:
+	var count := int(RATE * 0.4)
+	var bytes := PackedByteArray()
+	bytes.resize(count * 2)
+	var smooth := 0.0
+	for i in range(count):
+		var t := float(i) / RATE
+		# Low-passed noise for the crunch, a falling tone for the weight.
+		smooth += (rng.randf_range(-1.0, 1.0) - smooth) * 0.25
+		var tone := sin(TAU * (85.0 - 60.0 * t) * t) * exp(-t * 11.0)
+		var crunch := smooth * exp(-t * 28.0)
+		bytes.encode_s16(i * 2, int(clampf(tone * 0.7 + crunch * 0.9, -1.0, 1.0) * 0.9 * 32767.0))
+	var stream := AudioStreamWAV.new()
+	stream.format = AudioStreamWAV.FORMAT_16_BITS
+	stream.mix_rate = RATE
+	stream.stereo = false
+	stream.data = bytes
+	thump = AudioStreamPlayer.new()
+	thump.stream = stream
+	add_child(thump)
 
 
 # One second of a sum of sines. `orders` maps multiples of `base_hz` to
@@ -124,6 +151,7 @@ func start(car_info: Dictionary, track_info: Dictionary) -> void:
 	loose = PackedByteArray()
 	for id in track_info.get("surface_ids", PackedStringArray()):
 		loose.append(1 if id in LOOSE_SURFACES else 0)
+	impacts_heard = -1
 	active = true
 	for key in players:
 		levels[key] = 0.0
@@ -158,6 +186,14 @@ func update(hud: Dictionary, input: Dictionary, delta: float, paused: bool) -> v
 	if not active:
 		return
 	var master := 0.0 if (paused or muted) else 1.0
+	# A hit the core reported since the last frame: louder for a harder one.
+	var impacts: int = hud.get("impact_count", 0)
+	if impacts != impacts_heard:
+		if impacts_heard >= 0 and master > 0.0:
+			thump.volume_db = lerpf(-16.0, 0.0, clampf(hud.get("impact_impulse", 0.0) / 8000.0, 0.0, 1.0))
+			thump.pitch_scale = randf_range(0.9, 1.1)
+			thump.play()
+		impacts_heard = impacts
 	var speed: float = absf(hud.get("speed", 0.0))
 	var rpm: float = hud.get("engine_rpm", 0.0)
 	var throttle: float = clampf(input.get("throttle", 0.0), 0.0, 1.0)

@@ -442,6 +442,8 @@ impl SimBridge {
             "drive_power_w" => h.drive.drive_power_w,
             "regen_power_w" => h.drive.regen_power_w,
             "steering_torque_nm" => h.steering_torque_nm,
+            "impact_count" => h.impact_count,
+            "impact_impulse" => h.impact_impulse_ns,
             "steering_wheel_angle" => h.steering_wheel_angle,
             "accel_long" => h.accel_body[0],
             "accel_lat" => h.accel_body[1],

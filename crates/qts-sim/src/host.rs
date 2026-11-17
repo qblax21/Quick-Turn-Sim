@@ -166,6 +166,10 @@ pub struct HudState {
     pub wheels: [WheelOutput; 4],
     /// Raw steering torque, N·m.
     pub steering_torque_nm: f64,
+    /// Hits on trees and barriers so far.
+    pub impact_count: u32,
+    /// Impulse of the last hit, N·s.
+    pub impact_impulse_ns: f64,
     /// Steering-wheel angle the sim is using, rad.
     pub steering_wheel_angle: f64,
     /// Acceleration in body axes, m/s².
@@ -196,6 +200,8 @@ impl HudState {
             drive: out.drive,
             wheels: out.wheels,
             steering_torque_nm: out.steering_torque_nm,
+            impact_count: session.impact().0,
+            impact_impulse_ns: session.impact().1,
             steering_wheel_angle: out.steering_wheel_angle,
             accel_body: out.accel_body,
             run_active: t.running,
@@ -327,7 +333,8 @@ pub fn ffb_input(session: &Session, device_angle_rad: Option<f64>) -> FfbInput {
     };
     let kerb_contact = 0.5 * (f64::from(u8::from(on_kerb(0))) + f64::from(u8::from(on_kerb(1))));
     FfbInput {
-        steering_torque_nm: out.steering_torque_nm,
+        // A hit on a tree or barrier adds a short kick to the column torque.
+        steering_torque_nm: out.steering_torque_nm + session.impact_kick_nm(),
         device_angle_rad,
         front_load_difference_n: out.wheels[0].load - out.wheels[1].load,
         kerb_contact,
