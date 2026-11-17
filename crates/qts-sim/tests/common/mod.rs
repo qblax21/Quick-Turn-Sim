@@ -30,6 +30,7 @@ pub fn session(car: &str, track: &str) -> Session {
         assists: Assists {
             auto_clutch: true,
             auto_shift: true,
+            traction_control: true,
         },
         ..SessionConfig::default()
     };

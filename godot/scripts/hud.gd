@@ -10,6 +10,7 @@ var main_label: Label
 var time_label: Label
 var debug_label: Label
 var notice_label: Label
+var delta_label: Label
 var input_bars := {}
 var ffb_bar: ProgressBar
 var debug_visible := false
@@ -65,6 +66,15 @@ func _ready() -> void:
 	notice_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	notice_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	add_child(notice_label)
+
+	# Time against the best lap, top centre under the notices.
+	delta_label = Label.new()
+	delta_label.add_theme_font_size_override("font_size", 30)
+	delta_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP, Control.PRESET_MODE_MINSIZE, 12)
+	delta_label.position.y = 64.0
+	delta_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	delta_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	add_child(delta_label)
 
 	debug_label = Label.new()
 	debug_label.add_theme_font_size_override("font_size", 15)
@@ -144,6 +154,14 @@ func update(hud: Dictionary, status: Dictionary, input: Dictionary, telemetry_on
 		run_line, _format_time(hud.last_time), hud.last_cones_hit, _format_time(hud.best_time), hud.cones_hit]
 	if hud.get("ghost_time", 0.0) > 0.0:
 		time_label.text += "\nghost %s" % _format_time(hud.ghost_time)
+
+	# Green when ahead of the best lap at this point of the track, red when behind.
+	if hud.get("ghost_has_delta", false):
+		var delta: float = hud.ghost_delta
+		delta_label.text = "%+.2f" % delta
+		delta_label.add_theme_color_override("font_color", Color(0.35, 0.95, 0.45) if delta <= 0.0 else Color(1.0, 0.45, 0.4))
+	else:
+		delta_label.text = ""
 
 	input_bars["steer"].value = -input.steer
 	input_bars["throttle"].value = input.throttle

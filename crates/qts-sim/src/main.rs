@@ -201,6 +201,7 @@ fn cmd_run(args: &Args) -> Result<(), String> {
         assists: Assists {
             auto_clutch: true,
             auto_shift: true,
+            traction_control: true,
         },
         tire_start_temp_c: match args.text("tire-temp") {
             Some(_) => Some(args.number("tire-temp", 0.0)?),

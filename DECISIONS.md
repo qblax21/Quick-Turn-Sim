@@ -591,3 +591,18 @@ physics: a real impact reaches the steering through the wheels and
 suspension, which the flat contact model does not represent. The report
 is not part of the simulated state and nothing in the physics reads it.
 All the numbers are guesses and none has been felt on a wheel.
+
+## D-063 Time against the best lap, and a traction control switch
+
+While a run is timed the HUD shows the time gained or lost against the
+best lap at the car's present position: how long this run took to get
+here, less how long the best lap took to reach the nearest point of its
+own line. The recorder follows the best lap's poses forward as the car
+goes round, so it needs no path and works on the cone course as well as
+the circuit. No figure is shown more than 40 m from the line the best lap
+took. It compares positions, not distance along a centre line, so a very
+different line through a corner shifts it slightly.
+
+Traction control is now a session assist like the automatic clutch and
+gears, on by default, with a tick box in the menu. It only does anything
+on a car that has the system.

@@ -11,7 +11,7 @@ says so.
 | Area | State |
 | --- | --- |
 | Workspace builds with one command on Windows | Verified (`tools\build.ps1`, GNU toolchain) |
-| Test suite | 163 tests pass in release |
+| Test suite | 164 tests pass in release |
 | Headless sim runs and replays exactly | Verified |
 | Both cars drivable on all three tracks | Verified with scripted drivers and the front-end smoke test |
 | Front end renders, HUD and overlay work | Verified by screenshots |
@@ -50,7 +50,7 @@ pass" is true locally but unconfirmed on CI.
 - Raw steering torque from tire forces about the kingpin axes.
 - Brakes with bias, handbrake and a simple anti-lock controller.
 - Traction control on all three cars (D-054): one torque fraction for the
-  whole car, always on.
+  whole car, with a switch in the menu (D-063).
 - Drag and lift.
 - Engine, clutch, six-speed manual gearbox, open or limited-slip
   differential, with optional automatic clutch and gear selection.
@@ -105,6 +105,7 @@ plausible range. It is not evidence of realism.
 - Settings screen (display, sound, view) and force-feedback adjustments
   saved per preset (D-052).
 - Ghost of the best lap per car and track, saved between sessions (D-051).
+  A live time difference to that lap is shown while driving (D-063).
   The recorder is tested; the ghost has not yet been seen on screen by
   anyone, because that needs a completed lap by a person.
 - Standalone package via `tools/package.ps1` (D-053). Only the fallback
@@ -157,8 +158,7 @@ plausible range. It is not evidence of realism.
   whole car. No damage, no deformation, nothing through the suspension.
 - **Power steering**: a fixed assist fraction per car, not a speed-sensitive
   model.
-- **Stability control**: none. Traction control exists but cannot be
-  switched off and is not per axle.
+- **Stability control**: none. Traction control is not per axle.
 - **Engine stall and starter**: implicit (see D-020).
 - **Wheel gyroscopic effects, chassis flex, driveline compliance, gearbox
   efficiency, brake temperature and fade, tire wear, wet surfaces, wind**:

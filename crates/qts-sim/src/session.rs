@@ -32,6 +32,7 @@ impl Default for SessionConfig {
             assists: Assists {
                 auto_clutch: true,
                 auto_shift: false,
+                traction_control: true,
             },
             tire_start_temp_c: None,
         }
@@ -634,6 +635,7 @@ impl Snapshot for Session {
         w.write_u16(self.prev_buttons);
         w.write_bool(self.config.assists.auto_clutch);
         w.write_bool(self.config.assists.auto_shift);
+        w.write_bool(self.config.assists.traction_control);
         let t = &self.timing;
         w.write_bool(t.running);
         w.write_u64(t.start_tick);
@@ -655,6 +657,7 @@ impl Snapshot for Session {
         self.prev_buttons = r.read_u16()?;
         self.config.assists.auto_clutch = r.read_bool()?;
         self.config.assists.auto_shift = r.read_bool()?;
+        self.config.assists.traction_control = r.read_bool()?;
         let t = &mut self.timing;
         t.running = r.read_bool()?;
         t.start_tick = r.read_u64()?;

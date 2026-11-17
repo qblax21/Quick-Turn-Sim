@@ -14,6 +14,10 @@ use qts_core::step::Simulation;
 
 /// Ticks between recorded poses.
 pub const GHOST_SAMPLE_TICKS: u32 = 20;
+/// Poses the delta search may advance through in one tick.
+const DELTA_SEARCH_POSES: usize = 50;
+/// Farther than this from the best lap's line, no delta is given, m.
+const DELTA_MAX_GAP_M: f64 = 40.0;
 /// Marks a ghost file.
 const MAGIC: &[u8; 4] = b"GLAP";
 /// Version of the ghost file layout.
@@ -168,6 +172,12 @@ pub struct GhostRecorder {
     current: Vec<RenderPose>,
     start_tick: u64,
     runs_seen: u32,
+    /// Pose of the best lap nearest to where the car is now. It only moves
+    /// forward through a run.
+    cursor: usize,
+    /// Time gained (negative) or lost against the best lap at the car's
+    /// present position, s.
+    delta_s: Option<f64>,
 }
 
 impl GhostRecorder {
@@ -207,23 +217,83 @@ impl GhostRecorder {
                     poses: std::mem::take(&mut self.current),
                 });
                 improved = true;
+                self.cursor = 0;
             }
             self.runs_seen = timing.runs;
             self.current.clear();
         }
         if !timing.running {
             self.current.clear();
+            self.delta_s = None;
             return improved;
         }
         if timing.start_tick != self.start_tick {
             self.start_tick = timing.start_tick;
             self.current.clear();
+            self.cursor = 0;
         }
         let into_run = session.tick().saturating_sub(timing.start_tick);
         if into_run % u64::from(GHOST_SAMPLE_TICKS) == 0 {
             self.current.push(*pose);
         }
+        self.delta_s = self.delta(session, pose, into_run);
         improved
+    }
+
+    /// Time against the best lap at the car's present position: how long
+    /// this run has taken to get here, less how long the best lap took to
+    /// reach the nearest point on its own line. Negative is ahead. `None`
+    /// without a best lap, outside a run, or when the car is far from the
+    /// line the best lap took.
+    pub fn delta_s(&self) -> Option<f64> {
+        self.delta_s
+    }
+
+    fn delta(&mut self, session: &Session, pose: &RenderPose, into_run: u64) -> Option<f64> {
+        let best = self.best.as_ref()?;
+        let poses = &best.poses;
+        if poses.len() < 2 {
+            return None;
+        }
+        let gap2 = |p: &RenderPose| {
+            let (dx, dy) = (p.pos[0] - pose.pos[0], p.pos[1] - pose.pos[1]);
+            dx * dx + dy * dy
+        };
+        // Follow the best lap forward while its next pose is nearer.
+        let last = poses.len() - 1;
+        self.cursor = self.cursor.min(last);
+        let mut steps = 0;
+        while self.cursor < last
+            && steps < DELTA_SEARCH_POSES
+            && gap2(&poses[self.cursor + 1]) <= gap2(&poses[self.cursor])
+        {
+            self.cursor += 1;
+            steps += 1;
+        }
+        if gap2(&poses[self.cursor]) > DELTA_MAX_GAP_M * DELTA_MAX_GAP_M {
+            return None;
+        }
+        // Place the car between that pose and its nearer neighbour.
+        let i = self.cursor;
+        let j = if i == last || (i > 0 && gap2(&poses[i - 1]) < gap2(&poses[i + 1])) {
+            i - 1
+        } else {
+            i + 1
+        };
+        let (a, b) = (i.min(j), i.max(j));
+        let (sx, sy) = (
+            poses[b].pos[0] - poses[a].pos[0],
+            poses[b].pos[1] - poses[a].pos[1],
+        );
+        let len2 = sx * sx + sy * sy;
+        let along = if len2 > 0.0 {
+            (((pose.pos[0] - poses[a].pos[0]) * sx + (pose.pos[1] - poses[a].pos[1]) * sy) / len2)
+                .clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        let best_ticks = (a as f64 + along) * f64::from(best.sample_ticks);
+        Some((into_run as f64 - best_ticks) / f64::from(session.tick_rate_hz().max(1)))
     }
 
     /// Where the ghost is right now, if a run is in progress and a best lap

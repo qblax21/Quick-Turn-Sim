@@ -202,6 +202,8 @@ func _start_driving(car_id: String, track_id: String, auto_clutch: bool, auto_sh
 	if sim.ffb_config().get("id", "") != ffb_preset:
 		sim.ffb_load_preset(ffb_preset)
 		settings.apply_ffb(sim)
+	if sim.has_method("set_traction_control"):
+		sim.set_traction_control(settings.get_value("menu/traction_control"))
 	if not sim.start_session(car_id, track_id, auto_clutch, auto_shift, ffb_preset):
 		menu.show_error(sim.last_error())
 		return
@@ -246,6 +248,8 @@ func _process(delta: float) -> void:
 	skid_marks.update(car_xform, sim.wheel_states(), values)
 	var ghost: Dictionary = sim.ghost()
 	values["ghost_time"] = ghost.get("time", 0.0)
+	values["ghost_has_delta"] = ghost.get("has_delta", false)
+	values["ghost_delta"] = ghost.get("delta", 0.0)
 	_update_ghost(ghost, car_xform)
 	hud.update_map(car_xform, ghost_view.visible, ghost_view.global_transform)
 	hud.update(values, sim.status(), input, telemetry_on, replay_on)

@@ -84,12 +84,24 @@ pub struct DriverControls {
 }
 
 /// Driver assists, fixed for a session.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Assists {
     /// The clutch engages and releases by itself.
     pub auto_clutch: bool,
     /// Gears are selected automatically.
     pub auto_shift: bool,
+    /// Traction control is switched on, on a car that has it.
+    pub traction_control: bool,
+}
+
+impl Default for Assists {
+    fn default() -> Self {
+        Self {
+            auto_clutch: false,
+            auto_shift: false,
+            traction_control: true,
+        }
+    }
 }
 
 /// Surroundings of the car, fixed for a session.
@@ -813,7 +825,7 @@ impl Car {
         // the whole car, steered toward the target drive slip.
         let pedal = clamp(controls.throttle, 0.0, 1.0);
         let tc = &p.traction_control;
-        if tc.enabled && pedal > TC_PEDAL_THRESHOLD {
+        if tc.enabled && assists.traction_control && pedal > TC_PEDAL_THRESHOLD {
             let reference = vel_body.x.abs().max(tc.min_speed_m_per_s);
             let mut slip: f64 = 0.0;
             for i in 0..4 {

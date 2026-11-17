@@ -73,6 +73,11 @@ func _ready() -> void:
 	auto_shift.text = "Automatic gears"
 	auto_shift.button_pressed = settings.get_value("menu/auto_shift")
 	box.add_child(auto_shift)
+	var traction := CheckBox.new()
+	traction.text = "Traction control"
+	traction.button_pressed = settings.get_value("menu/traction_control")
+	traction.toggled.connect(func(on: bool) -> void: settings.set_value("menu/traction_control", on))
+	box.add_child(traction)
 
 	box.add_child(HSeparator.new())
 	preset_ids = sim.list_ids("ffb")

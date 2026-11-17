@@ -85,3 +85,31 @@ fn reversing_back_over_the_line_does_not_set_a_lap() {
     assert_eq!(session.timing().runs, 0, "no lap may be counted");
     assert_eq!(session.timing().best_ticks, 0);
 }
+
+#[test]
+fn switching_traction_control_off_lets_the_wheels_spin() {
+    let config = qts_sim::session::SessionConfig {
+        assists: qts_vehicle::Assists {
+            auto_clutch: true,
+            auto_shift: true,
+            traction_control: false,
+        },
+        ..Default::default()
+    };
+    let mut session =
+        qts_sim::Session::from_data(&data(), "sedan_halden_e4", "test_track", config).unwrap();
+    let rate = f64::from(session.tick_rate_hz());
+    let floored = InputFrame::from_analog(0.0, 1.0, 0.0, 0.0, 0.0);
+    let limit = 2.0 * session.car().params().traction_control.slip_threshold;
+    let mut spinning = 0.0;
+    for _ in 0..(3.0 * rate) as u64 {
+        session.step(&floored);
+        if worst_drive_slip(&session) > limit {
+            spinning += 1.0 / rate;
+        }
+    }
+    assert!(
+        spinning > 0.5,
+        "only {spinning:.2} s of wheelspin with traction control off"
+    );
+}

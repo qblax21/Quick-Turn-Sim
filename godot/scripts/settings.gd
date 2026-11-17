@@ -25,6 +25,7 @@ const DEFAULTS := {
 	"menu/track": "",
 	"menu/auto_clutch": true,
 	"menu/auto_shift": true,
+	"menu/traction_control": true,
 	"menu/ffb_preset": "",
 }
 

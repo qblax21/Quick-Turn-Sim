@@ -84,6 +84,9 @@ pub struct SimBridge {
     ffb: Option<FfbConfig>,
     last_error: String,
     ghost_dir: Option<std::path::PathBuf>,
+    /// Set when the player switched traction control off. Stored this way
+    /// round so a fresh bridge has it on.
+    traction_control_off: bool,
     base: Base<RefCounted>,
 }
 
@@ -256,6 +259,7 @@ impl SimBridge {
                 assists: Assists {
                     auto_clutch,
                     auto_shift,
+                    traction_control: !self.traction_control_off,
                 },
                 ..SessionConfig::default()
             };
@@ -374,6 +378,13 @@ impl SimBridge {
         PackedFloat32Array::from(out)
     }
 
+    /// Switches traction control on or off for cars that have it. Takes
+    /// effect at the next session start.
+    #[func]
+    fn set_traction_control(&mut self, on: bool) {
+        self.traction_control_off = !on;
+    }
+
     /// Directory where best-lap ghosts are kept, one file per car and
     /// track. Takes effect at the next session start; an empty path keeps
     /// ghosts in memory only.
@@ -397,8 +408,9 @@ impl SimBridge {
             return VarDictionary::new();
         };
         let (pose, time) = host.ghost();
+        let delta = host.ghost_delta();
         let Some(pose) = pose else {
-            return vd! { "visible" => false, "time" => time };
+            return vd! { "visible" => false, "time" => time, "has_delta" => false, "delta" => 0.0 };
         };
         let mut wheels = Vec::with_capacity(20);
         for w in &pose.wheels {
@@ -408,6 +420,8 @@ impl SimBridge {
         vd! {
             "visible" => true,
             "time" => time,
+            "has_delta" => delta.is_some(),
+            "delta" => delta.unwrap_or(0.0),
             "transform" => Transform3D::new(
                 Basis::from_quaternion(quat_to_godot(pose.rot)),
                 to_godot(pose.pos),
