@@ -97,6 +97,9 @@ wheel setup** first: assign and calibrate the axes, choose the wheel under
 | Reset to the start | R |
 | Menu | Esc |
 | Camera | C |
+| Track map | N |
+| Ghost of the best lap | G |
+| Mute | M |
 | Pause | P |
 | Tire and force-feedback overlay | F1 |
 | Record telemetry | F2 |

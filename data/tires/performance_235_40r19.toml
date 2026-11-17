@@ -21,8 +21,8 @@ nominal_pressure_pa = { value = 391000.0, source = "2.9 bar gauge, a typical pla
 rolling_resistance_coefficient = { value = 0.011, source = "typical range 0.008-0.013 for road tires", confidence = "placeholder" }
 
 [magic_formula]
-pcx1 = { value = 1.60, source = "textbook-typical shape factor", confidence = "placeholder" }
-pdx1 = { value = 1.15, source = "generic summer road tire, dry", confidence = "placeholder" }
+pcx1 = { value = 1.50, source = "lowered from 1.60 after driver feedback that a spinning tire lost too much grip; sliding force is now about 75 percent of peak, not a fit", confidence = "placeholder" }
+pdx1 = { value = 1.22, source = "raised from 1.15: validation braking and launch were short of target and the driver reported low grip; not a fit", confidence = "placeholder" }
 pdx2 = { value = -0.08, source = "mild load sensitivity", confidence = "placeholder" }
 pex1 = { value = 0.10, source = "textbook-typical curvature", confidence = "placeholder" }
 pex2 = { value = 0.0, source = "not modelled yet", confidence = "placeholder" }
@@ -30,7 +30,7 @@ pkx1 = { value = 21.0, source = "slip stiffness about 21 x load", confidence = "
 pkx2 = { value = 0.0, source = "not modelled yet", confidence = "placeholder" }
 pkx3 = { value = 0.15, source = "mild load dependence", confidence = "placeholder" }
 pcy1 = { value = 1.35, source = "textbook-typical shape factor", confidence = "placeholder" }
-pdy1 = { value = 1.07, source = "generic summer road tire, dry", confidence = "placeholder" }
+pdy1 = { value = 1.12, source = "raised from 1.07: validation skidpad was below target and the driver reported low grip; not a fit", confidence = "placeholder" }
 pdy2 = { value = -0.16, source = "load sensitivity giving about 4 percent grip loss per kN", confidence = "placeholder" }
 pdy3 = { value = 2.0, source = "grip loss with camber squared", confidence = "placeholder" }
 pey1 = { value = -0.6, source = "textbook-typical curvature", confidence = "placeholder" }
@@ -77,8 +77,8 @@ convection_carcass_w_per_k = { value = 6.0, source = "order of magnitude", confi
 convection_carcass_speed_gain = { value = 0.6, source = "order of magnitude", confidence = "placeholder" }
 friction_heat_fraction = { value = 0.6, source = "share of sliding heat entering the tire rather than the road", confidence = "placeholder" }
 hysteresis_core_fraction = { value = 0.5, source = "even split of rolling loss between tread and carcass", confidence = "placeholder" }
-optimal_temp_c = { value = 60.0, source = "road tire works over a wide, cool window", confidence = "placeholder" }
-temp_window_c = { value = 50.0, source = "wide window for a road compound", confidence = "placeholder" }
+optimal_temp_c = { value = 45.0, source = "road compound: near full grip from a cool start; lowered from 60 after driver feedback", confidence = "placeholder" }
+temp_window_c = { value = 60.0, source = "wide window for a road compound", confidence = "placeholder" }
 min_grip_factor = { value = 0.85, source = "grip floor far from the optimum", confidence = "placeholder" }
 surface_weight = { value = 0.6, source = "surface dominates the grip temperature", confidence = "placeholder" }
 stiffness_temp_sensitivity_per_k = { value = 0.002, source = "tire softens slightly when hot", confidence = "placeholder" }

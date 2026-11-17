@@ -45,7 +45,8 @@ qts-sim provenance --car hatch_tern_gt
 ## Cars
 
 Sections: `[body]`, `[suspension.front]`, `[suspension.rear]`, `[steering]`,
-`[brakes]`, `[brakes.abs]`, `[aero]`, `[drivetrain]` and its sub-tables. The
+`[brakes]`, `[brakes.abs]`, `[aero]`, `[drivetrain]` and its sub-tables, and
+the optional `[traction_control]` (leave it out for a car without one). The
 field list and the meaning of each field are the doc comments in
 `crates/qts-vehicle/src/params.rs`; unknown keys are rejected, so a typo is
 an error rather than a silently ignored value.

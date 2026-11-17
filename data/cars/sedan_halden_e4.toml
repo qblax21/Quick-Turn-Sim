@@ -131,3 +131,11 @@ coast_fraction = { value = 0.25, source = "moderate lift-off regeneration", conf
 brake_share = { value = 0.6, source = "share of pedal demand regeneration may take", confidence = "placeholder" }
 fade_low_m_per_s = { value = 1.5, source = "regeneration off below walking pace", confidence = "placeholder" }
 fade_high_m_per_s = { value = 4.0, source = "regeneration fully available above about 14 km/h", confidence = "placeholder" }
+
+[traction_control]
+enabled = true
+slip_threshold = { value = 0.10, source = "target drive slip, just below the peak of the placeholder tire", confidence = "placeholder" }
+release_rate_per_s = { value = 12.0, source = "controller tuning guess; motor torque can be cut quickly", confidence = "placeholder" }
+apply_rate_per_s = { value = 6.0, source = "controller tuning guess", confidence = "placeholder" }
+control_gain_per_s = { value = 80.0, source = "controller tuning guess", confidence = "placeholder" }
+min_speed_m_per_s = { value = 2.0, source = "reference speed floor so a launch is not read as infinite slip", confidence = "placeholder" }

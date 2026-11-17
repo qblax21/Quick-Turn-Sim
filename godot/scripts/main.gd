@@ -35,6 +35,7 @@ var environment: Environment
 # C switches between the driver's seat and the chase camera.
 var cockpit_view := true
 var show_ghost := true
+var show_minimap := true
 var paused := false
 var telemetry_on := false
 var replay_on := false
@@ -204,6 +205,7 @@ func _start_driving(car_id: String, track_id: String, auto_clutch: bool, auto_sh
 	settings.save()
 	cockpit_view = settings.get_value("driving/seat_view")
 	show_ghost = settings.get_value("driving/ghost")
+	show_minimap = settings.get_value("driving/minimap")
 	world = World.new()
 	add_child(world)
 	world.build(sim)
@@ -219,6 +221,7 @@ func _start_driving(car_id: String, track_id: String, auto_clutch: bool, auto_sh
 	hud = Hud.new()
 	add_child(hud)
 	hud.setup(sim)
+	hud.set_minimap(show_minimap)
 	if device_id != "":
 		sim.ffb_open(device_id, DisplayServer.window_get_native_handle(DisplayServer.WINDOW_HANDLE))
 		sim.ffb_set_direct_steering(direct_steering)
@@ -236,6 +239,7 @@ func _process(delta: float) -> void:
 	var ghost: Dictionary = sim.ghost()
 	values["ghost_time"] = ghost.get("time", 0.0)
 	_update_ghost(ghost, car_xform)
+	hud.update_map(car_xform, ghost_view.visible, ghost_view.global_transform)
 	hud.update(values, sim.status(), input, telemetry_on, replay_on)
 	audio.update(values, input, delta, paused)
 	_update_camera(car_xform, delta)
@@ -281,6 +285,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			show_ghost = not show_ghost
 		KEY_M:
 			audio.toggle_mute()
+		KEY_N:
+			show_minimap = not show_minimap
+			hud.set_minimap(show_minimap)
 		KEY_P:
 			paused = not paused
 			sim.set_paused(paused)

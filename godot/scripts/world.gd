@@ -122,6 +122,7 @@ func build(sim) -> void:
 						strip.material_override = _ground_material(color)
 						add_child(strip)
 		layer += 0.004
+	_build_trackside(info, paths, sim.track_regions(), layer + 0.016)
 
 	# Cones.
 	var cone_mesh := CylinderMesh.new()
@@ -250,8 +251,9 @@ func _build_terrain(paths: Dictionary, color: Color) -> float:
 	return far - TERRAIN_DROP - 0.05
 
 
-# A flat strip of the given half-width along part of a path.
-func _path_strip(path: Dictionary, from: float, to: float, half_width: float, height: float) -> MeshInstance3D:
+# A flat strip of the given half-width along part of a path, optionally
+# shifted sideways by `offset` (positive to the right of travel).
+func _path_strip(path: Dictionary, from: float, to: float, half_width: float, height: float, offset: float = 0.0) -> MeshInstance3D:
 	var points: PackedVector3Array = path.points
 	var distances: PackedFloat32Array = path.distances
 	var vertices := PackedVector3Array()
@@ -267,7 +269,7 @@ func _path_strip(path: Dictionary, from: float, to: float, half_width: float, he
 			continue
 		ahead = ahead.normalized()
 		var side := Vector3(-ahead.z, 0.0, ahead.x)
-		var base: Vector3 = points[i] + Vector3(0.0, height, 0.0)
+		var base: Vector3 = points[i] + Vector3(0.0, height, 0.0) + side * offset
 		vertices.append(base - side * half_width)
 		vertices.append(base + side * half_width)
 		normals.append(Vector3.UP)
@@ -284,7 +286,9 @@ func _path_strip(path: Dictionary, from: float, to: float, half_width: float, he
 		return null
 	for r in range(rows - 1):
 		var a := r * 2
-		indices.append_array(PackedInt32Array([a, a + 1, a + 2, a + 1, a + 3, a + 2]))
+		# Clockwise seen from above, which is Godot's front face, so the strip
+		# is lit from above.
+		indices.append_array(PackedInt32Array([a, a + 2, a + 1, a + 1, a + 2, a + 3]))
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = vertices
@@ -326,3 +330,200 @@ func update_cones(down: PackedByteArray) -> void:
 			cone.rotation.x = 0.0
 			cone.position.y = 0.225
 			cone.material_override = _material(CONE_COLOR)
+
+
+# Points every `step` metres along a path.
+func _sample_path(path: Dictionary, step: float) -> PackedVector3Array:
+	var points: PackedVector3Array = path.points
+	var distances: PackedFloat32Array = path.distances
+	var out := PackedVector3Array()
+	if points.size() < 2:
+		return out
+	var total: float = distances[distances.size() - 1]
+	var i := 0
+	var s := 0.0
+	while s <= total:
+		while i < distances.size() - 2 and distances[i + 1] < s:
+			i += 1
+		var span: float = distances[i + 1] - distances[i]
+		var u := 0.0 if span <= 0.0 else clampf((s - distances[i]) / span, 0.0, 1.0)
+		out.append(points[i].lerp(points[i + 1], u))
+		s += step
+	return out
+
+
+# Trackside furniture that helps a driver judge distance and speed: painted
+# edge lines, distance boards before the corners that end a straight, and
+# trees beside roads that run through open country. Drawing only: none of
+# it exists for the physics.
+func _build_trackside(info: Dictionary, paths: Dictionary, regions: Array, height: float) -> void:
+	var paint := _material(Color(0.93, 0.93, 0.90))
+	for region in regions:
+		if region.kind != "path" or region.surface != "tarmac" or not paths.has(region.path):
+			continue
+		if region.to - region.from < 150.0:
+			continue
+		for side in [-1.0, 1.0]:
+			var line := _path_strip(paths[region.path], region.from, region.to, 0.08, height, side * (region.half_width - 0.3))
+			if line:
+				line.material_override = paint
+				add_child(line)
+		_build_boards(paths[region.path], region)
+	if not paths.is_empty() and info.get("default_surface", "tarmac") != "tarmac":
+		_build_trees(paths)
+
+
+func _wrap_index(k: int, n: int, closed: bool) -> int:
+	return posmod(k, n) if closed else clampi(k, 0, n - 1)
+
+
+# Distance boards 150, 100 and 50 m before each real corner that follows a
+# straight, on the outside of the corner.
+func _build_boards(path: Dictionary, region: Dictionary) -> void:
+	var step := 5.0
+	var pts := _sample_path(path, step)
+	var n := pts.size()
+	if n < 40:
+		return
+	var closed: bool = pts[0].distance_to(path.points[path.points.size() - 1]) < 3.0
+	var turn := PackedFloat32Array()
+	turn.resize(n)
+	for j in range(n):
+		var before := pts[j] - pts[_wrap_index(j - 1, n, closed)]
+		var after := pts[_wrap_index(j + 1, n, closed)] - pts[j]
+		var a := Vector2(before.x, before.z)
+		var b := Vector2(after.x, after.z)
+		turn[j] = a.angle_to(b) if a.length() > 0.5 and b.length() > 0.5 else 0.0
+	var corner_turn := step / 250.0
+	for j in range(n):
+		if absf(turn[j]) <= corner_turn or absf(turn[_wrap_index(j - 1, n, closed)]) > corner_turn:
+			continue
+		# Length of the straight before this corner entry.
+		var straight := 0
+		while straight < 60 and absf(turn[_wrap_index(j - 1 - straight, n, closed)]) <= corner_turn:
+			if not closed and j - 1 - straight <= 0:
+				break
+			straight += 1
+		var straight_m := straight * step
+		if straight_m < 100.0:
+			continue
+		# How far the corner turns in all.
+		var total := 0.0
+		var k := 0
+		while k < 80 and absf(turn[_wrap_index(j + k, n, closed)]) > corner_turn:
+			total += turn[_wrap_index(j + k, n, closed)]
+			k += 1
+		if absf(total) < 0.5:
+			continue
+		for distance in [150, 100, 50]:
+			if distance > straight_m - 20.0:
+				continue
+			var at := _wrap_index(j - int(distance / step), n, closed)
+			var ahead: Vector3 = pts[_wrap_index(at + 1, n, closed)] - pts[at]
+			ahead.y = 0.0
+			if ahead.length() < 0.5:
+				continue
+			ahead = ahead.normalized()
+			var right := Vector3(-ahead.z, 0.0, ahead.x)
+			# A positive total is a right-hand corner; the board goes on the left.
+			var outside := right * -signf(total)
+			_board(pts[at] + outside * (region.half_width + 1.8), ahead, str(distance))
+
+
+func _board(at: Vector3, travel: Vector3, text: String) -> void:
+	var ground: Vector3 = sim_ref.ground_heights(PackedVector3Array([at]))[0]
+	var node := Node3D.new()
+	add_child(node)
+	node.position = Vector3(at.x, ground.y if has_terrain else at.y, at.z)
+	# -Z points the way the cars travel, so +Z faces the driver.
+	node.basis = Basis.looking_at(travel, Vector3.UP)
+	var panel := MeshInstance3D.new()
+	var panel_mesh := BoxMesh.new()
+	panel_mesh.size = Vector3(1.5, 0.8, 0.05)
+	panel.mesh = panel_mesh
+	panel.material_override = _material(Color(0.96, 0.96, 0.94))
+	panel.position.y = 1.35
+	node.add_child(panel)
+	for side in [-0.6, 0.6]:
+		var post := MeshInstance3D.new()
+		var post_mesh := BoxMesh.new()
+		post_mesh.size = Vector3(0.07, 1.4, 0.07)
+		post.mesh = post_mesh
+		post.material_override = _material(Color(0.45, 0.45, 0.47))
+		post.position = Vector3(side, 0.7, -0.03)
+		node.add_child(post)
+	var label := Label3D.new()
+	label.text = text
+	label.font_size = 220
+	label.pixel_size = 0.003
+	label.outline_size = 0
+	label.modulate = Color(0.05, 0.05, 0.05)
+	label.position = Vector3(0.0, 1.35, 0.035)
+	node.add_child(label)
+
+
+func _tree_mesh() -> ArrayMesh:
+	var mesh := ArrayMesh.new()
+	var trunk := CylinderMesh.new()
+	trunk.top_radius = 0.16
+	trunk.bottom_radius = 0.24
+	trunk.height = 2.4
+	trunk.radial_segments = 6
+	trunk.rings = 1
+	var crown := CylinderMesh.new()
+	crown.top_radius = 0.0
+	crown.bottom_radius = 1.7
+	crown.height = 5.2
+	crown.radial_segments = 7
+	crown.rings = 1
+	for part in [[trunk, 0.6, Color(0.30, 0.21, 0.13)], [crown, 4.2, Color(0.13, 0.30, 0.14)]]:
+		var tool := SurfaceTool.new()
+		tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+		tool.append_from(part[0], 0, Transform3D(Basis.IDENTITY, Vector3(0.0, part[1], 0.0)))
+		tool.commit(mesh)
+		mesh.surface_set_material(mesh.get_surface_count() - 1, _material(part[2]))
+	return mesh
+
+
+# Conifers scattered beside the road, thicker close to it. Positions come
+# from a fixed seed, so a track always looks the same.
+func _build_trees(paths: Dictionary) -> void:
+	var road := PackedVector2Array()
+	var sides: Array = []
+	for id in paths:
+		var pts := _sample_path(paths[id], 8.0)
+		for j in range(pts.size()):
+			road.append(Vector2(pts[j].x, pts[j].z))
+			var ahead: Vector3 = pts[mini(j + 1, pts.size() - 1)] - pts[maxi(j - 1, 0)]
+			sides.append(Vector2(-ahead.z, ahead.x).normalized())
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 20
+	var keep_clear := 15.0
+	var spots := PackedVector3Array()
+	for j in range(road.size()):
+		for k in range(3):
+			var u := rng.randf()
+			var reach := keep_clear + 1.0 + 95.0 * u * u
+			var side := -1.0 if rng.randf() < 0.5 else 1.0
+			var spot: Vector2 = road[j] + sides[j] * side * reach + Vector2(rng.randf_range(-4.0, 4.0), rng.randf_range(-4.0, 4.0))
+			var clear := true
+			for r in road:
+				if spot.distance_squared_to(r) < keep_clear * keep_clear:
+					clear = false
+					break
+			if clear:
+				spots.append(Vector3(spot.x, 0.0, spot.y))
+	if spots.is_empty():
+		return
+	spots = sim_ref.ground_heights(spots)
+	var multi := MultiMesh.new()
+	multi.transform_format = MultiMesh.TRANSFORM_3D
+	multi.mesh = _tree_mesh()
+	multi.instance_count = spots.size()
+	for i in range(spots.size()):
+		var size := rng.randf_range(0.7, 1.5)
+		var basis := Basis(Vector3.UP, rng.randf_range(0.0, TAU)).scaled(Vector3(size, size, size))
+		multi.set_instance_transform(i, Transform3D(basis, spots[i] - Vector3(0.0, 0.3, 0.0)))
+	var instance := MultiMeshInstance3D.new()
+	instance.multimesh = multi
+	add_child(instance)

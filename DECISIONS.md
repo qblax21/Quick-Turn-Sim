@@ -457,3 +457,53 @@ plays identically, so the game can be handed to someone without installing
 anything. That fallback is a development convenience, not a release. The
 front end finds `data/` beside the executable first, then beside the
 project.
+
+## D-054 Traction control, and why the tires felt slippery
+
+Driver feedback: the tires feel slippery, most of all under power. Three
+causes were found, none of them inflation pressure (the pressure terms are
+zero at the placard pressure both tire files use):
+
+1. Neither car had traction control. The sedan's motors can exceed the
+   grip of all four tires at low speed, and the validation launch only
+   reached its time because the harness itself backed the accelerator off.
+   A driver who floored it got wheelspin.
+2. Past its peak the longitudinal curve fell to about 60 percent of peak
+   force, so a spinning tire lost far more grip than a road tire does.
+3. Sessions start with the tires at road temperature, where the grip
+   window gave about 7 percent less grip than at the 50 to 60 degC the
+   validation runs use.
+
+Changes: an optional `[traction_control]` table per car (one torque
+fraction for the whole car, steered toward a target drive slip, the same
+controller shape as the anti-lock system; absent means not fitted). All
+three cars have it. The shape factor `pcx1` went from 1.60 to 1.50
+(sliding force about 75 percent of peak), the grip window is now centred
+on 45 degC and 60 degC wide, and peak friction went up 5 to 6 percent
+because skidpad, braking and launch were all on the low side of their
+targets. All of these are still placeholders. The validation launch now
+floors a car that has traction control instead of using its own limiter.
+There is no switch to turn the system off yet. A per-axle controller would
+suit the dual-motor car better; this is the simplest thing that works.
+
+## D-055 Car bodies are generated in code
+
+The project owner wants all art made in the project. Car bodies are built
+by `godot/scripts/car_body.gd` from the dimensions the core reports: a
+table of cross-sections from nose to tail, joined into flat-shaded panels,
+with wheel wells cut at the two axles, a glass greenhouse, lamps, mirrors
+and spoked wheels. Two shapes exist (two-box below 4.3 m long, three-box
+above), both original and generic. The body is single-sided, so the
+driver's-seat view looks out through it without hiding anything. This is a
+stylised low-poly look, not a detailed model.
+
+## D-056 Trackside cues and the map
+
+To make distance and speed easier to judge, the front end draws painted
+edge lines on paved path regions, distance boards 150, 100 and 50 m before
+each corner of more than about 30 degrees that follows a straight of 100 m
+or more (on the outside of the corner), and conifers beside roads through
+open country, placed from a fixed seed. The corners are found from the
+path geometry, so any new track gets boards without extra data. None of
+this exists for the physics: a tree cannot be hit. A north-up track map
+shows the path, cones, gates, the car and the ghost; N switches it.

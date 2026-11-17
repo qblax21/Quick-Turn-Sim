@@ -4,6 +4,7 @@
 extends CanvasLayer
 
 const WHEEL_NAMES := ["FL", "FR", "RL", "RR"]
+const Minimap := preload("res://scripts/minimap.gd")
 
 var main_label: Label
 var time_label: Label
@@ -16,6 +17,7 @@ var surface_names := PackedStringArray()
 var surface_tuned := PackedByteArray()
 var car_name := ""
 var electric := false
+var minimap
 
 
 func setup(sim) -> void:
@@ -25,6 +27,21 @@ func setup(sim) -> void:
 	var car: Dictionary = sim.car_info()
 	car_name = car.get("name", "")
 	electric = car.get("electric", false)
+	minimap = Minimap.new()
+	minimap.setup(sim)
+	minimap.position = Vector2(24.0, 236.0)
+	add_child(minimap)
+
+
+# Shows or hides the map; a track with nothing to draw never shows one.
+func set_minimap(on: bool) -> void:
+	if minimap:
+		minimap.visible = on and minimap.usable
+
+
+func update_map(car_xform: Transform3D, ghost_visible: bool, ghost_xform: Transform3D) -> void:
+	if minimap and minimap.visible:
+		minimap.set_cars(car_xform, ghost_visible, ghost_xform)
 
 
 func _ready() -> void:

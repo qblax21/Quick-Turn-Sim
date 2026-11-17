@@ -36,6 +36,43 @@ pub struct CarParams {
     pub aero: AeroParams,
     /// Drivetrain module and its parameters.
     pub drivetrain: DrivetrainParams,
+    /// Traction control. Absent from a data file means not fitted.
+    #[serde(default)]
+    pub traction_control: TractionControlParams,
+}
+
+/// Traction control: the accelerator demand is scaled back while the
+/// fastest-spinning wheel exceeds a drive slip threshold.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct TractionControlParams {
+    /// Whether the system is fitted and active.
+    pub enabled: bool,
+    /// Drive slip ratio above which torque is cut.
+    pub slip_threshold: f64,
+    /// Fastest rate at which torque is cut, fraction of full per second.
+    pub release_rate_per_s: f64,
+    /// Fastest rate at which torque is restored, fraction of full per second.
+    pub apply_rate_per_s: f64,
+    /// How strongly the torque fraction follows the slip error, fraction
+    /// of full per second per unit of slip ratio.
+    pub control_gain_per_s: f64,
+    /// Speed below which slip is measured against this speed instead of
+    /// the car's, m/s, so a launch from rest is not read as infinite slip.
+    pub min_speed_m_per_s: f64,
+}
+
+impl Default for TractionControlParams {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            slip_threshold: 0.1,
+            release_rate_per_s: 10.0,
+            apply_rate_per_s: 5.0,
+            control_gain_per_s: 60.0,
+            min_speed_m_per_s: 2.0,
+        }
+    }
 }
 
 /// Sprung body mass properties and outline.
@@ -511,6 +548,12 @@ impl CarParams {
         positive("brakes.abs.release_rate_per_s", br.abs.release_rate_per_s)?;
         positive("brakes.abs.apply_rate_per_s", br.abs.apply_rate_per_s)?;
         positive("brakes.abs.control_gain_per_s", br.abs.control_gain_per_s)?;
+        let tc = &self.traction_control;
+        positive("traction_control.slip_threshold", tc.slip_threshold)?;
+        positive("traction_control.release_rate_per_s", tc.release_rate_per_s)?;
+        positive("traction_control.apply_rate_per_s", tc.apply_rate_per_s)?;
+        positive("traction_control.control_gain_per_s", tc.control_gain_per_s)?;
+        positive("traction_control.min_speed_m_per_s", tc.min_speed_m_per_s)?;
         non_negative("steering.compliance_rad_per_nm", s.compliance_rad_per_nm)?;
         if !(0.0..1.0).contains(&s.assist_fraction) {
             return Err(format!(

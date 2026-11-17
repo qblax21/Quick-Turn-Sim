@@ -1,12 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
-# Placeholder car: a box body, a cabin, lamps and four wheels, sized from the
-# dimensions the simulation core reports, plus a bare interior (dashboard,
-# steering wheel, screen pillars) for the driver's-seat view. It is moved to
-# the pose the core publishes each frame.
+# The car as drawn: a generated low-poly body (see car_body.gd) with glass,
+# lamps, mirrors and spoked wheels, sized from the dimensions the simulation
+# core reports, plus a bare interior (dashboard, steering wheel, screen
+# pillars) for the driver's-seat view. It is moved to the pose the core
+# publishes each frame.
 extends Node3D
 
+const CarBody := preload("res://scripts/car_body.gd")
+
 var wheels: Array = []
-var cabin_node: Node3D
 var interior: Node3D
 var steering_rim: Node3D
 # Eye point of the driver's seat, relative to the centre of gravity.
@@ -48,25 +50,40 @@ func build(info: Dictionary) -> void:
 	var cg_to_front: float = info.get("cg_to_front_axle", 1.2)
 	var electric: bool = info.get("electric", false)
 	# The node's origin is the sprung centre of gravity. Forward is -Z.
-	var mid_forward := cg_to_front - wheelbase * 0.5
-	var bottom := -(cg_height - clearance)
-	var body_color := Color(0.15, 0.45, 0.85) if electric else Color(0.85, 0.2, 0.15)
-	var paint := _material(body_color, 0.35, 0.3)
+	var body_color := Color(0.10, 0.36, 0.78) if electric else Color(0.80, 0.13, 0.10)
+	var paint := _material(body_color, 0.28, 0.45)
+	var glass := _material(Color(0.05, 0.07, 0.10), 0.08, 0.6)
 	var dark := _material(Color(0.05, 0.05, 0.06), 0.8)
 
-	# Narrower than the track so the wheels stay visible.
-	var tire_width_front: float = info.get("tire_width_front", 0.22)
-	var body_width := width - 2.0 * tire_width_front - 0.08
-	_box(self, Vector3(body_width, height * 0.5, length), Vector3(0.0, bottom + height * 0.25, -mid_forward), paint)
-	var nose := -mid_forward - length * 0.5
-	var tail := -mid_forward + length * 0.5
-	var lamp_y := bottom + height * 0.38
-	for side in [-1.0, 1.0]:
-		_box(self, Vector3(0.28, 0.09, 0.04), Vector3(side * (body_width * 0.5 - 0.2), lamp_y, nose), _material(Color(0.95, 0.95, 0.85), 0.2))
-		_box(self, Vector3(0.28, 0.09, 0.04), Vector3(side * (body_width * 0.5 - 0.2), lamp_y, tail), _material(Color(0.7, 0.05, 0.05), 0.2))
+	var shape := CarBody.new()
+	shape.setup(info)
+	var body := MeshInstance3D.new()
+	body.mesh = shape.build_mesh()
+	body.set_surface_override_material(0, paint)
+	body.set_surface_override_material(1, glass)
+	add_child(body)
 
-	# Cabin set toward the rear so front and back are easy to tell apart.
-	cabin_node = _box(self, Vector3(width * 0.66, height * 0.42, length * 0.5), Vector3(0.0, bottom + height * 0.71, -mid_forward + length * 0.1), _material(Color(0.10, 0.13, 0.18), 0.15, 0.4))
+	var nose: float = shape.nose_z
+	var tail: float = nose + length
+	var front := shape.section(nose + 0.02 * length)
+	var rear := shape.section(tail - 0.02 * length)
+	var lamp_white := _material(Color(0.96, 0.96, 0.88), 0.15)
+	lamp_white.emission_enabled = true
+	lamp_white.emission = Color(0.9, 0.9, 0.8)
+	lamp_white.emission_energy_multiplier = 0.6
+	var lamp_red := _material(Color(0.75, 0.04, 0.04), 0.15)
+	lamp_red.emission_enabled = true
+	lamp_red.emission = Color(0.8, 0.05, 0.05)
+	lamp_red.emission_energy_multiplier = 0.5
+	var screen_base := shape.section(nose + shape.keys[3][0] * length)
+	for side in [-1.0, 1.0]:
+		_box(self, Vector3(0.36, 0.08, 0.16), Vector3(side * (front[5].x - 0.20), front[5].y - 0.07, nose + 0.07), lamp_white)
+		_box(self, Vector3(0.40, 0.08, 0.16), Vector3(side * (rear[5].x - 0.22), rear[5].y - 0.08, tail - 0.07), lamp_red)
+		# Door mirror at the base of the windscreen.
+		_box(self, Vector3(0.17, 0.10, 0.07), Vector3(side * (screen_base[5].x + 0.07), screen_base[5].y + 0.05, screen_base[5].z + 0.25), paint)
+	# Intake below the nose, a plate at the back and dark sills.
+	_box(self, Vector3(width * 0.55, 0.13, 0.06), Vector3(0.0, front[0].y + 0.16, nose + 0.02), dark)
+	_box(self, Vector3(0.46, 0.11, 0.03), Vector3(0.0, rear[5].y - 0.26, tail - 0.01), _material(Color(0.92, 0.92, 0.9), 0.5))
 
 	# Eye point of a left-hand-drive seat: 55 percent of the wheelbase behind
 	# the front axle, near roof height.
@@ -78,6 +95,9 @@ func build(info: Dictionary) -> void:
 	interior.visible = false
 	add_child(interior)
 	_box(interior, Vector3(width - 0.1, 0.12, 0.5), Vector3(0.0, eye.y - 0.32, eye.z - 0.82), dark)
+	# Scuttle: fills the space under the base of the windscreen, so the seat
+	# view does not look down through the single-sided body.
+	_box(interior, Vector3(width - 0.08, 0.5, 0.7), Vector3(0.0, screen_base[5].y - 0.235, screen_base[5].z + 0.2), dark)
 	# Instrument hood in front of the driver.
 	_box(interior, Vector3(0.36, 0.07, 0.2), Vector3(eye.x, eye.y - 0.23, eye.z - 0.72), dark)
 	# Screen pillars sit at the full body width, well outboard of the eye.
@@ -111,27 +131,44 @@ func build(info: Dictionary) -> void:
 	# Top-centre mark.
 	_box(steering_rim, Vector3(0.02, 0.035, 0.03), Vector3(0.0, 0.172, 0.0), _material(Color(0.9, 0.75, 0.1)))
 
+	var rubber := _material(Color(0.06, 0.06, 0.07), 0.95)
+	var alloy := _material(Color(0.72, 0.73, 0.76), 0.3, 0.7)
 	for i in range(4):
-		var front := i < 2
-		var radius: float = info.get("wheel_radius_front" if front else "wheel_radius_rear", 0.31)
-		var tire_width: float = info.get("tire_width_front" if front else "tire_width_rear", 0.22)
+		var is_front := i < 2
+		var radius: float = info.get("wheel_radius_front" if is_front else "wheel_radius_rear", 0.31)
+		var tire_width: float = info.get("tire_width_front" if is_front else "tire_width_rear", 0.22)
 		var pivot := Node3D.new()
 		add_child(pivot)
-		var tire := MeshInstance3D.new()
-		var tire_mesh := CylinderMesh.new()
-		tire_mesh.top_radius = radius
-		tire_mesh.bottom_radius = radius
-		tire_mesh.height = tire_width
-		tire.mesh = tire_mesh
-		tire.material_override = _material(Color(0.07, 0.07, 0.08), 0.9)
 		# A cylinder's axis is local Y; the axle is local X.
-		tire.rotation.z = PI * 0.5
-		pivot.add_child(tire)
-		# Light blocks on the wheel face so rotation is visible.
-		var rim_material := _material(Color(0.75, 0.75, 0.78), 0.3, 0.6)
-		_box(pivot, Vector3(tire_width * 1.04, radius * 1.3, radius * 0.22), Vector3.ZERO, rim_material)
-		_box(pivot, Vector3(tire_width * 1.04, radius * 0.22, radius * 1.3), Vector3.ZERO, rim_material)
+		_wheel_disc(pivot, radius, tire_width, rubber)
+		_wheel_disc(pivot, radius * 0.66, tire_width * 1.02, dark)
+		_wheel_disc(pivot, radius * 0.16, tire_width * 1.08, alloy)
+		# Five spokes and a rim band, a little proud of the tire wall.
+		for k in range(5):
+			var holder := Node3D.new()
+			holder.rotation.x = TAU * k / 5.0
+			pivot.add_child(holder)
+			_box(holder, Vector3(tire_width * 1.06, radius * 0.56, radius * 0.13), Vector3(0.0, radius * 0.36, 0.0), alloy)
+		for k in range(10):
+			var holder := Node3D.new()
+			holder.rotation.x = TAU * k / 10.0
+			pivot.add_child(holder)
+			_box(holder, Vector3(tire_width * 1.05, radius * 0.07, radius * 0.44), Vector3(0.0, radius * 0.64, 0.0), alloy)
 		wheels.append(pivot)
+
+
+func _wheel_disc(parent: Node3D, radius: float, width: float, material: Material) -> void:
+	var node := MeshInstance3D.new()
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = radius
+	mesh.bottom_radius = radius
+	mesh.height = width
+	mesh.radial_segments = 20
+	mesh.rings = 1
+	node.mesh = mesh
+	node.material_override = material
+	node.rotation.z = PI * 0.5
+	parent.add_child(node)
 
 
 # Turns this car into the best-lap ghost: one translucent material, no
@@ -151,11 +188,9 @@ func make_ghost() -> void:
 	visible = false
 
 
-# In the driver's-seat view the cabin box is hidden, so it does not block the
-# view, and the interior is shown.
+# The body is single-sided, so from the driver's seat it does not block the
+# view; only the interior needs switching on.
 func set_seat_view(on: bool) -> void:
-	if cabin_node:
-		cabin_node.visible = not on
 	if interior:
 		interior.visible = on
 

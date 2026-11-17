@@ -52,6 +52,12 @@ const MIN_ROLLING_RADIUS: f64 = 0.05;
 const ABS_PEDAL_THRESHOLD: f64 = 0.01;
 /// Lowest pressure fraction the anti-lock system will release to.
 const ABS_MIN_FACTOR: f64 = 0.02;
+/// Accelerator travel below which traction control stands down.
+const TC_PEDAL_THRESHOLD: f64 = 0.01;
+/// Lowest torque fraction traction control may command.
+const TC_MIN_FACTOR: f64 = 0.02;
+/// Accelerator demand traction control never cuts below.
+const TC_PEDAL_FLOOR: f64 = 0.12;
 /// Time constant of the steering compliance response, s.
 const STEER_COMPLIANCE_LAG_S: f64 = 0.02;
 
@@ -131,6 +137,8 @@ pub struct CarState {
     pub tires: [TireState; 4],
     /// Anti-lock pressure fraction per wheel, 0 to 1.
     pub abs_factor: [f64; 4],
+    /// Traction-control torque fraction, 0 to 1.
+    pub tc_factor: f64,
     /// Steer angle lost at the front wheels to steering-system compliance,
     /// rad. Negative values reduce a left steer.
     pub steer_compliance: f64,
@@ -365,6 +373,7 @@ impl Car {
             wheel_angle: [0.0; 4],
             tires: [TireState::new(tire_temp_c); 4],
             abs_factor: [1.0; 4],
+            tc_factor: 1.0,
             steer_compliance: 0.0,
         };
         let mut car = Self {
@@ -417,6 +426,7 @@ impl Car {
             wheel_angle: [0.0; 4],
             tires: [TireState::new(self.initial_tire_temp_c); 4],
             abs_factor: [1.0; 4],
+            tc_factor: 1.0,
             steer_compliance: 0.0,
         };
         self.drivetrain.reset();
@@ -799,11 +809,35 @@ impl Car {
             wheel_inertia[i] = self.corners[i].wheel_inertia;
         }
 
+        // Traction control from this tick's slip: one torque fraction for
+        // the whole car, steered toward the target drive slip.
+        let pedal = clamp(controls.throttle, 0.0, 1.0);
+        let tc = &p.traction_control;
+        if tc.enabled && pedal > TC_PEDAL_THRESHOLD {
+            let reference = vel_body.x.abs().max(tc.min_speed_m_per_s);
+            let mut slip: f64 = 0.0;
+            for i in 0..4 {
+                let rolling = self.state.wheel_omega[i].abs() * wheels[i].rolling_radius;
+                slip = slip.max((rolling - vel_body.x.abs()) / reference);
+            }
+            let rate = clamp(
+                tc.control_gain_per_s * (tc.slip_threshold - slip),
+                -tc.release_rate_per_s,
+                tc.apply_rate_per_s,
+            );
+            self.state.tc_factor = clamp(self.state.tc_factor + rate * dt, TC_MIN_FACTOR, 1.0);
+        } else {
+            self.state.tc_factor = 1.0;
+        }
+        // The cut never takes the demand below the pedal travel where
+        // lift-off regeneration or engine braking would begin.
+        let throttle = (pedal * self.state.tc_factor).max(pedal.min(TC_PEDAL_FLOOR));
+
         // Driveline and wheel spin.
         let drive = self.drivetrain.step(
             &DriveContext {
                 controls: DriveControls {
-                    throttle: clamp(controls.throttle, 0.0, 1.0),
+                    throttle,
                     clutch: clamp(controls.clutch, 0.0, 1.0),
                     shift_up: controls.shift_up,
                     shift_down: controls.shift_down,
@@ -972,6 +1006,7 @@ impl Snapshot for Car {
             t.save(w);
         }
         w.write_f64s(&s.abs_factor);
+        w.write_f64(s.tc_factor);
         w.write_f64(s.steer_compliance);
         self.drivetrain.save(w);
     }
@@ -990,6 +1025,7 @@ impl Snapshot for Car {
             t.load(r)?;
         }
         r.read_f64s(&mut s.abs_factor)?;
+        s.tc_factor = r.read_f64()?;
         s.steer_compliance = r.read_f64()?;
         self.drivetrain.load(r)?;
         self.refresh_static_output();

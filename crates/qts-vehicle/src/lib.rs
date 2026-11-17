@@ -112,6 +112,7 @@ pub mod test_support {
                 lift_area_rear_m2: 0.08,
             },
             drivetrain,
+            traction_control: TractionControlParams::default(),
         }
     }
 

@@ -124,3 +124,11 @@ kind = "open"
 preload_nm = { value = 40.0, source = "used only by the limited-slip variant", confidence = "placeholder" }
 lock_fraction_drive = { value = 0.30, source = "used only by the limited-slip variant", confidence = "placeholder" }
 lock_fraction_coast = { value = 0.10, source = "used only by the limited-slip variant", confidence = "placeholder" }
+
+[traction_control]
+enabled = true
+slip_threshold = { value = 0.12, source = "target drive slip, near the peak of the placeholder tire", confidence = "placeholder" }
+release_rate_per_s = { value = 14.0, source = "controller tuning guess", confidence = "placeholder" }
+apply_rate_per_s = { value = 4.0, source = "controller tuning guess", confidence = "placeholder" }
+control_gain_per_s = { value = 100.0, source = "controller tuning guess", confidence = "placeholder" }
+min_speed_m_per_s = { value = 2.0, source = "reference speed floor so a launch is not read as infinite slip", confidence = "placeholder" }

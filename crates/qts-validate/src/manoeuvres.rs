@@ -299,7 +299,13 @@ fn standing_start(
         } else {
             0.0
         };
-        let throttle = limiter.throttle(&session);
+        // A car with traction control is simply floored; its own system
+        // manages the slip, as it would for a driver.
+        let throttle = if session.car().params().traction_control.enabled {
+            1.0
+        } else {
+            limiter.throttle(&session)
+        };
         let steer = hold_straight(&session, origin, heading);
         session.step(&InputFrame::from_analog(steer, throttle, 0.0, clutch, 0.0));
         let speed = session.car().output().vel_body[0];
@@ -334,11 +340,16 @@ fn accel_0_60(root: &DataRoot, set: &TargetSet) -> Result<Measurement, String> {
                 }
             }
             let (time, rpm, release) = best.ok_or("60 mph was not reached within 30 s")?;
+            let slip_note = if car.traction_control.enabled {
+                "accelerator floored, slip managed by the car's traction control"
+            } else {
+                "throttle backed off when driven-wheel slip exceeds 0.11"
+            };
             Ok(Measurement {
                 metric: Metric::Accel0To60,
                 value: time,
                 method: format!(
-                    "best of nine launches: clutch released over {release:.1} s from {rpm:.0} rpm, throttle backed off when driven-wheel slip exceeds 0.11, automatic upshifts near the limiter; timed from the start of clutch release, no rollout"
+                    "best of nine launches: clutch released over {release:.1} s from {rpm:.0} rpm, {slip_note}, automatic upshifts near the limiter; timed from the start of clutch release, no rollout"
                 ),
             })
         }
@@ -348,7 +359,11 @@ fn accel_0_60(root: &DataRoot, set: &TargetSet) -> Result<Measurement, String> {
             Ok(Measurement {
                 metric: Metric::Accel0To60,
                 value: time,
-                method: "full accelerator from rest, backed off when wheel slip exceeds 0.11; timed from the pedal application, no rollout".into(),
+                method: if car.traction_control.enabled {
+                    "accelerator floored from rest, slip managed by the car's traction control; timed from the pedal application, no rollout".into()
+                } else {
+                    "full accelerator from rest, backed off when wheel slip exceeds 0.11; timed from the pedal application, no rollout".into()
+                },
             })
         }
     }

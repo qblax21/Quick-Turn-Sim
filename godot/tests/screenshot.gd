@@ -63,6 +63,7 @@ func _run() -> void:
 	elif args.size() > 6 and args[6] == "side":
 		# Freeze the scene and look at the car from its front-right quarter.
 		main.set_process(false)
+		main.car_view.set_seat_view(false)
 		var xform: Transform3D = main.sim.car_transform()
 		main.camera.global_position = xform.origin + xform.basis.x * 4.0 - xform.basis.z * 3.0 + Vector3.UP * 1.3
 		main.camera.look_at(xform.origin, Vector3.UP)
