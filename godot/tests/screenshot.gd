@@ -41,6 +41,9 @@ func _run() -> void:
 		fixed.throttle = float(args[5])
 	main.reader = fixed
 	main.hud.toggle_debug()
+	if args.size() > 7:
+		main.map_mode = int(args[7])
+		main.hud.set_map_mode(main.map_mode)
 	var began := Time.get_ticks_msec()
 	while Time.get_ticks_msec() - began < int(float(args[2]) * 1000.0):
 		await process_frame
@@ -59,6 +62,14 @@ func _run() -> void:
 		var span := maxf(hi.x - lo.x, hi.z - lo.z)
 		main.camera.global_position = (lo + hi) * 0.5 + Vector3.UP * span * 0.95
 		main.camera.look_at((lo + hi) * 0.5, Vector3.FORWARD)
+		await process_frame
+	elif args.size() > 6 and args[6] == "high":
+		# Freeze the scene and look ahead along the road from 25 m up.
+		main.set_process(false)
+		main.car_view.set_seat_view(false)
+		var pose: Transform3D = main.sim.car_transform()
+		main.camera.global_position = pose.origin + pose.basis.z * 20.0 + Vector3.UP * 25.0
+		main.camera.look_at(pose.origin - pose.basis.z * 60.0, Vector3.UP)
 		await process_frame
 	elif args.size() > 6 and args[6] == "side":
 		# Freeze the scene and look at the car from its front-right quarter.

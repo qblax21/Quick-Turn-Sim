@@ -9,11 +9,3 @@ description = "Car A with the clutch-type limited-slip differential option."
 
 [drivetrain.differential]
 kind = "limited_slip"
-
-[traction_control]
-enabled = true
-slip_threshold = { value = 0.12, source = "target drive slip, near the peak of the placeholder tire", confidence = "placeholder" }
-release_rate_per_s = { value = 14.0, source = "controller tuning guess", confidence = "placeholder" }
-apply_rate_per_s = { value = 4.0, source = "controller tuning guess", confidence = "placeholder" }
-control_gain_per_s = { value = 100.0, source = "controller tuning guess", confidence = "placeholder" }
-min_speed_m_per_s = { value = 2.0, source = "reference speed floor so a launch is not read as infinite slip", confidence = "placeholder" }

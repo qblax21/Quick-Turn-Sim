@@ -37,7 +37,7 @@ spring_rate_n_per_m = { value = 38000.0, source = "chosen for a 1.5 Hz front rid
 motion_ratio = { value = 0.95, source = "typical strut motion ratio", confidence = "placeholder" }
 damper_bump_n_s_per_m = { value = 2800.0, source = "about 0.35 of critical in bump", confidence = "placeholder" }
 damper_rebound_n_s_per_m = { value = 4850.0, source = "about 0.6 of critical in rebound", confidence = "placeholder" }
-anti_roll_bar_n_per_m = { value = 14000.0, source = "chosen with the rear bar for mild understeer", confidence = "placeholder" }
+anti_roll_bar_n_per_m = { value = 12500.0, source = "chosen with the rear bar for mild understeer; softened from 14000 after a drive found the car a little understeery", confidence = "placeholder" }
 bump_travel_m = { value = 0.075, source = "class-typical bump travel", confidence = "placeholder" }
 droop_travel_m = { value = 0.085, source = "class-typical droop travel", confidence = "placeholder" }
 bump_stop_rate_n_per_m = { value = 160000.0, source = "stiff progressive stop approximated as linear", confidence = "placeholder" }
@@ -72,7 +72,7 @@ ackermann_fraction = { value = 0.6, source = "partial Ackermann, typical road ca
 caster_rad = { value = 0.105, source = "about 6 degrees", confidence = "placeholder" }
 kingpin_inclination_rad = { value = 0.21, source = "about 12 degrees, typical strut", confidence = "placeholder" }
 scrub_radius_m = { value = 0.005, source = "small positive scrub radius", confidence = "placeholder" }
-mechanical_trail_m = { value = 0.022, source = "follows from caster and wheel radius, rounded", confidence = "placeholder" }
+mechanical_trail_m = { value = 0.024, source = "raised from 0.022 after a drive asked for slightly more steering weight; originally: follows from caster and wheel radius, rounded", confidence = "placeholder" }
 compliance_rad_per_nm = { value = 0.00005, source = "chosen to add roughly 1.5 degrees per g of compliance understeer, a typical road-car order of magnitude", confidence = "placeholder" }
 assist_fraction = { value = 0.0, source = "no assist modelled; first drive on a wheel judged the weight about right", confidence = "placeholder" }
 

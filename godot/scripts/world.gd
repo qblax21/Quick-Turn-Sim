@@ -369,6 +369,7 @@ func _build_trackside(info: Dictionary, paths: Dictionary, regions: Array, heigh
 				line.material_override = paint
 				add_child(line)
 		_build_boards(paths[region.path], region)
+		_build_rubber(paths[region.path], region, height - 0.006)
 	if not paths.is_empty() and info.get("default_surface", "tarmac") != "tarmac":
 		_build_trees(paths)
 
@@ -526,4 +527,121 @@ func _build_trees(paths: Dictionary) -> void:
 		multi.set_instance_transform(i, Transform3D(basis, spots[i] - Vector3(0.0, 0.3, 0.0)))
 	var instance := MultiMeshInstance3D.new()
 	instance.multimesh = multi
+	add_child(instance)
+
+
+# One pass count of smoothing on the lateral offsets `d` of a line through
+# the points `q + side * d`: each offset moves to where the line bends
+# least, within the track's width. Repeated, this approaches the line of
+# least curvature, which is close to the line a driver would take.
+func _relax(q: PackedVector2Array, side: PackedVector2Array, d: PackedFloat32Array, limit: float, closed: bool, passes: int) -> void:
+	var n := q.size()
+	if n < 6:
+		return
+	for pass_index in range(passes):
+		for i in range(n):
+			if not closed and (i < 2 or i > n - 3):
+				continue
+			var a := posmod(i - 2, n)
+			var b := posmod(i - 1, n)
+			var c := posmod(i + 1, n)
+			var e := posmod(i + 2, n)
+			var near := q[b] + side[b] * d[b] + q[c] + side[c] * d[c]
+			var far := q[a] + side[a] * d[a] + q[e] + side[e] * d[e]
+			d[i] = clampf(((near * 4.0 - far) / 6.0 - q[i]).dot(side[i]), -limit, limit)
+
+
+# Dark rubber laid along the line of least curvature through a paved
+# region, heavier where the line turns hardest. It shows where the fast
+# line runs; it is drawn only and does not change grip.
+func _build_rubber(path: Dictionary, region: Dictionary, height: float) -> void:
+	var step := 8.0
+	var pts := _sample_path(path, step)
+	var closed: bool = pts.size() > 2 and pts[0].distance_to(path.points[path.points.size() - 1]) < 3.0
+	if closed and pts[pts.size() - 1].distance_to(pts[0]) < step * 0.5:
+		pts.remove_at(pts.size() - 1)
+	var n := pts.size()
+	if n < 24:
+		return
+	var q := PackedVector2Array()
+	var side := PackedVector2Array()
+	for i in range(n):
+		q.append(Vector2(pts[i].x, pts[i].z))
+		var ahead: Vector3 = pts[_wrap_index(i + 1, n, closed)] - pts[_wrap_index(i - 1, n, closed)]
+		side.append(Vector2(-ahead.z, ahead.x).normalized())
+	var limit: float = maxf(region.half_width - 1.7, 0.0)
+	# Coarse to fine, so long corners settle without thousands of passes.
+	var d := PackedFloat32Array()
+	for stride in [4, 2, 1]:
+		var level_q := PackedVector2Array()
+		var level_side := PackedVector2Array()
+		for i in range(0, n, stride):
+			level_q.append(q[i])
+			level_side.append(side[i])
+		var m := level_q.size()
+		var level_d := PackedFloat32Array()
+		level_d.resize(m)
+		for j in range(m):
+			if d.is_empty():
+				level_d[j] = 0.0
+			elif j % 2 == 0:
+				level_d[j] = d[mini(j / 2, d.size() - 1)]
+			else:
+				var next := posmod(j / 2 + 1, d.size()) if closed else mini(j / 2 + 1, d.size() - 1)
+				level_d[j] = (d[j / 2] + d[next]) * 0.5
+		_relax(level_q, level_side, level_d, limit, closed, 400 / stride)
+		d = level_d
+	# The line, and how hard it turns at each point.
+	var line := PackedVector2Array()
+	for i in range(n):
+		line.append(q[i] + side[i] * d[i])
+	var vertices := PackedVector3Array()
+	var colors := PackedColorArray()
+	var rows := 0
+	for i in range(n):
+		var s := i * step
+		if s < region.from or s > region.to:
+			continue
+		var before := line[i] - line[_wrap_index(i - 1, n, closed)]
+		var after := line[_wrap_index(i + 1, n, closed)] - line[i]
+		var bend := absf(before.angle_to(after)) / step if before.length() > 0.1 and after.length() > 0.1 else 0.0
+		var alpha := 0.22 + 0.30 * clampf(bend * 45.0, 0.0, 1.0)
+		var across := Vector2(-(before + after).y, (before + after).x).normalized()
+		# Two tire tracks.
+		for offset in [-0.98, -0.52, 0.52, 0.98]:
+			var p: Vector2 = line[i] + across * offset
+			vertices.append(Vector3(p.x, pts[i].y, p.y))
+			colors.append(Color(0.03, 0.03, 0.03, alpha))
+		rows += 1
+	if rows < 2:
+		return
+	if has_terrain:
+		vertices = sim_ref.ground_heights(vertices)
+	for k in range(vertices.size()):
+		var v := vertices[k]
+		v.y += height
+		vertices[k] = v
+	var indices := PackedInt32Array()
+	var joins := rows if closed and region.to - region.from > (n - 2) * step else rows - 1
+	for r in range(joins):
+		var a := r * 4
+		var b := ((r + 1) % rows) * 4
+		for t in [0, 2]:
+			indices.append_array(PackedInt32Array([a + t, b + t, a + t + 1, a + t + 1, b + t, b + t + 1]))
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_COLOR] = colors
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var material := StandardMaterial3D.new()
+	material.vertex_color_use_as_albedo = true
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var instance := MeshInstance3D.new()
+	instance.mesh = mesh
+	instance.material_override = material
+	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(instance)

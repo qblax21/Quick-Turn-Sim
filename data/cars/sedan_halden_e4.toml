@@ -61,7 +61,7 @@ droop_travel_m = { value = 0.085, source = "class-typical droop travel", confide
 bump_stop_rate_n_per_m = { value = 220000.0, source = "stiff progressive stop approximated as linear", confidence = "placeholder" }
 static_camber_rad = { value = -0.026, source = "about -1.5 degrees", confidence = "placeholder" }
 camber_gain_rad_per_m = { value = -0.6, source = "about -3.4 degrees per 100 mm of bump", confidence = "placeholder" }
-static_toe_rad = { value = 0.002, source = "slight rear toe-in for stability", confidence = "placeholder" }
+static_toe_rad = { value = 0.003, source = "rear toe-in for stability; raised from 0.002 after a drive found the car snappy at the limit", confidence = "placeholder" }
 roll_center_height_m = { value = 0.11, source = "typical multi-link roll centre height", confidence = "placeholder" }
 anti_pitch_tan = { value = 0.12, source = "moderate anti-squat and anti-lift", confidence = "placeholder" }
 
@@ -74,7 +74,7 @@ kingpin_inclination_rad = { value = 0.19, source = "about 11 degrees", confidenc
 scrub_radius_m = { value = 0.012, source = "small positive scrub radius", confidence = "placeholder" }
 mechanical_trail_m = { value = 0.028, source = "follows from caster and wheel radius, rounded", confidence = "placeholder" }
 compliance_rad_per_nm = { value = 0.00005, source = "chosen to add roughly 1.5 degrees per g of compliance understeer, a typical road-car order of magnitude", confidence = "placeholder" }
-assist_fraction = { value = 0.40, source = "two drives on a wheel judged the steering heavy, first unassisted and then at 0.25; raised again", confidence = "placeholder" }
+assist_fraction = { value = 0.36, source = "lowered from 0.40 after a later drive asked for slightly more weight; earlier: two drives on a wheel judged the steering heavy, first unassisted and then at 0.25; raised again", confidence = "placeholder" }
 
 [brakes]
 max_torque_front_nm = { value = 4200.0, source = "enough to exceed front grip at full pedal", confidence = "placeholder" }
@@ -97,7 +97,7 @@ lift_area_rear_m2 = { value = 0.08, source = "small rear lift", confidence = "pl
 
 [drivetrain]
 kind = "dual_motor_electric"
-front_torque_share = { value = 0.38, source = "rear-biased split, typical of the class", confidence = "placeholder" }
+front_torque_share = { value = 0.38, source = "rear-biased split, typical of the class; a more forward split was tried for stability and cost 0.1 to 0.2 s to 60 mph", confidence = "placeholder" }
 torque_vectoring = "none"
 
 [drivetrain.front_motor]
@@ -127,7 +127,7 @@ max_discharge_power_w = { value = 480000.0, source = "above combined motor power
 max_charge_power_w = { value = 150000.0, source = "guess", confidence = "placeholder" }
 
 [drivetrain.regen]
-coast_fraction = { value = 0.25, source = "moderate lift-off regeneration", confidence = "placeholder" }
+coast_fraction = { value = 0.18, source = "lift-off regeneration; lowered from 0.25 after a drive found the car snappy at the limit", confidence = "placeholder" }
 brake_share = { value = 0.6, source = "share of pedal demand regeneration may take", confidence = "placeholder" }
 fade_low_m_per_s = { value = 1.5, source = "regeneration off below walking pace", confidence = "placeholder" }
 fade_high_m_per_s = { value = 4.0, source = "regeneration fully available above about 14 km/h", confidence = "placeholder" }

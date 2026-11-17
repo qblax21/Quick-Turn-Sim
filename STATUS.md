@@ -11,7 +11,7 @@ says so.
 | Area | State |
 | --- | --- |
 | Workspace builds with one command on Windows | Verified (`tools\build.ps1`, GNU toolchain) |
-| Test suite | 158 tests pass in release |
+| Test suite | 159 tests pass in release |
 | Headless sim runs and replays exactly | Verified |
 | Both cars drivable on all three tracks | Verified with scripted drivers and the front-end smoke test |
 | Front end renders, HUD and overlay work | Verified by screenshots |
@@ -89,11 +89,11 @@ pass" is true locally but unconfirmed on CI.
 
 | Metric | Tern GT (hatch) | error | Halden E4 (sedan) | error | tolerance |
 | --- | --- | --- | --- | --- | --- |
-| Skidpad lateral | 0.909 g vs 0.930 | -2.3% | 0.956 g vs 0.950 | +0.7% | 10% |
+| Skidpad lateral | 0.910 g vs 0.930 | -2.2% | 0.956 g vs 0.950 | +0.7% | 10% |
 | 60-0 mph distance | 36.1 m vs 35.0 | +3.0% | 34.5 m vs 33.5 | +3.0% | 10% |
 | 0-60 mph | 6.57 s vs 6.30 | +4.3% | 3.00 s vs 2.95 | +1.6% | 10% |
 | Top speed | 69.7 m/s vs 69.4 | +0.4% | 71.8 m/s vs 72.2 | -0.6% | 6% |
-| Understeer gradient | 2.06 deg/g vs 2.50 | -17.7% | 1.65 deg/g vs 2.00 | -17.3% | 40% |
+| Understeer gradient | 2.09 deg/g vs 2.50 | -16.3% | 1.68 deg/g vs 2.00 | -16.0% | 40% |
 
 These targets are approximate class-typical figures, not measurements.
 Passing them shows the harness works and the placeholder cars are in a
@@ -113,8 +113,9 @@ plausible range. It is not evidence of realism.
   strip, cones that tip when hit, timing gates, painted markers.
 - Generated low-poly car bodies (two shapes) with glass, lamps, mirrors and
   spoked wheels (D-055); chase and driver's-seat cameras.
-- Track map (N), painted edge lines, distance boards before corners and
-  trackside trees (D-056). Drawing only; trees cannot be hit.
+- Track map with three modes (N), painted edge lines, distance boards
+  before corners, rubber on an approximate fast line and trackside trees
+  (D-056, D-059). Drawing only; trees cannot be hit.
 - HUD: speed, gear, engine speed or battery, run timer, last and best time,
   cones. Debug overlay: per-wheel slip, slip angle, load, three
   temperatures, pressure and surface; steering torque; force-feedback

@@ -33,10 +33,12 @@ func setup(sim) -> void:
 	add_child(minimap)
 
 
-# Shows or hides the map; a track with nothing to draw never shows one.
-func set_minimap(on: bool) -> void:
+# Map mode: 0 off, 1 whole track, 2 zoomed north up, 3 zoomed heading up.
+# A track with nothing to draw never shows a map.
+func set_map_mode(mode: int) -> void:
 	if minimap:
-		minimap.visible = on and minimap.usable
+		minimap.mode = mode
+		minimap.visible = mode > 0 and minimap.usable
 
 
 func update_map(car_xform: Transform3D, ghost_visible: bool, ghost_xform: Transform3D) -> void:

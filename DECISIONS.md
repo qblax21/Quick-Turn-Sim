@@ -507,3 +507,34 @@ open country, placed from a fixed seed. The corners are found from the
 path geometry, so any new track gets boards without extra data. None of
 this exists for the physics: a tree cannot be hit. A north-up track map
 shows the path, cones, gates, the car and the ghost; N switches it.
+
+## D-057 Balance and steering weight after the second drive
+
+Driver feedback: the hatch is a little understeery, the sedan a little
+snappy at the limit though it holds a slide well, and both could steer a
+touch heavier. Hatch: front anti-roll bar 14000 to 12500 N/m, mechanical
+trail 0.022 to 0.024 m. Sedan: lift-off regeneration 0.25 to 0.18, rear
+toe-in 0.002 to 0.003 rad, steering assist 0.40 to 0.36. A more forward
+torque split (0.44) was tried for the sedan and dropped: with one
+traction-control torque fraction for the whole car it cost 0.17 s to
+60 mph. All of this is tuning by feel on placeholder data.
+
+## D-058 A lap needs most of a lap's distance
+
+A start/finish gate used to end the run on any second crossing, so a spin
+or a reverse over the line set a lap time of a few seconds and that became
+the best lap and the ghost. The session now adds up the distance covered
+in the run, and a start/finish gate only ends a run that has covered 80
+percent of the first path's length; a shorter one simply starts again.
+Separate start and finish gates are unchanged. Ghost files saved before
+this change can hold such a lap and have to be deleted by hand.
+
+## D-059 Rubber on the fast line, and three map modes
+
+The front end lays dark rubber along an approximate fast line through
+each paved region: the line of least curvature inside the track's width,
+found by relaxing lateral offsets coarse to fine. It is a drawing aid, not
+an optimal-lap solution, it ignores elevation and speed, and it does not
+change grip. The track map now has three modes, cycled with N and
+remembered: the whole track north up, a zoomed view north up, and a
+zoomed view with the car's heading up.

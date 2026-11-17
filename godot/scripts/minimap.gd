@@ -1,11 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
-# A small map of the track with the car and the ghost on it. North-up:
-# the world's -Z is at the top. Display only; every position comes from the
+# A small map of the track with the car and the ghost on it. Three modes:
+# the whole track north up (the world's -Z at the top), a zoomed view
+# north up, and a zoomed view turned so the car always points up. Display
+# only; every position comes from the
 # simulation core.
 extends Control
 
 const SIZE := 220.0
 const MARGIN := 14.0
+# Width of ground the zoomed modes show, m.
+const ZOOM_SPAN := 260.0
 const TRACK_COLOR := Color(0.95, 0.95, 0.95, 0.9)
 const CONE_COLOR := Color(1.0, 0.55, 0.1, 0.9)
 const START_COLOR := Color(0.25, 0.95, 0.35)
@@ -23,6 +27,8 @@ var car_point := Vector2.ZERO
 var car_forward := Vector2.UP
 var ghost_point := Vector2.ZERO
 var ghost_shown := false
+# 1 whole track north up, 2 zoomed north up, 3 zoomed with the car's heading up.
+var mode := 1
 
 
 func _flat(p: Vector3) -> Vector2:
@@ -33,6 +39,7 @@ func setup(sim) -> void:
 	custom_minimum_size = Vector2(SIZE, SIZE)
 	size = Vector2(SIZE, SIZE)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	clip_contents = true
 	var lo := Vector2(INF, INF)
 	var hi := Vector2(-INF, -INF)
 	var all: Array = []
@@ -73,10 +80,6 @@ func setup(sim) -> void:
 	origin = (lo + hi) * 0.5
 
 
-func _to_map(p: Vector2) -> Vector2:
-	return (p - origin) * scale_px + Vector2(SIZE, SIZE) * 0.5
-
-
 func set_cars(car_xform: Transform3D, ghost_visible: bool, ghost_xform: Transform3D) -> void:
 	car_point = _flat(car_xform.origin)
 	var forward := -car_xform.basis.z
@@ -89,29 +92,51 @@ func set_cars(car_xform: Transform3D, ghost_visible: bool, ghost_xform: Transfor
 	queue_redraw()
 
 
+# World (x, z) to map pixels for the current mode.
+func _view() -> Transform2D:
+	var centre := Vector2(SIZE, SIZE) * 0.5
+	if mode == 1:
+		return Transform2D(Vector2(scale_px, 0.0), Vector2(0.0, scale_px), centre - origin * scale_px)
+	var zoom := SIZE / ZOOM_SPAN
+	var x_axis := Vector2(zoom, 0.0)
+	var y_axis := Vector2(0.0, zoom)
+	if mode == 3:
+		# Forward maps to up, the car's right to the right.
+		var right := Vector2(-car_forward.y, car_forward.x)
+		x_axis = Vector2(right.x, -car_forward.x) * zoom
+		y_axis = Vector2(right.y, -car_forward.y) * zoom
+	var view := Transform2D(x_axis, y_axis, Vector2.ZERO)
+	view.origin = centre - view.basis_xform(car_point)
+	return view
+
+
 func _draw() -> void:
 	if not usable:
 		return
 	draw_rect(Rect2(Vector2.ZERO, Vector2(SIZE, SIZE)), Color(0.0, 0.0, 0.0, 0.38))
+	var view := _view()
+	# Track features are drawn in world units through the view transform,
+	# so sizes given in pixels are divided by its scale.
+	var pixel := 1.0 / view.x.length()
+	draw_set_transform_matrix(view)
 	for line in lines:
-		var mapped := PackedVector2Array()
-		for p in line:
-			mapped.append(_to_map(p))
-		draw_polyline(mapped, TRACK_COLOR, 2.5, true)
+		draw_polyline(line, TRACK_COLOR, 2.5 * pixel, true)
 	for p in cones:
-		draw_circle(_to_map(p), 1.3, CONE_COLOR)
+		draw_circle(p, 1.3 * pixel, CONE_COLOR)
 	for gate in gates:
 		var ends: PackedVector2Array = gate[0]
-		var middle := _to_map((ends[0] + ends[1]) * 0.5)
-		var across := (ends[1] - ends[0]).normalized() * 6.0
-		draw_line(middle - across, middle + across, START_COLOR if gate[1] else FINISH_COLOR, 3.0)
+		var middle := (ends[0] + ends[1]) * 0.5
+		var across := (ends[1] - ends[0]).normalized() * 6.0 * pixel
+		draw_line(middle - across, middle + across, START_COLOR if gate[1] else FINISH_COLOR, 3.0 * pixel)
+	draw_set_transform_matrix(Transform2D.IDENTITY)
 	if ghost_shown:
-		draw_circle(_to_map(ghost_point), 4.0, GHOST_COLOR)
+		draw_circle(view * ghost_point, 4.0, GHOST_COLOR)
 	# The car: an arrow pointing the way it faces.
-	var at := _to_map(car_point)
-	var side := Vector2(-car_forward.y, car_forward.x)
+	var at := view * car_point
+	var forward := view.basis_xform(car_forward).normalized()
+	var side := Vector2(-forward.y, forward.x)
 	draw_colored_polygon(PackedVector2Array([
-		at + car_forward * 9.0,
-		at - car_forward * 6.0 + side * 6.0,
-		at - car_forward * 6.0 - side * 6.0,
+		at + forward * 9.0,
+		at - forward * 6.0 + side * 6.0,
+		at - forward * 6.0 - side * 6.0,
 	]), CAR_COLOR)

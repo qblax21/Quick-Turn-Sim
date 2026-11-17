@@ -18,7 +18,7 @@ const DEFAULTS := {
 	"display/fov": 65.0,
 	"audio/volume": 0.8,
 	"driving/ghost": true,
-	"driving/minimap": true,
+	"driving/map_mode": 1,
 	"driving/seat_view": true,
 	"driving/seat_height": 0.0,
 	"menu/car": "",

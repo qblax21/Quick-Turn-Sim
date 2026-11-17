@@ -49,3 +49,39 @@ fn a_floored_launch_is_held_near_the_target_slip() {
         assert!(speed > 20.0, "{car}: only {speed:.1} m/s after {seconds} s");
     }
 }
+
+#[test]
+fn reversing_back_over_the_line_does_not_set_a_lap() {
+    let mut session = session("sedan_halden_e4", "ridgeline_circuit");
+    let rate = f64::from(session.tick_rate_hz());
+    let run = |session: &mut qts_sim::Session, frame: InputFrame, seconds: f64| {
+        for _ in 0..(seconds * rate) as u64 {
+            session.step(&frame);
+        }
+    };
+    // Forward over the line, stop, then back over it in reverse.
+    run(
+        &mut session,
+        InputFrame::from_analog(0.0, 0.5, 0.0, 0.0, 0.0),
+        5.0,
+    );
+    assert!(session.timing().running, "the run starts at the line");
+    run(
+        &mut session,
+        InputFrame::from_analog(0.0, 0.0, 1.0, 0.0, 0.0),
+        5.0,
+    );
+    let stopped_at = session.car().state.pos.x;
+    run(
+        &mut session,
+        InputFrame::from_analog(0.0, 0.5, 0.0, 0.0, 0.0).with_gear(-1),
+        9.0,
+    );
+    let backed_to = session.car().state.pos.x;
+    assert!(
+        stopped_at > 35.0 && backed_to < 25.0,
+        "the car should cross the line both ways (stopped at {stopped_at:.1} m, reversed to {backed_to:.1} m)"
+    );
+    assert_eq!(session.timing().runs, 0, "no lap may be counted");
+    assert_eq!(session.timing().best_ticks, 0);
+}

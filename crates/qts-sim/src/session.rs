@@ -3,6 +3,10 @@
 
 use crate::data::{DataError, DataRoot};
 use crate::track::{segments_cross, GateKind, Track, CONE_RADIUS_M};
+
+/// Share of the lap distance a run must cover before a start/finish gate
+/// will end it.
+const MIN_LAP_FRACTION: f64 = 0.8;
 use qts_core::constants::{build_id, DEFAULT_TICK_RATE_HZ};
 use qts_core::input::{buttons, InputFrame, GEAR_NO_REQUEST};
 use qts_core::provenance::Provenance;
@@ -135,6 +139,9 @@ pub struct Timing {
     pub best_ticks: u64,
     /// Completed runs.
     pub runs: u32,
+    /// Distance covered in the current run, micrometres. Kept as an
+    /// integer so the timing state stays exactly comparable.
+    pub run_distance_um: u64,
     /// Cones knocked down in the current run.
     pub cones_hit: u32,
     /// Cones knocked down in the last completed run.
@@ -305,13 +312,26 @@ impl Session {
     }
 
     fn update_timing(&mut self, before: [f64; 2], after: [f64; 2]) {
+        if self.timing.running {
+            let moved = (after[0] - before[0]).hypot(after[1] - before[1]);
+            self.timing.run_distance_um += (moved * 1.0e6) as u64;
+        }
+        // A lap gate only ends a run that has covered most of a lap, so
+        // spinning or reversing over the line cannot set a time.
+        let lap_min_um = self
+            .track
+            .paths()
+            .first()
+            .map_or(0.0, |p| p.length() * MIN_LAP_FRACTION * 1.0e6) as u64;
         for gate in self.track.gates() {
             if !segments_cross(before, after, gate.a, gate.b) {
                 continue;
             }
             let finishing = matches!(gate.kind, GateKind::Finish | GateKind::StartFinish);
             let starting = matches!(gate.kind, GateKind::Start | GateKind::StartFinish);
-            if finishing && self.timing.running {
+            let complete =
+                gate.kind != GateKind::StartFinish || self.timing.run_distance_um >= lap_min_um;
+            if finishing && self.timing.running && complete {
                 let ticks = self.tick - self.timing.start_tick;
                 self.timing.last_ticks = ticks;
                 self.timing.last_cones_hit = self.timing.cones_hit;
@@ -324,6 +344,7 @@ impl Session {
             if starting {
                 self.timing.running = true;
                 self.timing.start_tick = self.tick;
+                self.timing.run_distance_um = 0;
                 self.timing.stand_cones_up();
             }
         }
@@ -421,6 +442,7 @@ impl Snapshot for Session {
         w.write_u64(t.last_ticks);
         w.write_u64(t.best_ticks);
         w.write_u32(t.runs);
+        w.write_u64(t.run_distance_um);
         w.write_u32(t.cones_hit);
         w.write_u32(t.last_cones_hit);
         w.write_u32(t.cone_down.len() as u32);
@@ -441,6 +463,7 @@ impl Snapshot for Session {
         t.last_ticks = r.read_u64()?;
         t.best_ticks = r.read_u64()?;
         t.runs = r.read_u32()?;
+        t.run_distance_um = r.read_u64()?;
         t.cones_hit = r.read_u32()?;
         t.last_cones_hit = r.read_u32()?;
         let cones = r.read_u32()? as usize;
