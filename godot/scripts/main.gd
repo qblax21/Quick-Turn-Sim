@@ -10,6 +10,7 @@ const InputReader := preload("res://scripts/input_reader.gd")
 const World := preload("res://scripts/world.gd")
 const CarView := preload("res://scripts/car_view.gd")
 const Hud := preload("res://scripts/hud.gd")
+const SkidMarks := preload("res://scripts/skid_marks.gd")
 const Audio := preload("res://scripts/audio.gd")
 const Settings := preload("res://scripts/settings.gd")
 const SettingsScreen := preload("res://scripts/settings_screen.gd")
@@ -27,6 +28,7 @@ var settings_screen
 var world
 var car_view
 var ghost_view
+var skid_marks
 var hud
 var audio
 var camera: Camera3D
@@ -178,12 +180,13 @@ func _show_settings() -> void:
 
 
 func _clear_session() -> void:
-	for node in [world, car_view, ghost_view, hud]:
+	for node in [world, car_view, ghost_view, skid_marks, hud]:
 		if node:
 			node.queue_free()
 	world = null
 	car_view = null
 	ghost_view = null
+	skid_marks = null
 	hud = null
 	if audio:
 		audio.stop()
@@ -219,6 +222,9 @@ func _start_driving(car_id: String, track_id: String, auto_clutch: bool, auto_sh
 	ghost_view.build(info)
 	ghost_view.make_ghost()
 	audio.start(info, sim.track_info())
+	skid_marks = SkidMarks.new()
+	add_child(skid_marks)
+	skid_marks.setup(info)
 	hud = Hud.new()
 	add_child(hud)
 	hud.setup(sim)
@@ -237,6 +243,7 @@ func _process(delta: float) -> void:
 	var values: Dictionary = sim.hud()
 	car_view.update(car_xform, sim.wheel_states(), values.get("steering_wheel_angle", 0.0))
 	world.update_cones(sim.cones_down())
+	skid_marks.update(car_xform, sim.wheel_states(), values)
 	var ghost: Dictionary = sim.ghost()
 	values["ghost_time"] = ghost.get("time", 0.0)
 	_update_ghost(ghost, car_xform)

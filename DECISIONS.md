@@ -562,3 +562,14 @@ road edge) and 11 m from the centre of the gravel stage. The circuit has
 barriers either side of the start straight only. The soak test asks for
 less distance on tracks with trees, because its driver never reverses and
 ends up held against one.
+
+## D-061 Worn-in rubber and live tire marks
+
+The rubber on the fast line was two clean strips. It is now a wide band
+that fades out at its edges, darker under the two wheel tracks and in the
+corners and uneven along its length, with single darker streaks of
+different lengths on top, placed from a fixed seed. The car also leaves
+its own marks while a tire slides (slip ratio above 0.18 or a slip angle
+above about 7 degrees, from the values the core reports); the last 6000
+pieces are kept for the session. Both are drawing only: the track does
+not gain grip where rubber lies. The slip thresholds are guesses.

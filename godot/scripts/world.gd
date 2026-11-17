@@ -594,43 +594,82 @@ func _build_rubber(path: Dictionary, region: Dictionary, height: float) -> void:
 				level_d[j] = (d[j / 2] + d[next]) * 0.5
 		_relax(level_q, level_side, level_d, limit, closed, 400 / stride)
 		d = level_d
-	# The line, and how hard it turns at each point.
+	# The line, the direction across it and how hard it turns at each point.
 	var line := PackedVector2Array()
+	var across := PackedVector2Array()
+	var bend := PackedFloat32Array()
 	for i in range(n):
 		line.append(q[i] + side[i] * d[i])
-	var vertices := PackedVector3Array()
-	var colors := PackedColorArray()
-	var rows := 0
 	for i in range(n):
-		var s := i * step
-		if s < region.from or s > region.to:
-			continue
 		var before := line[i] - line[_wrap_index(i - 1, n, closed)]
 		var after := line[_wrap_index(i + 1, n, closed)] - line[i]
-		var bend := absf(before.angle_to(after)) / step if before.length() > 0.1 and after.length() > 0.1 else 0.0
-		var alpha := 0.22 + 0.30 * clampf(bend * 45.0, 0.0, 1.0)
-		var across := Vector2(-(before + after).y, (before + after).x).normalized()
-		# Two tire tracks.
-		for offset in [-0.98, -0.52, 0.52, 0.98]:
-			var p: Vector2 = line[i] + across * offset
-			vertices.append(Vector3(p.x, pts[i].y, p.y))
-			colors.append(Color(0.03, 0.03, 0.03, alpha))
-		rows += 1
+		var turning := before.length() > 0.1 and after.length() > 0.1
+		bend.append(clampf(absf(before.angle_to(after)) / step * 45.0, 0.0, 1.0) if turning else 0.0)
+		across.append(Vector2(-(before + after).y, (before + after).x).normalized())
+	var first := maxi(int(ceil(region.from / step)), 0)
+	var last := mini(int(floor(region.to / step)), n - 1)
+	var rows := last - first + 1
 	if rows < 2:
 		return
+	var whole_lap: bool = closed and region.to - region.from > (n - 2) * step
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 31
+	var vertices := PackedVector3Array()
+	var colors := PackedColorArray()
+	var indices := PackedInt32Array()
+	# A wide, soft band: years of cars on roughly the same line. Darkest
+	# under the two wheel tracks, fading to nothing at its edges, uneven
+	# along its length and heavier where the line turns hardest.
+	var band_offsets := [-2.1, -1.2, -0.35, 0.35, 1.2, 2.1]
+	var band_weights := [0.0, 1.0, 0.7, 0.7, 1.0, 0.0]
+	var columns := band_offsets.size()
+	for i in range(first, last + 1):
+		var wear := (0.20 + 0.20 * bend[i]) * rng.randf_range(0.75, 1.0)
+		for c in range(columns):
+			var p: Vector2 = line[i] + across[i] * band_offsets[c]
+			vertices.append(Vector3(p.x, pts[i].y, p.y))
+			colors.append(Color(0.03, 0.03, 0.03, wear * band_weights[c]))
+	var joins := rows if whole_lap else rows - 1
+	for r in range(joins):
+		var a := r * columns
+		var b := ((r + 1) % rows) * columns
+		for c in range(columns - 1):
+			indices.append_array(PackedInt32Array([a + c, b + c, a + c + 1, a + c + 1, b + c, b + c + 1]))
+	# Single dark streaks on top: one car's tire each, of different lengths
+	# and a little off the line, most of them in the corners.
+	var streaks := int(rows * 0.6)
+	for k in range(streaks):
+		var start := rng.randi_range(first, last)
+		if rng.randf() > 0.2 + 0.8 * bend[start]:
+			continue
+		var length := rng.randi_range(2, 9)
+		var offset := rng.randf_range(-1.7, 1.7)
+		var half := rng.randf_range(0.10, 0.16)
+		var dark := rng.randf_range(0.12, 0.32)
+		var base := vertices.size()
+		var made := 0
+		for j in range(length + 1):
+			var i := start + j
+			if i > last:
+				if not whole_lap:
+					break
+				i = first + (i - last - 1)
+			# Fade in and out at the ends.
+			var fade := 0.0 if j == 0 or j == length else 1.0
+			for edge in [-half, half]:
+				var p: Vector2 = line[i] + across[i] * (offset + edge)
+				vertices.append(Vector3(p.x, pts[i].y, p.y))
+				colors.append(Color(0.02, 0.02, 0.02, dark * fade))
+			made += 1
+		for r in range(made - 1):
+			var a := base + r * 2
+			indices.append_array(PackedInt32Array([a, a + 2, a + 1, a + 1, a + 2, a + 3]))
 	if has_terrain:
 		vertices = sim_ref.ground_heights(vertices)
 	for k in range(vertices.size()):
 		var v := vertices[k]
 		v.y += height
 		vertices[k] = v
-	var indices := PackedInt32Array()
-	var joins := rows if closed and region.to - region.from > (n - 2) * step else rows - 1
-	for r in range(joins):
-		var a := r * 4
-		var b := ((r + 1) % rows) * 4
-		for t in [0, 2]:
-			indices.append_array(PackedInt32Array([a + t, b + t, a + t + 1, a + t + 1, b + t, b + t + 1]))
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = vertices

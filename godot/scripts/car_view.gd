@@ -97,7 +97,11 @@ func build(info: Dictionary) -> void:
 	_box(interior, Vector3(width - 0.1, 0.12, 0.5), Vector3(0.0, eye.y - 0.32, eye.z - 0.82), dark)
 	# Scuttle: fills the space under the base of the windscreen, so the seat
 	# view does not look down through the single-sided body.
-	_box(interior, Vector3(width - 0.08, 0.5, 0.7), Vector3(0.0, screen_base[5].y - 0.235, screen_base[5].z + 0.2), dark)
+	# It stops where the dashboard begins, so it never covers the steering wheel.
+	var scuttle_front: float = screen_base[5].z - 0.15
+	var scuttle_back: float = eye.z - 0.8
+	if scuttle_back - scuttle_front > 0.05:
+		_box(interior, Vector3(width - 0.08, 0.5, scuttle_back - scuttle_front), Vector3(0.0, screen_base[5].y - 0.235, (scuttle_front + scuttle_back) * 0.5), dark)
 	# Instrument hood in front of the driver.
 	_box(interior, Vector3(0.36, 0.07, 0.2), Vector3(eye.x, eye.y - 0.23, eye.z - 0.72), dark)
 	# Screen pillars sit at the full body width, well outboard of the eye.

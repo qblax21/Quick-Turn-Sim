@@ -114,8 +114,8 @@ plausible range. It is not evidence of realism.
 - Generated low-poly car bodies (two shapes) with glass, lamps, mirrors and
   spoked wheels (D-055); chase and driver's-seat cameras.
 - Track map with three modes (N), painted edge lines, distance boards
-  before corners, rubber on an approximate fast line and trackside trees
-  (D-056, D-059).
+  before corners, worn-in rubber on an approximate fast line, tire marks
+  left by the car while sliding, and trackside trees (D-056, D-059, D-061).
 - Solid trees and barriers (D-060): the car is stopped by them. A simple
   flat impact model with no damage, sound or force-feedback kick.
 - HUD: speed, gear, engine speed or battery, run timer, last and best time,
