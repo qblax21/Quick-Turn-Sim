@@ -59,6 +59,21 @@ from_m = 760.0
 to_m = 2000.0
 half_width_m = 3.2
 
+# Checkpoints: a run counts only if it crosses each of these, in order and
+# in the direction of travel. They are not drawn.
+
+[[gates]]
+kind = "checkpoint"
+path = "stage"
+at_m = 330.0
+half_width_m = 12.0
+
+[[gates]]
+kind = "checkpoint"
+path = "stage"
+at_m = 660.0
+half_width_m = 12.0
+
 [[gates]]
 kind = "start"
 path = "stage"

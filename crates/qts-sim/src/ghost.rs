@@ -8,7 +8,7 @@
 //! change (which a replay of inputs would not).
 
 use crate::host::{RenderPose, WheelPose};
-use crate::session::Session;
+use crate::session::{Session, MAX_PLAUSIBLE_SPEED};
 use qts_core::snapshot::{SnapshotError, StateReader, StateWriter};
 use qts_core::step::Simulation;
 
@@ -70,6 +70,21 @@ impl GhostLap {
         self.car_id == session.car().params().id
             && self.track_id == session.track().def().id
             && self.tick_rate_hz == session.tick_rate_hz()
+    }
+
+    /// Whether the lap is a real lap of `session`'s track: the poses cover
+    /// the lap's duration, pass every checkpoint forward and in order, cover
+    /// most of the course, and the time is plausible. Ghost files written
+    /// before laps were checked can fail this; they are ignored.
+    pub fn is_valid_lap(&self, session: &Session) -> bool {
+        let track = session.track();
+        let samples = self.lap_ticks / u64::from(self.sample_ticks.max(1)) + 1;
+        let seconds = self.seconds();
+        let points: Vec<[f64; 2]> = self.poses.iter().map(|p| [p.pos[0], p.pos[1]]).collect();
+        self.lap_ticks > 0
+            && (self.poses.len() as u64).abs_diff(samples) <= 2
+            && seconds * MAX_PLAUSIBLE_SPEED >= track.timed_length_m()
+            && track.run_follows_course(&points)
     }
 
     /// Serialises the lap. Positions keep full precision; orientation and
@@ -208,16 +223,23 @@ impl GhostRecorder {
                     .as_ref()
                     .is_none_or(|b| timing.last_ticks < b.lap_ticks)
             {
-                self.best = Some(GhostLap {
+                // The finishing pose closes the lap.
+                self.current.push(*pose);
+                let lap = GhostLap {
                     car_id: session.car().params().id.clone(),
                     track_id: session.track().def().id.clone(),
                     tick_rate_hz: session.tick_rate_hz(),
                     lap_ticks: timing.last_ticks,
                     sample_ticks: GHOST_SAMPLE_TICKS,
                     poses: std::mem::take(&mut self.current),
-                });
-                improved = true;
-                self.cursor = 0;
+                };
+                // The session only counts runs that took the course; this
+                // second check guards the file against anything it missed.
+                if lap.is_valid_lap(session) {
+                    self.best = Some(lap);
+                    improved = true;
+                    self.cursor = 0;
+                }
             }
             self.runs_seen = timing.runs;
             self.current.clear();

@@ -468,6 +468,7 @@ impl SimBridge {
             "runs" => i64::from(h.runs),
             "cones_hit" => i64::from(h.cones_hit),
             "last_cones_hit" => i64::from(h.last_cones_hit),
+            "invalid_runs" => i64::from(h.invalid_runs),
             "slip_ratio" => per_wheel(&|w| w.slip_ratio),
             "slip_angle" => per_wheel(&|w| w.slip_angle),
             "load" => per_wheel(&|w| w.load),
@@ -720,6 +721,7 @@ impl SimBridge {
                     qts_sim::track::GateKind::Start => "start",
                     qts_sim::track::GateKind::Finish => "finish",
                     qts_sim::track::GateKind::StartFinish => "start_finish",
+                    qts_sim::track::GateKind::Checkpoint => "checkpoint",
                 };
                 out.push(&vd! {
                     "kind" => gstr(kind),

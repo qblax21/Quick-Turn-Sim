@@ -11,7 +11,7 @@ says so.
 | Area | State |
 | --- | --- |
 | Workspace builds with one command on Windows | Verified (`tools\build.ps1`, GNU toolchain) |
-| Test suite | 164 tests pass in release |
+| Test suite | 170 tests pass in release |
 | Headless sim runs and replays exactly | Verified |
 | Both cars drivable on all three tracks | Verified with scripted drivers and the front-end smoke test |
 | Front end renders, HUD and overlay work | Verified by screenshots |
@@ -106,7 +106,9 @@ plausible range. It is not evidence of realism.
   saved per preset (D-052).
 - Ghost of the best lap per car and track, saved between sessions (D-051).
   A live time difference to that lap is shown while driving (D-063).
-  The recorder is tested; the ghost has not yet been seen on screen by
+- A run counts only if it passes every checkpoint in order with a plausible
+  distance and time; invalid saved ghosts are ignored (D-064). There are
+  no track limits yet.  The recorder is tested; the ghost has not yet been seen on screen by
   anyone, because that needs a completed lap by a person.
 - Standalone release package via `tools/package.ps1` (D-053): 129 MB on
   disk, 42 MB zipped. Verified to start and drive (`--self-test`) from a

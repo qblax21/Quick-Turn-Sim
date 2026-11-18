@@ -11,6 +11,8 @@ var time_label: Label
 var debug_label: Label
 var notice_label: Label
 var delta_label: Label
+var invalid_seen := -1
+var invalid_shown_until := 0
 var input_bars := {}
 var ffb_bar: ProgressBar
 var debug_visible := false
@@ -171,6 +173,13 @@ func update(hud: Dictionary, status: Dictionary, input: Dictionary, telemetry_on
 
 	# Notices: recording state, pause, errors, and anything untuned in use.
 	var notices: Array = []
+	# A run that missed part of the course: say so for a few seconds.
+	var invalid: int = hud.get("invalid_runs", 0)
+	if invalid_seen >= 0 and invalid > invalid_seen:
+		invalid_shown_until = Time.get_ticks_msec() + 4000
+	invalid_seen = invalid
+	if Time.get_ticks_msec() < invalid_shown_until:
+		notices.append("LAP NOT COUNTED: part of the course was missed")
 	if status.get("paused", false):
 		notices.append("PAUSED")
 	if telemetry_on:

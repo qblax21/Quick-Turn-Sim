@@ -188,6 +188,8 @@ pub struct HudState {
     pub cones_hit: u32,
     /// Cones down in the last completed run.
     pub last_cones_hit: u32,
+    /// Runs that reached the finish without taking the course.
+    pub invalid_runs: u32,
 }
 
 impl HudState {
@@ -211,6 +213,7 @@ impl HudState {
             runs: t.runs,
             cones_hit: t.cones_hit,
             last_cones_hit: t.last_cones_hit,
+            invalid_runs: t.invalid_runs,
         }
     }
 }
@@ -500,7 +503,7 @@ impl SimThread {
             .as_ref()
             .and_then(|path| std::fs::read(path).ok())
             .and_then(|bytes| GhostLap::from_bytes(&bytes).ok())
-            .filter(|lap| lap.fits(&session));
+            .filter(|lap| lap.fits(&session) && lap.is_valid_lap(&session));
         Self {
             ghost: GhostRecorder::new(saved),
             session,

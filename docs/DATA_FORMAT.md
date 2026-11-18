@@ -133,7 +133,10 @@ half_width_m = 2.4
 x = 5.0
 y = 1.0
 
-[[gates]]                      # kind: start, finish or start_finish
+[[gates]]                      # kind: start, finish, start_finish or checkpoint;
+                               # every gate works in the direction of travel only,
+                               # and a run counts only if it crosses every
+                               # checkpoint in order
 kind = "start"
 path = "course"
 at_m = 2.0

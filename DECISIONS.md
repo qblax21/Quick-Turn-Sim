@@ -606,3 +606,32 @@ different line through a corner shifts it slightly.
 Traction control is now a session assist like the automatic clutch and
 gears, on by default, with a tick box in the menu. It only does anything
 on a car that has the system.
+
+## D-064 A run counts only if it took the course
+
+Before this, a run counted if it crossed the finish line, with only a
+distance rule on start/finish lines. Saved ghosts showed what that let
+through: an 11.7 s "lap" of Ridgeline from rolling over the line, and on
+the cone course two runs (the best ones for both cars) that skipped about
+80 m of the course by driving straight from the hairpin to the last
+straight.
+
+A track can now have `checkpoint` gates. A run counts only if it crosses
+every checkpoint forward and in order, covers 80 percent of the timed
+length, and has an average speed below 100 m/s. All gates now work only in
+the direction of travel, so reversing over a line starts and ends nothing.
+A run that fails is counted as invalid, sets no time, does not become the
+ghost, and the HUD says "lap not counted" for a few seconds. Checkpoints
+are placed where no other part of the course comes within their width:
+Ridgeline has three (12 m half width), the cone course two (10 m) and the
+gravel stage two (12 m).
+
+A ghost file is checked against the same rules when it is loaded, by
+running its recorded positions through the checkpoints, and when a new
+best lap is recorded. A file that fails is ignored and is overwritten by
+the next valid best lap. On the development machine three of the four
+saved ghosts fail and are now ignored: the 11.7 s Ridgeline sedan lap and
+the two cone-course runs that cut the course.
+
+Checkpoints do not judge track limits: a car can still cut a corner by a
+few metres. Proper track limits (wheels off the road) are not done.

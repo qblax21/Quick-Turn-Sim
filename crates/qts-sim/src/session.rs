@@ -2,7 +2,7 @@
 //! A session: one car on one track, stepped deterministically.
 
 use crate::data::{DataError, DataRoot};
-use crate::track::{segments_cross, GateKind, Track, CONE_RADIUS_M, WALL_RADIUS_M};
+use crate::track::{GateKind, Track, CONE_RADIUS_M, MIN_RUN_FRACTION, WALL_RADIUS_M};
 use qts_core::constants::{build_id, DEFAULT_TICK_RATE_HZ};
 use qts_core::input::{buttons, InputFrame, GEAR_NO_REQUEST};
 use qts_core::math::fm;
@@ -137,6 +137,11 @@ pub struct Timing {
     pub best_ticks: u64,
     /// Completed runs.
     pub runs: u32,
+    /// Runs that reached the finish without taking the course: a
+    /// checkpoint missed, too short, or impossibly fast. They set no time.
+    pub invalid_runs: u32,
+    /// Checkpoints crossed so far in the current run, in order.
+    pub checkpoints_passed: u32,
     /// Distance covered in the current run, micrometres. Kept as an
     /// integer so the timing state stays exactly comparable.
     pub run_distance_um: u64,
@@ -188,9 +193,9 @@ pub struct Session {
     yaw_inertia: f64,
 }
 
-/// Share of the lap distance a run must cover before a start/finish gate
-/// will end it.
-const MIN_LAP_FRACTION: f64 = 0.8;
+/// Highest average speed a timed run may have and still count, m/s. Well
+/// above anything the cars can do; it catches a run that skipped the course.
+pub const MAX_PLAUSIBLE_SPEED: f64 = 100.0;
 /// Share of the closing speed returned when the body hits a tree or barrier.
 const OBSTACLE_RESTITUTION: f64 = 0.15;
 /// Friction of the body sliding along a tree or barrier.
@@ -358,27 +363,44 @@ impl Session {
         self.timing.stand_cones_up();
     }
 
+    /// Whether the run in progress may set a time if it finishes now: every
+    /// checkpoint passed, most of the course covered and a plausible time.
+    fn run_counts(&self) -> bool {
+        let t = &self.timing;
+        let length = self.track.timed_length_m();
+        let covered = t.run_distance_um as f64 * 1.0e-6;
+        let seconds = self.ticks_to_seconds(self.tick - t.start_tick);
+        t.checkpoints_passed as usize == self.track.checkpoints().len()
+            && covered >= MIN_RUN_FRACTION * length
+            && seconds * MAX_PLAUSIBLE_SPEED >= length
+    }
+
     fn update_timing(&mut self, before: [f64; 2], after: [f64; 2]) {
         if self.timing.running {
             let moved = (after[0] - before[0]).hypot(after[1] - before[1]);
             self.timing.run_distance_um += (moved * 1.0e6) as u64;
         }
-        // A lap gate only ends a run that has covered most of a lap, so
-        // spinning or reversing over the line cannot set a time.
-        let lap_min_um = self
-            .track
-            .paths()
-            .first()
-            .map_or(0.0, |p| p.length() * MIN_LAP_FRACTION * 1.0e6) as u64;
+        // Checkpoints count only forward and in order.
+        if self.timing.running {
+            let next = self.timing.checkpoints_passed as usize;
+            if let Some(c) = self.track.checkpoints().get(next) {
+                if c.crossed_forward(before, after) {
+                    self.timing.checkpoints_passed += 1;
+                }
+            }
+        }
         for gate in self.track.gates() {
-            if !segments_cross(before, after, gate.a, gate.b) {
+            // Gates work only in the direction of travel, so reversing over
+            // a line neither starts nor ends a run.
+            if !gate.crossed_forward(before, after) {
                 continue;
             }
             let finishing = matches!(gate.kind, GateKind::Finish | GateKind::StartFinish);
             let starting = matches!(gate.kind, GateKind::Start | GateKind::StartFinish);
-            let complete =
-                gate.kind != GateKind::StartFinish || self.timing.run_distance_um >= lap_min_um;
-            if finishing && self.timing.running && complete {
+            if finishing && self.timing.running && !self.run_counts() {
+                self.timing.invalid_runs += 1;
+                self.timing.running = false;
+            } else if finishing && self.timing.running {
                 let ticks = self.tick - self.timing.start_tick;
                 self.timing.last_ticks = ticks;
                 self.timing.last_cones_hit = self.timing.cones_hit;
@@ -392,6 +414,7 @@ impl Session {
                 self.timing.running = true;
                 self.timing.start_tick = self.tick;
                 self.timing.run_distance_um = 0;
+                self.timing.checkpoints_passed = 0;
                 self.timing.stand_cones_up();
             }
         }
@@ -643,6 +666,8 @@ impl Snapshot for Session {
         w.write_u64(t.best_ticks);
         w.write_u32(t.runs);
         w.write_u64(t.run_distance_um);
+        w.write_u32(t.invalid_runs);
+        w.write_u32(t.checkpoints_passed);
         w.write_u32(t.cones_hit);
         w.write_u32(t.last_cones_hit);
         w.write_u32(t.cone_down.len() as u32);
@@ -665,6 +690,8 @@ impl Snapshot for Session {
         t.best_ticks = r.read_u64()?;
         t.runs = r.read_u32()?;
         t.run_distance_um = r.read_u64()?;
+        t.invalid_runs = r.read_u32()?;
+        t.checkpoints_passed = r.read_u32()?;
         t.cones_hit = r.read_u32()?;
         t.last_cones_hit = r.read_u32()?;
         let cones = r.read_u32()? as usize;

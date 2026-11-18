@@ -390,6 +390,9 @@ pub enum GateKind {
     Finish,
     /// Ends the current lap and starts the next.
     StartFinish,
+    /// Must be crossed, in order with the other checkpoints, for a run to
+    /// count. Not drawn.
+    Checkpoint,
 }
 
 /// A timing gate across a path.
@@ -672,6 +675,35 @@ pub struct Gate {
     pub a: [f64; 2],
     /// The other end.
     pub b: [f64; 2],
+    /// Direction of travel through the gate, a unit vector. Crossing the
+    /// other way does nothing.
+    pub forward: [f64; 2],
+    /// Distance along its path, m.
+    pub at_m: f64,
+}
+
+impl Gate {
+    /// Whether moving from `p` to `q` crosses the gate in its direction.
+    pub fn crossed_forward(&self, p: [f64; 2], q: [f64; 2]) -> bool {
+        segments_cross(p, q, self.a, self.b)
+            && (q[0] - p[0]) * self.forward[0] + (q[1] - p[1]) * self.forward[1] > 0.0
+    }
+}
+
+/// Share of the timed length a run must cover to count.
+pub const MIN_RUN_FRACTION: f64 = 0.8;
+
+/// Length of a timed run: start to finish along the start gate's path, or
+/// that whole path for a start/finish line.
+fn timed_length(gates: &[Gate], paths: &[PathGeom]) -> f64 {
+    let find = |kind: GateKind| gates.iter().find(|g| g.kind == kind);
+    if find(GateKind::StartFinish).is_some() {
+        return paths.first().map_or(0.0, PathGeom::length);
+    }
+    match (find(GateKind::Start), find(GateKind::Finish)) {
+        (Some(s), Some(f)) => (f.at_m - s.at_m).abs(),
+        _ => 0.0,
+    }
 }
 
 /// A track ready for simulation.
@@ -686,6 +718,8 @@ pub struct Track {
     gates: Vec<Gate>,
     terrain: Option<Terrain>,
     trees: Vec<Tree>,
+    checkpoints: Vec<Gate>,
+    timed_length_m: f64,
     walls: Vec<Wall>,
 }
 
@@ -842,8 +876,19 @@ impl Track {
                 kind: g.kind,
                 a: [p[0] + nx * g.half_width_m, p[1] + ny * g.half_width_m],
                 b: [p[0] - nx * g.half_width_m, p[1] - ny * g.half_width_m],
+                forward: [fm::cos(h), fm::sin(h)],
+                at_m: g.at_m,
             });
         }
+        // Checkpoints are kept in the order they are met along the path.
+        let mut checkpoints: Vec<Gate> = gates
+            .iter()
+            .filter(|g| g.kind == GateKind::Checkpoint)
+            .copied()
+            .collect();
+        checkpoints.sort_by(|a, b| a.at_m.total_cmp(&b.at_m));
+        gates.retain(|g| g.kind != GateKind::Checkpoint);
+        let timed_length_m = timed_length(&gates, &paths);
         let terrain = match &def.terrain {
             None => None,
             Some(t) => {
@@ -927,6 +972,8 @@ impl Track {
             cones,
             gates,
             terrain,
+            checkpoints,
+            timed_length_m,
             trees,
             walls,
         })
@@ -960,6 +1007,35 @@ impl Track {
     /// Timing gates.
     pub fn gates(&self) -> &[Gate] {
         &self.gates
+    }
+
+    /// Checkpoints, in the order a run must cross them.
+    pub fn checkpoints(&self) -> &[Gate] {
+        &self.checkpoints
+    }
+
+    /// Length of a timed run along the path, m: from the start gate to the
+    /// finish gate, or one lap for a start/finish line. Zero without gates.
+    pub fn timed_length_m(&self) -> f64 {
+        self.timed_length_m
+    }
+
+    /// Whether a run whose positions are `points`, from start to finish,
+    /// took the course: every checkpoint crossed forward and in order, and
+    /// most of the timed length covered. Used to check a saved lap.
+    pub fn run_follows_course(&self, points: &[[f64; 2]]) -> bool {
+        let mut next = 0;
+        let mut covered = 0.0;
+        for pair in points.windows(2) {
+            let (p, q) = (pair[0], pair[1]);
+            covered += (q[0] - p[0]).hypot(q[1] - p[1]);
+            if let Some(c) = self.checkpoints.get(next) {
+                if c.crossed_forward(p, q) {
+                    next += 1;
+                }
+            }
+        }
+        next == self.checkpoints.len() && covered >= MIN_RUN_FRACTION * self.timed_length_m
     }
 
     /// Solid trees.
