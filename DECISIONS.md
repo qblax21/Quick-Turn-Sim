@@ -635,3 +635,35 @@ the two cone-course runs that cut the course.
 
 Checkpoints do not judge track limits: a car can still cut a corner by a
 few metres. Proper track limits (wheels off the road) are not done.
+
+## D-065 Ridgeline graphics pass, and kerbs that exist for the tires
+
+Everything is still generated in code. The sun is lower (36 degrees) and
+warmer, with four shadow cascades out to 260 m instead of one to 140 m; the
+sky has a sun disc and a thin layer of generated cloud; tone mapping is
+ACES with a little glow and aerial perspective in the fog. The terrain has
+per-vertex colour: paler and drier higher up, darker in hollows, browner
+where it is steep, with broad darker patches from low-frequency noise.
+Beside the paved road the grass is drawn as mown bands out to the
+barriers. Vertex colours are now treated as sRGB, which they are; before,
+everything drawn with them came out too light.
+
+Kerbs are real geometry in the core, not paint: a `kerb` region beside a
+path raises the ground the tires roll on, ramping up from the road edge
+over 30 percent of its width, flat on top and dropping back over the last
+15 percent. Ridgeline has 28, 1.2 m wide and 40 mm high, on the inside of
+every corner around the apex and on the outside at the exit. The front end
+draws them from heights it asks the core for, so what is seen is what the
+tires meet. They use the existing `kerb` surface, which the force-feedback
+kerb channel already listens to.
+
+For realism: the kerb raises the contact height but does not tilt the
+contact normal, so a tire on the ramp is pushed straight up rather than
+also sideways; the height, profile and the kerb surface's grip are
+placeholders, and the kerb surface is still marked untuned.
+
+Cost: with vertical sync off, the driver's-seat view on the development
+machine (RTX 3060) went from about 540 to about 430 frames a second. The
+physics thread kept 1000 Hz with a worst scheduling wake of 2 ticks and no
+dropped time before and after, because rendering and physics run on
+separate threads.

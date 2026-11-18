@@ -113,6 +113,17 @@ to_m = 60.0
 half_width_m = 3.0
 
 [[regions]]
+kind = "kerb"                  # raised kerb beside a path, solid for the tires
+surface = "kerb"
+path = "course"
+from_m = 40.0
+to_m = 70.0
+side = "left"                  # left or right of the path direction
+inner_m = 6.0                  # path to inner edge
+width_m = 1.2
+height_m = 0.04                # ramps up over 30 %, flat, drops over the last 15 %
+
+[[regions]]
 kind = "rect"                  # also: kind = "circle" with radius_m
 surface = "kerb"
 center_x = 10.0

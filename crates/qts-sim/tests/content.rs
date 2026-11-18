@@ -423,11 +423,11 @@ fn both_cars_lap_the_circuit_on_the_road() {
             low = low.min(z);
             high = high.max(z);
             let out = s.car().output();
-            if out
-                .wheels
-                .iter()
-                .any(|w| s.track().surfaces()[usize::from(w.surface_index)].id != "tarmac")
-            {
+            if out.wheels.iter().any(|w| {
+                // Kerbs are part of the track; anything else is off it.
+                let id = &s.track().surfaces()[usize::from(w.surface_index)].id;
+                id != "tarmac" && id != "kerb"
+            }) {
                 off_road_ticks += 1;
             }
             assert!(

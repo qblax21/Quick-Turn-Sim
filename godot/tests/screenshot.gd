@@ -44,9 +44,23 @@ func _run() -> void:
 	if args.size() > 7:
 		main.map_mode = int(args[7])
 		main.hud.set_map_mode(main.map_mode)
+	# Frame rate is measured with vertical sync off so it shows what the
+	# scene costs; the physics timing comes from the core.
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	var began := Time.get_ticks_msec()
+	var frames := 0
+	var measure_from := 0
 	while Time.get_ticks_msec() - began < int(float(args[2]) * 1000.0):
 		await process_frame
+		# Skip the first second, while the scene is being built and compiled.
+		if Time.get_ticks_msec() - began > 1000:
+			if measure_from == 0:
+				measure_from = Time.get_ticks_msec()
+			frames += 1
+	var elapsed := maxf((Time.get_ticks_msec() - measure_from) / 1000.0, 0.001)
+	var status: Dictionary = main.sim.status()
+	print("frames %.0f per second; physics %.0f Hz, worst wake %d ticks, dropped %.3f s" % [
+		frames / elapsed, status.get("tick_rate", 0.0), status.get("worst_wake_ticks", 0), status.get("dropped_time", 0.0)])
 	if args.size() > 6 and args[6] == "top":
 		# Freeze the scene and look straight down at the whole track, without fog.
 		for child in main.get_children():

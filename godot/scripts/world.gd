@@ -20,6 +20,9 @@ var has_terrain := false
 # The terrain mesh is drawn this far below the true ground so its coarse
 # grid never pokes through the exactly shaped road.
 const TERRAIN_DROP := 0.08
+# Kerbs are drawn this far above the surface the core gives them, so they
+# never sink into the road or terrain beneath.
+const KERB_LIFT := 0.006
 var grain: NoiseTexture2D
 
 
@@ -121,6 +124,11 @@ func build(sim) -> void:
 					if strip:
 						strip.material_override = _ground_material(color)
 						add_child(strip)
+					if has_terrain and region.surface == "tarmac" and region.to - region.from > 150.0:
+						_build_runoff(paths[region.path], region, 7.0, 0.002)
+			"kerb":
+				if paths.has(region.path):
+					_build_kerb(paths[region.path], region)
 		layer += 0.004
 	_build_trackside(info, paths, sim.track_regions(), layer + 0.016)
 
@@ -240,13 +248,31 @@ func _build_terrain(paths: Dictionary, color: Color) -> float:
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = points
+	var patches := FastNoiseLite.new()
+	patches.seed = 11
+	patches.frequency = 0.012
+	var low := INF
+	var high := -INF
+	for p in points:
+		low = minf(low, p.y)
+		high = maxf(high, p.y)
+	var colors := PackedColorArray()
+	colors.resize(points.size())
+	for k in range(points.size()):
+		var p := points[k]
+		var slope := 1.0 - normals[k].y
+		colors[k] = _terrain_color(color, p.y, low + 1.0, high, slope * 4.0, patches.get_noise_2d(p.x, p.z) + 0.2)
 	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_COLOR] = colors
 	arrays[Mesh.ARRAY_INDEX] = indices
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	var instance := MeshInstance3D.new()
 	instance.mesh = mesh
-	instance.material_override = _ground_material(color)
+	var terrain_material := _ground_material(Color(1, 1, 1))
+	terrain_material.vertex_color_use_as_albedo = true
+	terrain_material.vertex_color_is_srgb = true
+	instance.material_override = terrain_material
 	add_child(instance)
 	return far - TERRAIN_DROP - 0.05
 
@@ -679,6 +705,7 @@ func _build_rubber(path: Dictionary, region: Dictionary, height: float) -> void:
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	var material := StandardMaterial3D.new()
 	material.vertex_color_use_as_albedo = true
+	material.vertex_color_is_srgb = true
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
@@ -687,3 +714,131 @@ func _build_rubber(path: Dictionary, region: Dictionary, height: float) -> void:
 	instance.material_override = material
 	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(instance)
+
+
+# A raised kerb, drawn exactly where the core puts it: points across its
+# width at every metre along, with their heights asked from the core, so the
+# drawn top is the surface the tires roll on. Red and white blocks.
+func _build_kerb(path: Dictionary, region: Dictionary) -> void:
+	var pts := _sample_path(path, 1.0)
+	var n := pts.size()
+	var first := maxi(int(ceil(region.from)), 0)
+	var last := mini(int(floor(region.to)), n - 1)
+	if last - first < 1:
+		return
+	var side: float = region.side
+	var inner: float = region.inner
+	var width: float = region.width
+	# Fractions across the width where the profile changes slope.
+	var across := [0.0, 0.3, 0.85, 1.0]
+	var points := PackedVector3Array()
+	for i in range(first, last + 1):
+		var ahead: Vector3 = pts[mini(i + 1, n - 1)] - pts[maxi(i - 1, 0)]
+		ahead.y = 0.0
+		ahead = ahead.normalized()
+		# Godot's left of travel, matching the core's positive offset.
+		var left := Vector3(ahead.z, 0.0, -ahead.x)
+		for f in across:
+			points.append(pts[i] + left * side * (inner + width * f))
+	points = sim_ref.surface_heights(points)
+	var columns := across.size()
+	var rows := last - first + 1
+	var vertices := PackedVector3Array()
+	var colors := PackedColorArray()
+	var red := Color(0.78, 0.12, 0.10)
+	var white := Color(0.92, 0.92, 0.90)
+	for r in range(rows - 1):
+		# Blocks two metres long.
+		var color := red if ((first + r) / 2) % 2 == 0 else white
+		for c in range(columns - 1):
+			var a := points[r * columns + c]
+			var b := points[r * columns + c + 1]
+			var d := points[(r + 1) * columns + c]
+			var e := points[(r + 1) * columns + c + 1]
+			for v in [a, d, b, b, d, e]:
+				vertices.append(v + Vector3(0.0, KERB_LIFT, 0.0))
+				colors.append(color)
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_COLOR] = colors
+	var tool := SurfaceTool.new()
+	tool.create_from_arrays(arrays, Mesh.PRIMITIVE_TRIANGLES)
+	tool.generate_normals()
+	var instance := MeshInstance3D.new()
+	instance.mesh = tool.commit()
+	var material := StandardMaterial3D.new()
+	material.vertex_color_use_as_albedo = true
+	material.vertex_color_is_srgb = true
+	material.roughness = 0.7
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	instance.material_override = material
+	add_child(instance)
+
+
+# Mown grass beside a paved road out to `reach` metres from its edge: bands
+# of lighter and darker green along the road, as a mower leaves them. Paint
+# only; the ground there is whatever the core says.
+func _build_runoff(path: Dictionary, region: Dictionary, reach: float, height: float) -> void:
+	var step := 3.0
+	var pts := _sample_path(path, step)
+	var n := pts.size()
+	if n < 2:
+		return
+	var half: float = region.half_width
+	var points := PackedVector3Array()
+	var rows := 0
+	for i in range(n):
+		var s := i * step
+		if s < region.from or s > region.to:
+			continue
+		var ahead: Vector3 = pts[mini(i + 1, n - 1)] - pts[maxi(i - 1, 0)]
+		ahead.y = 0.0
+		ahead = ahead.normalized()
+		var left := Vector3(ahead.z, 0.0, -ahead.x)
+		for offset in [-(half + reach), -half, half, half + reach]:
+			points.append(pts[i] + left * offset)
+		rows += 1
+	if rows < 2:
+		return
+	if has_terrain:
+		points = sim_ref.ground_heights(points)
+	var vertices := PackedVector3Array()
+	var colors := PackedColorArray()
+	var light := Color(0.35, 0.49, 0.24)
+	var dark := Color(0.31, 0.45, 0.21)
+	for r in range(rows - 1):
+		# Bands six metres long.
+		var color := light if (r * int(step) / 6) % 2 == 0 else dark
+		for pair in [[0, 1], [2, 3]]:
+			var a := points[r * 4 + pair[0]]
+			var b := points[r * 4 + pair[1]]
+			var d := points[(r + 1) * 4 + pair[0]]
+			var e := points[(r + 1) * 4 + pair[1]]
+			for v in [a, d, b, b, d, e]:
+				vertices.append(v + Vector3(0.0, height, 0.0))
+				colors.append(color)
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_COLOR] = colors
+	var tool := SurfaceTool.new()
+	tool.create_from_arrays(arrays, Mesh.PRIMITIVE_TRIANGLES)
+	tool.generate_normals()
+	var instance := MeshInstance3D.new()
+	instance.mesh = tool.commit()
+	var material := _ground_material(Color(1, 1, 1))
+	material.vertex_color_use_as_albedo = true
+	material.vertex_color_is_srgb = true
+	instance.material_override = material
+	add_child(instance)
+
+
+# Colour for a terrain point: drier and paler higher up, darker in hollows,
+# browner on steep ground, with broad patches from low-frequency noise.
+func _terrain_color(base: Color, height: float, low: float, high: float, slope: float, patch: float) -> Color:
+	var t := clampf((height - low) / maxf(high - low, 1.0), 0.0, 1.0)
+	var grass := base.lerp(Color(0.46, 0.50, 0.30), t * 0.6)
+	grass = grass.darkened(0.12 * (1.0 - t))
+	grass = grass.lerp(Color(0.42, 0.36, 0.26), clampf((slope - 0.18) * 3.0, 0.0, 0.7))
+	return grass.lerp(Color(0.24, 0.36, 0.17), clampf(patch, 0.0, 1.0) * 0.45)

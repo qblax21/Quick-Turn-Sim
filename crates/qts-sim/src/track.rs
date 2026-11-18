@@ -352,7 +352,57 @@ pub enum RegionDef {
         /// Half width, m.
         half_width_m: f64,
     },
+    /// A raised kerb beside part of a path, solid for the tires: the ground
+    /// rises across its width to `height_m` and falls again at its outer
+    /// edge.
+    Kerb {
+        /// Surface identifier.
+        surface: String,
+        /// Path name.
+        path: String,
+        /// Start distance along the path, m.
+        from_m: f64,
+        /// End distance along the path, m.
+        to_m: f64,
+        /// Which side of the path, seen in its direction.
+        side: KerbSide,
+        /// Distance from the path to the inner edge, m.
+        inner_m: f64,
+        /// Width across, m.
+        width_m: f64,
+        /// Height of the top above the road, m.
+        height_m: f64,
+    },
 }
+
+/// Side of a path.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum KerbSide {
+    /// Left of the path direction.
+    Left,
+    /// Right of the path direction.
+    Right,
+}
+
+/// Shape of a kerb across its width: height as a fraction of the full
+/// height at `t`, 0 at the inner edge to 1 at the outer edge. It ramps up
+/// from the road over the first 30 percent, is flat, and drops back to the
+/// ground over the last 15 percent.
+pub fn kerb_profile(t: f64) -> f64 {
+    if !(0.0..=1.0).contains(&t) {
+        0.0
+    } else if t < KERB_RAMP_IN {
+        t / KERB_RAMP_IN
+    } else if t > 1.0 - KERB_RAMP_OUT {
+        (1.0 - t) / KERB_RAMP_OUT
+    } else {
+        1.0
+    }
+}
+
+const KERB_RAMP_IN: f64 = 0.3;
+const KERB_RAMP_OUT: f64 = 0.15;
 
 /// One cone.
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
@@ -664,6 +714,17 @@ enum Region {
         half_width: f64,
         surface: u16,
     },
+    Kerb {
+        path: usize,
+        from: f64,
+        to: f64,
+        /// +1 for left, -1 for right.
+        side: f64,
+        inner: f64,
+        width: f64,
+        height: f64,
+        surface: u16,
+    },
 }
 
 /// A timing gate as a line segment.
@@ -849,6 +910,33 @@ impl Track {
                     half_width: *half_width_m,
                     surface: find_surface(&surfaces, surface, &def.id)?,
                 },
+                RegionDef::Kerb {
+                    surface,
+                    path,
+                    from_m,
+                    to_m,
+                    side,
+                    inner_m,
+                    width_m,
+                    height_m,
+                } => {
+                    if !(*width_m > 0.0 && *inner_m >= 0.0 && (0.0..=0.2).contains(height_m)) {
+                        return Err(format!(
+                            "track `{}`: a kerb needs a positive width and a height of at most 0.2 m",
+                            def.id
+                        ));
+                    }
+                    Region::Kerb {
+                        path: path_index(path)?,
+                        from: *from_m,
+                        to: *to_m,
+                        side: if *side == KerbSide::Left { 1.0 } else { -1.0 },
+                        inner: *inner_m,
+                        width: *width_m,
+                        height: *height_m,
+                        surface: find_surface(&surfaces, surface, &def.id)?,
+                    }
+                }
             });
         }
         let mut cones: Vec<[f64; 2]> = def.cones.iter().map(|c| [c.x, c.y]).collect();
@@ -1157,6 +1245,26 @@ impl Track {
                     {
                         surface = *s;
                         ridge = 0.0;
+                    }
+                }
+                Region::Kerb {
+                    path,
+                    from,
+                    to,
+                    side,
+                    inner,
+                    width,
+                    height,
+                    surface: s,
+                } => {
+                    if let Some((_, offset)) =
+                        self.paths[*path].project(x, y, *from, *to, inner + width)
+                    {
+                        let across = offset * side - inner;
+                        if (0.0..=*width).contains(&across) {
+                            surface = *s;
+                            ridge = height * kerb_profile(across / width);
+                        }
                     }
                 }
             }

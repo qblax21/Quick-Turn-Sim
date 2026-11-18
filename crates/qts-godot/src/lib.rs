@@ -578,6 +578,25 @@ impl SimBridge {
             .collect()
     }
 
+    /// Height of the surface the tires roll on at each point (x and z
+    /// kept, y replaced): the shaped ground plus kerbs and ridges, without
+    /// the fine roughness.
+    #[func]
+    fn surface_heights(&self, points: PackedVector3Array) -> PackedVector3Array {
+        let Some(l) = &self.loaded else {
+            return points;
+        };
+        points
+            .as_slice()
+            .iter()
+            .map(|p| {
+                let (x, y) = (-f64::from(p.z), -f64::from(p.x));
+                let (_, ridge) = l.track.surface_at(x, y);
+                Vector3::new(p.x, (l.track.ground_height(x, y) + ridge) as f32, p.z)
+            })
+            .collect()
+    }
+
     /// Cone positions on the ground.
     #[func]
     fn track_cones(&self) -> PackedVector3Array {
@@ -703,6 +722,26 @@ impl SimBridge {
                         "from" => *from_m,
                         "to" => *to_m,
                         "half_width" => *half_width_m,
+                    },
+                    RegionDef::Kerb {
+                        surface,
+                        path,
+                        from_m,
+                        to_m,
+                        side,
+                        inner_m,
+                        width_m,
+                        height_m,
+                    } => vd! {
+                        "kind" => gstr("kerb"),
+                        "surface" => gstr(surface),
+                        "path" => gstr(path),
+                        "from" => *from_m,
+                        "to" => *to_m,
+                        "side" => if *side == qts_sim::track::KerbSide::Left { 1.0 } else { -1.0 },
+                        "inner" => *inner_m,
+                        "width" => *width_m,
+                        "height" => *height_m,
                     },
                 };
                 out.push(&d);

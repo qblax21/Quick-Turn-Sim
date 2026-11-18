@@ -65,29 +65,62 @@ func _ready() -> void:
 	audio = Audio.new()
 	add_child(audio)
 
-	# Lighting: a sun with shadows under a plain procedural sky.
+	# Lighting: a mid-afternoon sun with long-range shadows, under a generated
+	# sky with a sun disc and a thin layer of cloud. All made here; no images.
 	sun = DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-48.0, 35.0, 0.0)
-	sun.light_energy = 1.2
-	sun.directional_shadow_max_distance = 140.0
+	sun.rotation_degrees = Vector3(-36.0, 35.0, 0.0)
+	sun.light_color = Color(1.0, 0.95, 0.86)
+	sun.light_energy = 1.35
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
+	sun.directional_shadow_max_distance = 260.0
+	sun.directional_shadow_blend_splits = true
+	sun.shadow_blur = 1.2
+	sun.light_angular_distance = 0.6
 	add_child(sun)
-	var horizon := Color(0.70, 0.79, 0.88)
+	var horizon := Color(0.74, 0.81, 0.89)
+	var clouds := NoiseTexture2D.new()
+	clouds.width = 1024
+	clouds.height = 512
+	clouds.seamless = true
+	var cloud_noise := FastNoiseLite.new()
+	cloud_noise.seed = 4
+	cloud_noise.frequency = 0.008
+	cloud_noise.fractal_octaves = 5
+	clouds.noise = cloud_noise
+	var cloud_ramp := Gradient.new()
+	cloud_ramp.set_offset(0, 0.52)
+	cloud_ramp.set_color(0, Color(0, 0, 0))
+	cloud_ramp.set_offset(1, 0.78)
+	cloud_ramp.set_color(1, Color(1, 1, 1))
+	clouds.color_ramp = cloud_ramp
 	var sky_material := ProceduralSkyMaterial.new()
-	sky_material.sky_top_color = Color(0.24, 0.44, 0.78)
+	sky_material.sky_top_color = Color(0.20, 0.40, 0.76)
 	sky_material.sky_horizon_color = horizon
+	sky_material.sky_curve = 0.12
+	sky_material.sky_cover = clouds
+	sky_material.sky_cover_modulate = Color(1.0, 1.0, 1.0, 0.55)
 	sky_material.ground_horizon_color = horizon
 	sky_material.ground_bottom_color = Color(0.30, 0.36, 0.28)
+	sky_material.sun_angle_max = 8.0
+	sky_material.sun_curve = 0.08
 	var sky := Sky.new()
 	sky.sky_material = sky_material
 	environment = Environment.new()
 	environment.background_mode = Environment.BG_SKY
 	environment.sky = sky
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	environment.ambient_light_energy = 0.9
-	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	environment.ambient_light_energy = 0.75
+	environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
+	environment.tonemap_exposure = 1.0
+	environment.glow_enabled = true
+	environment.glow_intensity = 0.25
+	environment.glow_hdr_threshold = 1.2
 	environment.fog_enabled = true
 	environment.fog_light_color = horizon
-	environment.fog_density = 0.0007
+	environment.fog_density = 0.0006
+	environment.fog_sun_scatter = 0.15
+	environment.fog_aerial_perspective = 0.2
 	var world_env := WorldEnvironment.new()
 	world_env.environment = environment
 	add_child(world_env)

@@ -11,7 +11,7 @@ says so.
 | Area | State |
 | --- | --- |
 | Workspace builds with one command on Windows | Verified (`tools\build.ps1`, GNU toolchain) |
-| Test suite | 170 tests pass in release |
+| Test suite | 168 tests pass in release |
 | Headless sim runs and replays exactly | Verified |
 | Both cars drivable on all three tracks | Verified with scripted drivers and the front-end smoke test |
 | Front end renders, HUD and overlay work | Verified by screenshots |
@@ -121,6 +121,9 @@ plausible range. It is not evidence of realism.
 - Track map with three modes (N), painted edge lines, distance boards
   before corners, worn-in rubber on an approximate fast line, tire marks
   left by the car while sliding, and trackside trees (D-056, D-059, D-061).
+- Raised kerbs on every Ridgeline corner, solid for the tires (D-065); a
+  generated sky with cloud, cascaded sun shadows, varied terrain colour
+  and mown runoff.
 - Solid trees and barriers (D-060, D-062): the car is stopped by them,
   with a thud and a force-feedback kick. A simple flat impact model with
   no damage. The kick has not been felt on a wheel.

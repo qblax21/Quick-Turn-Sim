@@ -149,3 +149,38 @@ fn a_hit_is_reported_and_kicks_the_steering_briefly() {
     assert_eq!(clear.impact(), (0, 0.0));
     assert_eq!(clear.impact_kick_nm(), 0.0);
 }
+
+#[test]
+fn kerbs_are_raised_ground_the_tires_roll_on() {
+    use qts_vehicle::Ground;
+    let s = session("hatch_tern_gt", "ridgeline_circuit");
+    let track = s.track();
+    let path = track.path("circuit").unwrap();
+    // The first corner turns right, so its apex kerb is on the right.
+    let (p, h) = path.at(470.0);
+    let right = [fm_sin(h), -fm_cos(h)];
+    let at = |offset: f64| [p[0] + right[0] * offset, p[1] + right[1] * offset];
+    let raised = |q: [f64; 2]| track.sample(q[0], q[1]).height - track.ground_height(q[0], q[1]);
+    let surface = |q: [f64; 2]| track.sample(q[0], q[1]).surface.id.clone();
+    // Road, ramp, top and back to grass.
+    assert_eq!(surface(at(3.0)), "tarmac");
+    assert!(raised(at(3.0)).abs() < 0.005);
+    assert_eq!(surface(at(6.6)), "kerb");
+    assert!(
+        (raised(at(6.9)) - 0.04).abs() < 0.003,
+        "top {:.4}",
+        raised(at(6.9))
+    );
+    assert!(raised(at(6.1)) > 0.0 && raised(at(6.1)) < 0.02);
+    assert!(surface(at(8.0)) != "kerb");
+    // None on the outside of that corner at the apex.
+    assert!(surface(at(-6.6)) != "kerb");
+}
+
+fn fm_sin(x: f64) -> f64 {
+    x.sin()
+}
+
+fn fm_cos(x: f64) -> f64 {
+    x.cos()
+}

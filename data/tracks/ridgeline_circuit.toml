@@ -74,6 +74,318 @@ from_m = 0.0
 to_m = 2852.0
 half_width_m = 6.0
 
+# Raised kerbs, 1.2 m wide and 40 mm high: on the inside of every corner
+# around the apex and on the outside at the exit. They are part of the ground
+# the tires roll on. The height is a placeholder typical of circuit kerbs.
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 468.8
+to_m = 525.4
+side = "right"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 516.0
+to_m = 556.2
+side = "left"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 601.8
+to_m = 774.6
+side = "left"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 745.8
+to_m = 844.2
+side = "right"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 1171.1
+to_m = 1227.6
+side = "left"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 1218.2
+to_m = 1258.5
+side = "right"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 1442.2
+to_m = 1489.3
+side = "right"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 1481.5
+to_m = 1517.0
+side = "left"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 1536.4
+to_m = 1630.7
+side = "left"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 1615.0
+to_m = 1674.1
+side = "right"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 1677.8
+to_m = 1724.9
+side = "right"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 1717.1
+to_m = 1752.6
+side = "left"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 1756.3
+to_m = 1803.5
+side = "left"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 1795.6
+to_m = 1831.2
+side = "right"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 1961.2
+to_m = 2027.1
+side = "right"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 2016.1
+to_m = 2061.1
+side = "left"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 2184.8
+to_m = 2232.0
+side = "left"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 2224.1
+to_m = 2259.7
+side = "right"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 2353.4
+to_m = 2400.5
+side = "left"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 2392.6
+to_m = 2428.2
+side = "right"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 2495.6
+to_m = 2523.9
+side = "right"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 2519.2
+to_m = 2545.3
+side = "left"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 2552.2
+to_m = 2608.7
+side = "left"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 2599.3
+to_m = 2639.6
+side = "right"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 2637.0
+to_m = 2665.3
+side = "right"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 2660.6
+to_m = 2686.7
+side = "left"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 2740.8
+to_m = 2806.8
+side = "left"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 2795.8
+to_m = 2840.8
+side = "right"
+inner_m = 6.0
+width_m = 1.2
+height_m = 0.04
+
 # Checkpoints: a run counts only if it crosses each of these, in order and
 # in the direction of travel. They are not drawn.
 
