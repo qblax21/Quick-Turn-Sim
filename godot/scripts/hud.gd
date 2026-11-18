@@ -13,6 +13,8 @@ var notice_label: Label
 var delta_label: Label
 var invalid_seen := -1
 var invalid_shown_until := 0
+var flash_text := ""
+var flash_until := 0
 var input_bars := {}
 var ffb_bar: ProgressBar
 var debug_visible := false
@@ -124,6 +126,12 @@ func _bar_row(caption: String, minimum: float) -> HBoxContainer:
 	return row
 
 
+# Shows a short message for two seconds.
+func flash(text: String) -> void:
+	flash_text = text
+	flash_until = Time.get_ticks_msec() + 2000
+
+
 func toggle_debug() -> void:
 	debug_visible = not debug_visible
 	debug_label.visible = debug_visible
@@ -178,6 +186,8 @@ func update(hud: Dictionary, status: Dictionary, input: Dictionary, telemetry_on
 	if invalid_seen >= 0 and invalid > invalid_seen:
 		invalid_shown_until = Time.get_ticks_msec() + 4000
 	invalid_seen = invalid
+	if Time.get_ticks_msec() < flash_until:
+		notices.append(flash_text)
 	if Time.get_ticks_msec() < invalid_shown_until:
 		notices.append("LAP NOT COUNTED: part of the course was missed")
 	if status.get("paused", false):

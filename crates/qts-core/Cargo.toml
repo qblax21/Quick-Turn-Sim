@@ -10,3 +10,8 @@ publish.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+# Pure-Rust port of musl's math library: transcendental functions give the
+# same bits in every binary and on every platform (see DECISIONS.md D-066).
+libm = "=0.2.16"

@@ -108,7 +108,8 @@ wheel setup** first: assign and calibrate the axes, choose the wheel under
 | Pause | P |
 | Tire and force-feedback overlay | F1 |
 | Record telemetry | F2 |
-| Record a replay | F3 |
+| Save the replay so far (every session is recorded) | F3 |
+| Hide everything on screen | H |
 
 Recordings go to the `recordings` folder in Godot's user data directory for
 the project.

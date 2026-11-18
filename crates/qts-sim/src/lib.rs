@@ -19,6 +19,7 @@ pub mod data;
 pub mod drivers;
 pub mod ghost;
 pub mod host;
+pub mod playback;
 pub mod session;
 pub mod telemetry;
 pub mod track;

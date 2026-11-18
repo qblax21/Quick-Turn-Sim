@@ -14,6 +14,12 @@ const SkidMarks := preload("res://scripts/skid_marks.gd")
 const Audio := preload("res://scripts/audio.gd")
 const Settings := preload("res://scripts/settings.gd")
 const SettingsScreen := preload("res://scripts/settings_screen.gd")
+const ReplayPicker := preload("res://scripts/replay_picker.gd")
+const ReplayView := preload("res://scripts/replay_view.gd")
+# Automatically saved session replays kept; older ones are deleted.
+const KEEP_SESSION_REPLAYS := 20
+# Sessions shorter than this are not kept, s.
+const MIN_SESSION_REPLAY_S := 10.0
 
 # In the seat view the ghost is hidden when it is this close, so it never
 # fills the windscreen.
@@ -25,6 +31,10 @@ var reader
 var menu
 var setup
 var settings_screen
+var replay_picker
+var replay_view
+var session_car := ""
+var session_track := ""
 var world
 var car_view
 var ghost_view
@@ -212,6 +222,7 @@ func _show_menu() -> void:
 	menu.drive_requested.connect(_start_driving)
 	menu.input_setup_requested.connect(_show_input_setup)
 	menu.settings_requested.connect(_show_settings)
+	menu.replays_requested.connect(_show_replays)
 	add_child(menu)
 
 
@@ -233,6 +244,33 @@ func _show_input_setup() -> void:
 	add_child(setup)
 
 
+func _show_replays() -> void:
+	_close_menu()
+	replay_picker = ReplayPicker.new()
+	replay_picker.closed.connect(func() -> void:
+		replay_picker.queue_free()
+		replay_picker = null
+		_show_menu())
+	replay_picker.watch_requested.connect(_watch_replay)
+	add_child(replay_picker)
+
+
+func _watch_replay(path: String) -> void:
+	if not sim.replay_open(path):
+		replay_picker.show_error(sim.last_error())
+		return
+	replay_picker.queue_free()
+	replay_picker = null
+	replay_view = ReplayView.new()
+	replay_view.setup(sim, camera)
+	replay_view.closed.connect(func() -> void:
+		replay_view.close()
+		replay_view.queue_free()
+		replay_view = null
+		_show_replays())
+	add_child(replay_view)
+
+
 func _show_settings() -> void:
 	_close_menu()
 	settings_screen = SettingsScreen.new()
@@ -242,6 +280,22 @@ func _show_settings() -> void:
 		settings_screen = null
 		_show_menu())
 	add_child(settings_screen)
+
+
+# Every session is recorded from its start; on leaving, the recording is
+# written to the replays folder, keeping the newest few.
+func _save_session_replay() -> void:
+	var frames: int = sim.status().get("replay_frames", 0)
+	if frames < MIN_SESSION_REPLAY_S * 1000.0:
+		return
+	var dir := ProjectSettings.globalize_path("user://replays")
+	DirAccess.make_dir_recursive_absolute(dir)
+	var stamp := Time.get_datetime_string_from_system().replace(":", "-").replace("T", "_")
+	sim.replay_stop(dir.path_join("%s_%s_%s.rpl" % [stamp, session_car, session_track]))
+	var names := Array(DirAccess.get_files_at(dir)).filter(func(n: String) -> bool: return n.get_extension() == "rpl")
+	names.sort()
+	while names.size() > KEEP_SESSION_REPLAYS:
+		DirAccess.remove_absolute(dir.path_join(names.pop_front()))
 
 
 func _clear_session() -> void:
@@ -256,6 +310,7 @@ func _clear_session() -> void:
 	if audio:
 		audio.stop()
 	if sim and sim.is_running():
+		_save_session_replay()
 		sim.stop_session()
 	telemetry_on = false
 	replay_on = false
@@ -274,6 +329,9 @@ func _start_driving(car_id: String, track_id: String, auto_clutch: bool, auto_sh
 		return
 	_close_menu()
 	settings.save()
+	session_car = car_id
+	session_track = track_id
+	sim.replay_start()
 	cockpit_view = settings.get_value("driving/seat_view")
 	show_ghost = settings.get_value("driving/ghost")
 	map_mode = clampi(settings.get_value("driving/map_mode"), 0, 3)
@@ -379,11 +437,11 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			else:
 				sim.telemetry_stop()
 		KEY_F3:
-			replay_on = not replay_on
-			if replay_on:
-				sim.replay_start()
-			else:
-				sim.replay_stop(_recording_path("replay", "rpl"))
+			# The session is always being recorded; F3 keeps a copy of it so far.
+			sim.replay_save(_recording_path("replay", "rpl"))
+			hud.flash("replay saved")
+		KEY_H:
+			hud.visible = not hud.visible
 
 
 func _recording_path(kind: String, extension: String) -> String:

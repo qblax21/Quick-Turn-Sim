@@ -89,7 +89,7 @@ impl Default for RenderPose {
 }
 
 impl RenderPose {
-    fn of(session: &Session) -> Self {
+    pub(crate) fn of(session: &Session) -> Self {
         let car = session.car();
         let s = &car.state;
         let mut wheels = [WheelPose::default(); 4];
@@ -193,7 +193,7 @@ pub struct HudState {
 }
 
 impl HudState {
-    fn of(session: &Session) -> Self {
+    pub(crate) fn of(session: &Session) -> Self {
         let out = session.car().output();
         let t = session.timing();
         Self {
@@ -287,6 +287,11 @@ pub enum HostCommand {
     },
     /// Stop recording and write the replay to a file.
     StopReplay {
+        /// Output path.
+        path: PathBuf,
+    },
+    /// Write the replay recorded so far to a file and keep recording.
+    SaveReplay {
         /// Output path.
         path: PathBuf,
     },
@@ -592,6 +597,15 @@ impl SimThread {
                 let header = self.session.replay_header(hash_interval);
                 self.recorder = Some(ReplayRecorder::start(header, &self.session));
             }
+            HostCommand::SaveReplay { path } => {
+                if let Some(recorder) = &self.recorder {
+                    let bytes = recorder.clone().finish().to_bytes();
+                    match std::fs::write(&path, bytes) {
+                        Ok(()) => self.last_error = None,
+                        Err(e) => self.last_error = Some(format!("replay {}: {e}", path.display())),
+                    }
+                }
+            }
             HostCommand::StopReplay { path } => {
                 if let Some(recorder) = self.recorder.take() {
                     match std::fs::write(&path, recorder.finish().to_bytes()) {
@@ -833,6 +847,12 @@ impl SimThread {
                 };
             }
             std::thread::sleep(IDLE_SLEEP);
+        }
+        // Commands sent just before stopping, such as writing a replay, are
+        // still carried out.
+        let commands: Vec<HostCommand> = std::mem::take(&mut *lock(&self.shared.commands));
+        for command in commands {
+            self.handle(command);
         }
         self.close_device();
         self.close_telemetry();

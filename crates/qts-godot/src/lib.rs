@@ -24,6 +24,7 @@ use qts_core::constants::{CORE_VERSION, PRODUCT_NAME, PRODUCT_SHORT_NAME};
 use qts_core::input::{InputFrame, GEAR_NO_REQUEST};
 use qts_ffb::FfbConfig;
 use qts_sim::host::{HostCommand, HostOptions, RealtimeHost};
+use qts_sim::playback::Playback;
 use qts_sim::session::{Session, SessionAssets, SessionConfig};
 use qts_sim::track::{MarkerDef, RegionDef, Track};
 use qts_sim::DataRoot;
@@ -87,6 +88,8 @@ pub struct SimBridge {
     /// Set when the player switched traction control off. Stored this way
     /// round so a fresh bridge has it on.
     traction_control_off: bool,
+    /// A replay open for watching.
+    playback: Option<Playback>,
     base: Base<RefCounted>,
 }
 
@@ -292,6 +295,132 @@ impl SimBridge {
                 self.last_error = e;
                 false
             }
+        }
+    }
+
+    /// Opens a replay file for watching, stopping any session. The replay
+    /// must then be prepared with `replay_prepare` before all of it can be
+    /// shown. Returns false and sets `last_error` on failure.
+    #[func]
+    fn replay_open(&mut self, path: GString) -> bool {
+        self.stop_session();
+        self.playback = None;
+        let Some(root) = self.root() else {
+            return false;
+        };
+        let result = (|| -> Result<(Playback, Loaded), String> {
+            let path = path.to_string();
+            let bytes = std::fs::read(&path).map_err(|e| format!("{path}: {e}"))?;
+            let playback = Playback::load(&root, &bytes)?;
+            let session = playback.session();
+            let assets =
+                SessionAssets::load(&root, &session.car().params().id, &session.track().def().id)
+                    .map_err(|e| e.to_string())?;
+            let loaded = Loaded {
+                car: assets.car.clone(),
+                wheel_radius: [
+                    assets.tire_front.geometry.unloaded_radius_m,
+                    assets.tire_rear.geometry.unloaded_radius_m,
+                ],
+                tire_width: [
+                    assets.tire_front.geometry.width_m,
+                    assets.tire_rear.geometry.width_m,
+                ],
+                track: assets.track.clone(),
+            };
+            Ok((playback, loaded))
+        })();
+        match result {
+            Ok((playback, loaded)) => {
+                self.playback = Some(playback);
+                self.loaded = Some(loaded);
+                self.last_error.clear();
+                true
+            }
+            Err(e) => {
+                self.last_error = e;
+                false
+            }
+        }
+    }
+
+    /// Re-simulates up to `max_ticks` more of the open replay; returns the
+    /// share prepared, 0 to 1.
+    #[func]
+    fn replay_prepare(&mut self, max_ticks: i64) -> f64 {
+        match self.playback.as_mut() {
+            Some(p) => p.prepare(max_ticks.max(1) as usize),
+            None => 1.0,
+        }
+    }
+
+    /// Facts about the open replay: `duration`, `prepared` (seconds ready
+    /// to show), `car` and `track` ids, `mismatch_tick` (−1 if it
+    /// reproduced exactly so far), `recorded_by` and `this_build`.
+    #[func]
+    fn replay_info(&self) -> VarDictionary {
+        let Some(p) = &self.playback else {
+            return VarDictionary::new();
+        };
+        vd! {
+            "duration" => p.duration_s(),
+            "prepared" => p.prepared_s(),
+            "car" => gstr(&p.session().car().params().id),
+            "track" => gstr(&p.session().track().def().id),
+            "mismatch_tick" => p.first_mismatch().map_or(-1, |t| t as i64),
+            "recorded_by" => gstr(p.recorded_by()),
+            "this_build" => gstr(&qts_core::constants::build_id()),
+            "tick_rate" => f64::from(qts_core::step::Simulation::tick_rate_hz(p.session())),
+        }
+    }
+
+    /// The car at `time` seconds into the replay: `transform`, `wheels` (as
+    /// `wheel_states`), `speed`, `gear`, `engine_rpm`,
+    /// `steering_wheel_angle`, `steer`, `throttle`, `brake` and `run_time`
+    /// (negative outside a timed run).
+    #[func]
+    fn replay_frame(&self, time: f64) -> VarDictionary {
+        let Some(p) = &self.playback else {
+            return VarDictionary::new();
+        };
+        let s = p.at(time);
+        let mut wheels = Vec::with_capacity(20);
+        for w in &s.pose.wheels {
+            let c = to_godot(w.center_body);
+            wheels.extend_from_slice(&[c.x, c.y, c.z, w.steer_angle as f32, w.spin_angle as f32]);
+        }
+        vd! {
+            "transform" => Transform3D::new(
+                Basis::from_quaternion(quat_to_godot(s.pose.rot)),
+                to_godot(s.pose.pos),
+            ),
+            "wheels" => PackedFloat32Array::from(wheels),
+            "speed" => s.speed,
+            "gear" => i64::from(s.gear),
+            "engine_rpm" => s.engine_rpm,
+            "steering_wheel_angle" => s.steering_wheel_angle,
+            "steer" => s.steer,
+            "throttle" => s.throttle,
+            "brake" => s.brake,
+            "run_time" => s.run_time_s,
+        }
+    }
+
+    /// Which cones are down at `time` seconds into the replay.
+    #[func]
+    fn replay_cones(&self, time: f64) -> PackedByteArray {
+        match &self.playback {
+            Some(p) => p.cones_at(time).iter().map(|d| u8::from(*d)).collect(),
+            None => PackedByteArray::new(),
+        }
+    }
+
+    /// Closes the open replay.
+    #[func]
+    fn replay_close(&mut self) {
+        self.playback = None;
+        if self.host.is_none() {
+            self.loaded = None;
         }
     }
 
@@ -995,6 +1124,14 @@ impl SimBridge {
     #[func]
     fn replay_start(&self) {
         self.send(HostCommand::StartReplay { hash_interval: 100 });
+    }
+
+    /// Writes the replay recorded so far to a file and keeps recording.
+    #[func]
+    fn replay_save(&self, path: GString) {
+        self.send(HostCommand::SaveReplay {
+            path: std::path::PathBuf::from(path.to_string()),
+        });
     }
 
     /// Stops recording and writes the replay to a file.

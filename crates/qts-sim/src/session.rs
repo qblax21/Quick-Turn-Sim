@@ -377,7 +377,7 @@ impl Session {
 
     fn update_timing(&mut self, before: [f64; 2], after: [f64; 2]) {
         if self.timing.running {
-            let moved = (after[0] - before[0]).hypot(after[1] - before[1]);
+            let moved = fm::hypot(after[0] - before[0], after[1] - before[1]);
             self.timing.run_distance_um += (moved * 1.0e6) as u64;
         }
         // Checkpoints count only forward and in order.
@@ -472,7 +472,7 @@ impl Session {
                 };
                 let nearest = [wall.a[0] + dx * t, wall.a[1] + dy * t];
                 let (ox, oy) = (nearest[0] - corner[0], nearest[1] - corner[1]);
-                let dist = ox.hypot(oy);
+                let dist = fm::hypot(ox, oy);
                 if dist < WALL_RADIUS_M && dist > 1e-9 {
                     self.apply_contact(corner, [ox / dist, oy / dist], WALL_RADIUS_M - dist);
                 }
@@ -506,7 +506,7 @@ impl Session {
         let px = lx.clamp(-self.half_length, self.half_length);
         let py = ly.clamp(-self.half_width, self.half_width);
         let (ox, oy) = (lx - px, ly - py);
-        let dist = ox.hypot(oy);
+        let dist = fm::hypot(ox, oy);
         // Normal from the body toward the circle, and the overlap.
         let (nx, ny, depth) = if dist > 1e-9 {
             if dist >= radius {

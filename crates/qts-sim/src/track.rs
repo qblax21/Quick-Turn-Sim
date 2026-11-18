@@ -1116,7 +1116,7 @@ impl Track {
         let mut covered = 0.0;
         for pair in points.windows(2) {
             let (p, q) = (pair[0], pair[1]);
-            covered += (q[0] - p[0]).hypot(q[1] - p[1]);
+            covered += fm::hypot(q[0] - p[0], q[1] - p[1]);
             if let Some(c) = self.checkpoints.get(next) {
                 if c.crossed_forward(p, q) {
                     next += 1;

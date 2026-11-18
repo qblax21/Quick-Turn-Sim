@@ -11,7 +11,7 @@ says so.
 | Area | State |
 | --- | --- |
 | Workspace builds with one command on Windows | Verified (`tools\build.ps1`, GNU toolchain) |
-| Test suite | 168 tests pass in release |
+| Test suite | 172 tests pass in release |
 | Headless sim runs and replays exactly | Verified |
 | Both cars drivable on all three tracks | Verified with scripted drivers and the front-end smoke test |
 | Front end renders, HUD and overlay work | Verified by screenshots |
@@ -37,7 +37,9 @@ pass" is true locally but unconfirmed on CI.
 - Input recording and exact replay, with hash checkpoints and detection of
   the first diverging tick. Replays refuse to run against changed data.
 - Determinism on one build: identical hash sequences for identical inputs,
-  tested for every car on every track.
+  tested for every car on every track. Transcendental math is computed in
+  software, so a replay recorded in the game reproduces in the command-line
+  tool and in playback (D-066). Across operating systems: likely, untested.
 - Ten-minute soak with erratic inputs for four car and track combinations:
   no non-finite values and no runaway states.
 
@@ -133,7 +135,9 @@ plausible range. It is not evidence of realism.
   signal and clipping; physics rate and scheduling jitter.
 - Controls screen: assign and calibrate axes and buttons, force-feedback
   settings with live sliders.
-- Telemetry and replay recording from the keyboard.
+- Every session is recorded; replays can be watched with trackside,
+  chase, orbit and driver's-seat cameras, paused and scrubbed (D-067).
+- Telemetry recording from the keyboard; F3 saves the replay so far.
 
 ### Content
 - Tern GT, a fictional front-drive hot hatch, with a limited-slip variant.
@@ -156,8 +160,6 @@ plausible range. It is not evidence of realism.
   modelled landscape, and the drawn terrain sits 8 cm below the real one.
 - **Linux force-feedback output**: none. The trait and the null device are
   there; a backend is not.
-- **Replay playback in the front end**: replays can be recorded and are
-  verified headless, but cannot be watched.
 - **H-pattern shifter in the front end**: the core accepts a direct gear
   selection; the front end only sends sequential shifts.
 - **Cones** are detected and counted, not simulated as objects.

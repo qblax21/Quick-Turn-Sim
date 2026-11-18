@@ -9,55 +9,60 @@ use std::ops::{Add, AddAssign, Mul, Neg, Sub, SubAssign};
 
 /// Transcendental functions used by simulation code.
 ///
-/// All sim crates call these instead of the inherent `f64` methods. Today
-/// they forward to `std`, whose results can differ between platforms. This
-/// module is the single switch point for a software math library later
-/// (see `ARCHITECTURE.md`, section 5).
+/// All sim crates call these instead of the inherent `f64` methods. They are
+/// computed in software by the `libm` crate, not by the platform math
+/// library, so every binary on every platform gets the same bits (see
+/// `ARCHITECTURE.md`, section 5, and `DECISIONS.md`, D-066).
 pub mod fm {
     /// Sine.
     #[inline]
     pub fn sin(x: f64) -> f64 {
-        x.sin()
+        libm::sin(x)
     }
     /// Cosine.
     #[inline]
     pub fn cos(x: f64) -> f64 {
-        x.cos()
+        libm::cos(x)
     }
     /// Tangent.
     #[inline]
     pub fn tan(x: f64) -> f64 {
-        x.tan()
+        libm::tan(x)
     }
     /// Arc sine.
     #[inline]
     pub fn asin(x: f64) -> f64 {
-        x.asin()
+        libm::asin(x)
     }
     /// Arc tangent.
     #[inline]
     pub fn atan(x: f64) -> f64 {
-        x.atan()
+        libm::atan(x)
     }
     /// Four-quadrant arc tangent of `y / x`.
     #[inline]
     pub fn atan2(y: f64, x: f64) -> f64 {
-        y.atan2(x)
+        libm::atan2(y, x)
     }
     /// Natural exponential.
     #[inline]
     pub fn exp(x: f64) -> f64 {
-        x.exp()
+        libm::exp(x)
     }
     /// Hyperbolic tangent.
     #[inline]
     pub fn tanh(x: f64) -> f64 {
-        x.tanh()
+        libm::tanh(x)
     }
     /// `x` raised to the power `p`.
     #[inline]
     pub fn powf(x: f64, p: f64) -> f64 {
-        x.powf(p)
+        libm::pow(x, p)
+    }
+    /// Length of the vector `(x, y)` without undue overflow.
+    #[inline]
+    pub fn hypot(x: f64, y: f64) -> f64 {
+        libm::hypot(x, y)
     }
     /// Square root. IEEE-754 specifies this exactly on every platform.
     #[inline]

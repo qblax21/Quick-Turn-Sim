@@ -667,3 +667,51 @@ machine (RTX 3060) went from about 540 to about 430 frames a second. The
 physics thread kept 1000 Hz with a worst scheduling wake of 2 ticks and no
 dropped time before and after, because rendering and physics run on
 separate threads.
+
+## D-066 Software transcendental math: replays now reproduce in every binary
+
+Building replay playback showed that a replay recorded in the game did not
+reproduce in the command-line tool, nor in the game's own playback, from
+the first stored hash onward, although every binary came from the same
+source and build. The cause was `fm`, which forwarded `sin`, `cos`, `exp`
+and the rest to the platform math library: different binaries, and code
+running on Godot's main thread against the simulation thread, did not get
+the same bits back. Plain `hypot` calls in the session had the same
+problem.
+
+`fm` now calls the `libm` crate, a pure-Rust port of musl's math library,
+pinned to one version, for every transcendental function and for `hypot`.
+Add, subtract, multiply, divide and square root were already exact. After
+the change a replay recorded in the game reproduces exactly in the game's
+playback and in `qts-sim replay`, and the test binary, the tool and the
+game library compute the same state hash after the same ticks. A test
+fails if a transcendental `f64` method appears in the simulation path
+again.
+
+This is step 2 of the cross-platform plan in ARCHITECTURE section 5.
+Bit-identical results across operating systems are now likely but not
+claimed: nothing compares hash sequences between Windows and Linux yet.
+Numbers moved only in the last bits; validation results are unchanged to
+the precision reported.
+
+## D-067 Replay playback by re-simulation
+
+Every session is recorded from its start, and the recording is saved in the
+replays folder when the session ends (sessions under 10 s are not kept,
+and only the newest 20 are). F3 saves a copy of the session so far to the
+recordings folder; it no longer starts and stops recording. The menu lists
+both folders under Replays.
+
+Playback uses the existing replay files: the core re-simulates the
+recording once, a slice each frame, keeping a pose and a few display
+values every 10 ms, so watching, pausing and scrubbing in either direction
+only read stored samples. The stored state hashes are checked on the way;
+a replay that no longer reproduces (made by another build, or before a
+physics change) still plays, with a notice saying from when it stops
+matching what was driven. A replay whose car or track files have changed
+since is refused, as before.
+
+Cameras: trackside (posts every 70 m along the track, 17 m to the side,
+zooming to keep the car a constant size), chase, orbit (turns by itself or
+by dragging) and driver's seat. H hides everything on screen; H also hides
+the HUD while driving.

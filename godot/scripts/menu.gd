@@ -5,6 +5,7 @@ extends CanvasLayer
 signal drive_requested(car_id, track_id, auto_clutch, auto_shift, ffb_preset, device_id, direct_steering)
 signal input_setup_requested
 signal settings_requested
+signal replays_requested
 
 var sim
 var settings
@@ -117,6 +118,11 @@ func _ready() -> void:
 	settings_button.custom_minimum_size = Vector2(0, 44)
 	settings_button.pressed.connect(func() -> void: settings_requested.emit())
 	buttons.add_child(settings_button)
+	var replays_button := Button.new()
+	replays_button.text = "Replays"
+	replays_button.custom_minimum_size = Vector2(0, 44)
+	replays_button.pressed.connect(func() -> void: replays_requested.emit())
+	buttons.add_child(replays_button)
 	var quit := Button.new()
 	quit.text = "Quit"
 	quit.custom_minimum_size = Vector2(0, 44)

@@ -190,8 +190,9 @@ Rules enforced in all crates that run inside `step` (`qts-core`, `qts-tire`,
    order. A clippy `disallowed-types` rule enforces this.
 4. No threads inside a step. A session is stepped by one thread.
 5. All transcendental math goes through `qts_core::math::fm` (`sin`, `cos`,
-   `atan2`, `exp`, `tanh`, `powf`). Today these forward to `std`. This is the
-   single switch point for item 2 of the cross-platform plan below.
+   `atan2`, `exp`, `tanh`, `powf`, `hypot`), which computes it in software
+   with the `libm` crate (D-066). A test rejects the `f64` methods in the
+   simulation path.
 6. No fast-math flags, no `mul_add` (Rust does not contract floating-point
    expressions on its own, so FMA only appears if written).
 
@@ -210,7 +211,7 @@ order operations differently.
 1. *Now:* replays record the build target triple and crate version; loading a
    replay from a different build warns and reports the first diverging tick
    instead of silently drifting.
-2. *Next:* switch `fm` to a pure-Rust software math library (the `libm`
+2. *Done (D-066):* switch `fm` to a pure-Rust software math library (the `libm`
    crate). IEEE-754 add, subtract, multiply, divide and square root are exactly
    specified, so with software transcendentals the remaining divergence sources
    are compiler reordering and FMA contraction, both avoidable. This needs a
