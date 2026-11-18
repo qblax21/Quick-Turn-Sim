@@ -715,3 +715,19 @@ Cameras: trackside (posts every 70 m along the track, 17 m to the side,
 zooming to keep the car a constant size), chase, orbit (turns by itself or
 by dragging) and driver's seat. H hides everything on screen; H also hides
 the HUD while driving.
+
+## D-068 Demo flow: title, selection, pause menu, results
+
+The game now opens on a title screen with a camera flying round Ridgeline
+behind it (the bridge can load a track for drawing without a session).
+Drive leads to the car and track selection, which is the old menu without
+its other buttons. Esc while driving pauses the simulation and opens a
+pause menu: resume, restart (a fresh session with the same choices; the
+session so far is kept as a replay), end the session with results, or quit
+to the title. P still pauses without a menu.
+
+The results list every lap or run the core counted in the session, in
+order, with the time the core measured and the cones hit, mark the best,
+and give the best ever for that car and track and the number of laps not
+counted. The front end only notes each count as the core reports it; it
+times nothing itself.

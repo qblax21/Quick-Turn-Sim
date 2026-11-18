@@ -298,6 +298,40 @@ impl SimBridge {
         }
     }
 
+    /// Loads a car and track for drawing only, with nothing simulated: the
+    /// title screen uses it for the scenery behind the menu. Ignored while
+    /// a session is running.
+    #[func]
+    fn load_scenery(&mut self, car_id: GString, track_id: GString) -> bool {
+        if self.host.is_some() {
+            return false;
+        }
+        let Some(root) = self.root() else {
+            return false;
+        };
+        match SessionAssets::load(&root, &car_id.to_string(), &track_id.to_string()) {
+            Ok(assets) => {
+                self.loaded = Some(Loaded {
+                    car: assets.car.clone(),
+                    wheel_radius: [
+                        assets.tire_front.geometry.unloaded_radius_m,
+                        assets.tire_rear.geometry.unloaded_radius_m,
+                    ],
+                    tire_width: [
+                        assets.tire_front.geometry.width_m,
+                        assets.tire_rear.geometry.width_m,
+                    ],
+                    track: assets.track.clone(),
+                });
+                true
+            }
+            Err(e) => {
+                self.last_error = e.to_string();
+                false
+            }
+        }
+    }
+
     /// Opens a replay file for watching, stopping any session. The replay
     /// must then be prepared with `replay_prepare` before all of it can be
     /// shown. Returns false and sets `last_error` on failure.

@@ -3,9 +3,7 @@
 extends CanvasLayer
 
 signal drive_requested(car_id, track_id, auto_clutch, auto_shift, ffb_preset, device_id, direct_steering)
-signal input_setup_requested
-signal settings_requested
-signal replays_requested
+signal back_requested
 
 var sim
 var settings
@@ -46,13 +44,9 @@ func _ready() -> void:
 	margin.add_child(box)
 
 	var title := Label.new()
-	title.text = "%s  %s" % [sim.product_name(), sim.version()]
+	title.text = "Choose car and track"
 	title.add_theme_font_size_override("font_size", 28)
 	box.add_child(title)
-	var notice := Label.new()
-	notice.text = "Foundation build. Cars are fictional and every vehicle, tire and surface parameter is a placeholder."
-	notice.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(notice)
 
 	car_ids = sim.list_ids("cars")
 	car_list = _add_choice(box, "Car", car_ids, "cars")
@@ -108,26 +102,12 @@ func _ready() -> void:
 	drive.custom_minimum_size = Vector2(160, 44)
 	drive.pressed.connect(_on_drive)
 	buttons.add_child(drive)
-	var setup_button := Button.new()
-	setup_button.text = "Controls and wheel setup"
-	setup_button.custom_minimum_size = Vector2(0, 44)
-	setup_button.pressed.connect(func() -> void: input_setup_requested.emit())
-	buttons.add_child(setup_button)
-	var settings_button := Button.new()
-	settings_button.text = "Settings"
-	settings_button.custom_minimum_size = Vector2(0, 44)
-	settings_button.pressed.connect(func() -> void: settings_requested.emit())
-	buttons.add_child(settings_button)
-	var replays_button := Button.new()
-	replays_button.text = "Replays"
-	replays_button.custom_minimum_size = Vector2(0, 44)
-	replays_button.pressed.connect(func() -> void: replays_requested.emit())
-	buttons.add_child(replays_button)
-	var quit := Button.new()
-	quit.text = "Quit"
-	quit.custom_minimum_size = Vector2(0, 44)
-	quit.pressed.connect(func() -> void: get_tree().quit())
-	buttons.add_child(quit)
+	var back := Button.new()
+	back.text = "Back"
+	back.custom_minimum_size = Vector2(120, 44)
+	back.pressed.connect(func() -> void: back_requested.emit())
+	buttons.add_child(back)
+	drive.grab_focus.call_deferred()
 
 	error_label = Label.new()
 	error_label.add_theme_color_override("font_color", Color(1.0, 0.45, 0.4))
@@ -135,7 +115,7 @@ func _ready() -> void:
 	box.add_child(error_label)
 
 	var keys := Label.new()
-	keys.text = "Keyboard: W/S or arrows = pedals, A/D = steer, Space = handbrake, E/Q = shift, Shift = clutch, R = reset.\nWhile driving: Esc = menu, C = seat or chase camera, G = ghost of the best lap, M = mute sound, P = pause, F1 = tire and FFB overlay, F2 = telemetry, F3 = replay."
+	keys.text = "Keyboard: W/S or arrows = pedals, A/D = steer, Space = handbrake, E/Q = shift, Shift = clutch, R = reset.\nWhile driving: Esc = pause menu, H = hide HUD, C = seat or chase camera, G = ghost of the best lap, M = mute sound, P = pause, F1 = tire and FFB overlay, F2 = telemetry, F3 = save replay so far."
 	keys.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	keys.add_theme_font_size_override("font_size", 13)
 	box.add_child(keys)

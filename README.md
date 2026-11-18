@@ -31,6 +31,7 @@ Godot 4 front end with two fictional cars and three placeholder tracks.
   reporting the error for every metric.
 - **Front end** (`godot/`): rendering, input and UI only.
 
+What a player sees in the demo: `DEMO.md`.
 Design and reasoning: `ARCHITECTURE.md`, `DECISIONS.md`.
 
 ## Requirements
@@ -100,7 +101,7 @@ wheel setup** first: assign and calibrate the axes, choose the wheel under
 | Shift up, down | E / Q |
 | Clutch | Shift |
 | Reset to the start | R |
-| Menu | Esc |
+| Pause menu | Esc |
 | Camera | C |
 | Track map: whole track, zoomed, heading up, off | N |
 | Ghost of the best lap | G |

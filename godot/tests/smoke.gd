@@ -11,6 +11,9 @@ const CarView := preload("res://scripts/car_view.gd")
 const Hud := preload("res://scripts/hud.gd")
 const InputReader := preload("res://scripts/input_reader.gd")
 const Menu := preload("res://scripts/menu.gd")
+const Title := preload("res://scripts/title.gd")
+const PauseMenu := preload("res://scripts/pause_menu.gd")
+const Results := preload("res://scripts/results.gd")
 const InputSetup := preload("res://scripts/input_setup.gd")
 const Settings := preload("res://scripts/settings.gd")
 const SettingsScreen := preload("res://scripts/settings_screen.gd")
@@ -58,6 +61,17 @@ func _run() -> void:
 	root.add_child(menu)
 	await process_frame
 	menu.queue_free()
+	for screen_script in [Title, PauseMenu, Results]:
+		var s = screen_script.new()
+		if s.has_method("setup"):
+			if screen_script == Title:
+				s.setup(sim)
+			else:
+				s.setup({"car": "car", "track": "track", "duration": 60.0, "laps": [{"time": 61.2, "cones": 0}, {"time": 60.4, "cones": 1}], "invalid": 1, "ghost_time": 59.9, "replay": ""})
+		root.add_child(s)
+		await process_frame
+		s.queue_free()
+	check(true, "title, pause and results screens build")
 	check(sim.ffb_load_preset(presets[0]), "preset loads")
 	var setup = InputSetup.new()
 	setup.setup(sim, reader, settings)

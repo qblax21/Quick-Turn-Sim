@@ -1,8 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Status
 
-State of the foundation at the end of the first build. "Verified" below
-means it was run on the development machine (Windows 11, Rust 1.100 with
+Current state of the project. "Verified" below means it was run on the development machine (Windows 11, Rust 1.100 with
 the GNU toolchain, Godot 4.7.2) and observed to work. Anything not verified
 says so.
 
@@ -13,19 +12,20 @@ says so.
 | Workspace builds with one command on Windows | Verified (`tools\build.ps1`, GNU toolchain) |
 | Test suite | 172 tests pass in release |
 | Headless sim runs and replays exactly | Verified |
-| Both cars drivable on all three tracks | Verified with scripted drivers and the front-end smoke test |
+| All cars drivable on all four tracks | Verified with scripted drivers and the front-end smoke test |
 | Front end renders, HUD and overlay work | Verified by screenshots |
 | Force-feedback output to a wheel | Verified on a Fanatec CSL Elite with `qts-sim ffb-test`: device opens, torque moves the wheel, sign is correct |
 | Driving with a wheel in the front end | Driven by the project owner on a Fanatec CSL Elite; force feedback works. Preset still untuned |
-| Keyboard, gamepad and wheel input in the front end | **Not verified by a person.** Code runs; no device input was exercised |
-| CI | Written, **never run** (the repository has not been pushed) |
-| MSVC build on Windows | **Not verified** (no Windows SDK on the development machine) |
-| Linux | Type-checks (`cargo check --target x86_64-unknown-linux-gnu`); **not built or tested** |
+| Keyboard, gamepad and wheel input in the front end | Wheel driven by the project owner; keyboard and gamepad not checked by a person |
+| CI | **Runs green** on every push to main: format, lint, release build, the whole test suite and the validation report, on Windows (MSVC) and Linux |
+| MSVC build on Windows | Verified on CI (the development machine uses the GNU toolchain) |
+| Linux | Built and tested on CI; the front end and force feedback are not tried on Linux |
+| Release package | `toolspackage.ps1` makes a release export (129 MB, 42 MB zipped); `--self-test` drives it from a copy outside the repository |
 | Realism | **Not claimed.** Every parameter is a placeholder |
 
-Two items in the definition of done are therefore open: driving with a
-wheel with force feedback working needs a person at a wheel, and "all tests
-pass" is true locally but unconfirmed on CI.
+The original definition of done is met: the project owner has driven it
+with a wheel and force feedback, and all tests pass on CI. What a player
+sees in the demo is described in `DEMO.md`.
 
 ## What works
 
@@ -102,8 +102,10 @@ Passing them shows the harness works and the placeholder cars are in a
 plausible range. It is not evidence of realism.
 
 ### Front end
-- Menu, car and track selection, assists, wheel and preset selection; the
-  last choices are remembered.
+- Title screen with the circuit flown over behind it; car and track
+  selection with assists, wheel and preset; the last choices are
+  remembered. Pause menu (resume, restart, end, quit) and end-of-session
+  results with every counted lap, the best one and the replay (D-068).
 - Settings screen (display, sound, view) and force-feedback adjustments
   saved per preset (D-052).
 - Ghost of the best lap per car and track, saved between sessions (D-051).
@@ -214,24 +216,21 @@ Everything numeric. In particular:
 
 ## Next five things to do
 
-1. **Put a wheel on it.** With the CSL Elite attached: run
-   `qts-sim ffb-test` to confirm the device opens and find the output sign,
-   then drive, watch the overlay for clipping and scheduling jitter, and
-   tune the preset. This closes the open item in the definition of done and
-   is the first real test of the project's second differentiator.
+1. **Tune the force feedback on the wheel.** The CSL Elite preset, the new
+   kerb channel input and the impact kick have not been tuned by feel.
+   Drive Ridgeline with the overlay on (F1), watch for clipping, and adjust.
 2. **Bring in real data.** Import skidpad, launch and braking runs
    (`docs/TELEMETRY_IMPORT.md`), replace the placeholder targets with
    measured ones, and let the validation failures drive calibration of the
    tires and cars.
-3. **Push and get CI green** on MSVC and Linux, then add a job that compares
-   hash sequences between the two with the software math library switched
-   in, to find out how far cross-platform determinism actually is.
-4. **Deepen the tire model where the data points**: fit Magic Formula
-   coefficients to real tire data, extend the coefficient set as needed, and
-   tune or replace the loose-surface pass for gravel.
-5. **Kerbs and bumps as geometry**: elevation and banking exist now; give
-   the gravel stage crests and camber, and add kerbs and bumps so the
-   suspension and force-feedback detail channels get real inputs.
+3. **Cross-platform determinism check.** Transcendental math is now in
+   software (D-066); add a CI job that runs the same inputs on Windows and
+   Linux and compares hash sequences, before claiming replays cross over.
+4. **Track limits.** Checkpoints stop shortcuts but not corner cutting;
+   count a lap invalid when all four wheels leave the road and kerbs.
+5. **Kerb and contact detail.** Tilt the contact normal on kerb ramps so a
+   kerb pushes sideways as well as up, and give the gravel stage crests and
+   camber.
 
-After those: a Linux force-feedback backend, replay playback in the front
-end, and the first torque-vectoring strategy.
+After those: a Linux force-feedback backend, a speed-sensitive power
+steering model, and the first torque-vectoring strategy.
