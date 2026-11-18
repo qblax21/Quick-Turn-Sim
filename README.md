@@ -75,6 +75,11 @@ them the script makes a development package that uses a copy of the Godot
 editor binary as its runtime: it plays the same but is larger and is not
 what should be shipped.
 
+To check a packaged folder on another machine, run it once with
+`QuickTurnSim.exe --self-test`: it drives the first car on the first track
+for three seconds, prints the speed reached and exits with 0 if the car
+moved.
+
 ## Run
 
 ### With the front end

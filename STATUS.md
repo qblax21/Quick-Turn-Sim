@@ -108,8 +108,10 @@ plausible range. It is not evidence of realism.
   A live time difference to that lap is shown while driving (D-063).
   The recorder is tested; the ghost has not yet been seen on screen by
   anyone, because that needs a completed lap by a person.
-- Standalone package via `tools/package.ps1` (D-053). Only the fallback
-  development package has been built: export templates are not installed.
+- Standalone release package via `tools/package.ps1` (D-053): 129 MB on
+  disk, 42 MB zipped. Verified to start and drive (`--self-test`) from a
+  copy outside the repository with Rust and Godot off the path; not yet
+  tried on a second machine.
 - Placeholder world built from track data: ground, surface regions, road
   strip, cones that tip when hit, timing gates, painted markers.
 - Generated low-poly car bodies (two shapes) with glass, lamps, mirrors and

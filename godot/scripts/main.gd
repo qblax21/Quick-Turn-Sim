@@ -42,6 +42,8 @@ var map_mode := 1
 var paused := false
 var telemetry_on := false
 var replay_on := false
+# Set by the self-test in place of the player's controls.
+var fixed_input := {}
 
 
 func _ready() -> void:
@@ -99,6 +101,8 @@ func _ready() -> void:
 	settings.changed.connect(_apply_settings)
 	_apply_settings()
 	_show_menu()
+	if "--self-test" in OS.get_cmdline_args() or "--self-test" in OS.get_cmdline_user_args():
+		_self_test.call_deferred()
 
 
 # The data folder sits beside the executable in a packaged build and beside
@@ -128,6 +132,34 @@ func _apply_settings() -> void:
 	environment.ssao_enabled = settings.get_value("display/ambient_occlusion")
 	camera.fov = clampf(settings.get_value("display/fov"), 30.0, 110.0)
 	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(settings.get_value("audio/volume"), 0.0001)))
+
+
+# Started with --self-test: drive the first car on the first track at half
+# throttle for three seconds, print what happened and quit with 0 if the
+# car moved. Used to check a packaged build on a clean machine.
+func _self_test() -> void:
+	var cars: PackedStringArray = sim.list_ids("cars")
+	var tracks: PackedStringArray = sim.list_ids("tracks")
+	var presets: PackedStringArray = sim.list_ids("ffb")
+	if cars.is_empty() or tracks.is_empty() or presets.is_empty():
+		printerr("self-test: no data found")
+		get_tree().quit(1)
+		return
+	print("self-test: %s, data %s" % [sim.product_name(), _find_data_dir()])
+	_start_driving(cars[0], tracks[0], true, true, presets[0], "", false)
+	if not sim.is_running():
+		printerr("self-test: session did not start: " + sim.last_error())
+		get_tree().quit(1)
+		return
+	var began := Time.get_ticks_msec()
+	fixed_input = {"steer": 0.0, "throttle": 0.5, "brake": 0.0, "clutch": 0.0, "handbrake": 0.0, "buttons": 0}
+	while Time.get_ticks_msec() - began < 3000:
+		await get_tree().process_frame
+	var speed: float = sim.hud().get("speed", 0.0)
+	var status: Dictionary = sim.status()
+	print("self-test: %s on %s, %.1f m/s after 3 s, physics %.0f Hz" % [cars[0], tracks[0], speed, status.get("tick_rate", 0.0)])
+	sim.stop_session()
+	get_tree().quit(0 if speed > 2.0 else 1)
 
 
 func _fatal(message: String) -> void:
@@ -239,7 +271,7 @@ func _start_driving(car_id: String, track_id: String, auto_clutch: bool, auto_sh
 func _process(delta: float) -> void:
 	if sim == null or not sim.is_running():
 		return
-	var input: Dictionary = reader.read(delta)
+	var input: Dictionary = fixed_input if not fixed_input.is_empty() else reader.read(delta)
 	sim.set_input(input.steer, input.throttle, input.brake, input.clutch, input.handbrake, input.buttons, -128)
 	var car_xform: Transform3D = sim.car_transform()
 	var values: Dictionary = sim.hud()
