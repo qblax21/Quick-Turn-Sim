@@ -1,5 +1,5 @@
 /target/
-/godot/.godot/
+.godot/
 *.dll
 *.so
 *.dylib
