@@ -80,6 +80,21 @@ pub struct TrackDef {
     /// Solid barriers running beside a path.
     #[serde(default)]
     pub barriers: Vec<BarrierDef>,
+    /// Track limits: the road a lap must stay on.
+    #[serde(default)]
+    pub track_limits: Option<TrackLimitsDef>,
+}
+
+/// The road a lap must stay on: within `half_width_m` of a path, or on a
+/// kerb. A lap with all four wheels off it does not count.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct TrackLimitsDef {
+    /// Path the road follows.
+    pub path: String,
+    /// Half width of the road either side of the path, m. Kerbs beside it
+    /// also count as track.
+    pub half_width_m: f64,
 }
 
 /// Trees scattered beside every path from a fixed seed, so a track always
@@ -184,6 +199,14 @@ pub struct BankingPoint {
 const TERRAIN_SMOOTHING_M: f64 = 40.0;
 /// Step used to measure the ground slope, m.
 const SLOPE_STEP_M: f64 = 0.25;
+/// Width over which a tire averages the slope of a kerb, m: about a
+/// tire's tread width. A tire does not feel the sharp edge of a kerb ramp
+/// at a point; its tread spans it, so the contact plane it sees tilts
+/// progressively as it climbs on.
+pub const KERB_ENVELOPE_M: f64 = 0.2;
+/// Length over which a kerb's height tapers to nothing at each end, m.
+/// Real kerbs start and stop with a sloped nose rather than a step.
+pub const KERB_END_TAPER_M: f64 = 1.0;
 
 /// Smooth curve through `(distance, value)` points: a cubic Hermite spline
 /// that stays between its points, level at both ends and constant beyond
@@ -782,6 +805,8 @@ pub struct Track {
     checkpoints: Vec<Gate>,
     timed_length_m: f64,
     walls: Vec<Wall>,
+    limits: Option<(usize, f64)>,
+    legacy_kerbs: bool,
 }
 
 /// Places trees beside the paths: from points along each path, a few tries
@@ -1051,6 +1076,28 @@ impl Track {
                 });
             }
         }
+        let limits = match &def.track_limits {
+            None => None,
+            Some(l) => {
+                let index = def
+                    .paths
+                    .iter()
+                    .position(|p| p.id == l.path)
+                    .ok_or_else(|| {
+                        format!(
+                            "track `{}`: track limits name unknown path `{}`",
+                            def.id, l.path
+                        )
+                    })?;
+                if !(l.half_width_m.is_finite() && l.half_width_m > 0.0) {
+                    return Err(format!(
+                        "track `{}`: track limits need a positive half width",
+                        def.id
+                    ));
+                }
+                Some((index, l.half_width_m))
+            }
+        };
         Ok(Self {
             def,
             surfaces,
@@ -1064,6 +1111,8 @@ impl Track {
             timed_length_m,
             trees,
             walls,
+            limits,
+            legacy_kerbs: false,
         })
     }
 
@@ -1192,8 +1241,55 @@ impl Track {
 
     /// Surface index and ridge height at a point, ignoring roughness.
     pub fn surface_at(&self, x: f64, y: f64) -> (u16, f64) {
+        let (surface, ridge, _) = self.surface_detail(x, y);
+        (surface, ridge)
+    }
+
+    /// True if the track has limits a lap must stay within.
+    pub fn has_limits(&self) -> bool {
+        self.limits.is_some()
+    }
+
+    /// True if a point is on the track for the purpose of track limits: on
+    /// the road or on a kerb. Always true on a track without limits.
+    pub fn within_limits(&self, x: f64, y: f64) -> bool {
+        let Some((path, half)) = self.limits else {
+            return true;
+        };
+        let geom = &self.paths[path];
+        if geom.project(x, y, 0.0, geom.length(), half).is_some() {
+            return true;
+        }
+        self.regions.iter().any(|r| match r {
+            Region::Kerb {
+                path,
+                from,
+                to,
+                side,
+                inner,
+                width,
+                ..
+            } => self.paths[*path]
+                .project(x, y, *from, *to, inner + width)
+                .is_some_and(|(_, offset)| (0.0..=*width).contains(&(offset * side - inner))),
+            _ => false,
+        })
+    }
+
+    /// Puts the kerbs back as they were before they pushed sideways: a
+    /// level contact normal and square ends. Only for comparing the two
+    /// models; sessions never use it.
+    #[doc(hidden)]
+    pub fn set_legacy_kerbs(&mut self, legacy: bool) {
+        self.legacy_kerbs = legacy;
+    }
+
+    /// Surface index, ridge height and the slope of the kerb under a point
+    /// (height gradient in world x and y, averaged over a tire's width).
+    fn surface_detail(&self, x: f64, y: f64) -> (u16, f64, [f64; 2]) {
         let mut surface = self.default_surface;
         let mut ridge = 0.0;
+        let mut slope = [0.0; 2];
         for region in &self.regions {
             match region {
                 Region::Rect {
@@ -1257,25 +1353,54 @@ impl Track {
                     height,
                     surface: s,
                 } => {
-                    if let Some((_, offset)) =
-                        self.paths[*path].project(x, y, *from, *to, inner + width)
+                    let half = 0.5 * KERB_ENVELOPE_M;
+                    if let Some((along, offset)) =
+                        self.paths[*path].project(x, y, *from, *to, inner + width + half)
                     {
                         let across = offset * side - inner;
+                        let legacy = self.legacy_kerbs;
+                        // Height across the kerb, tapered at both ends.
+                        let h = |a: f64, s_along: f64| {
+                            let taper = if legacy {
+                                1.0
+                            } else {
+                                ((s_along - from) / KERB_END_TAPER_M)
+                                    .min((to - s_along) / KERB_END_TAPER_M)
+                                    .clamp(0.0, 1.0)
+                            };
+                            height * kerb_profile(a / width) * taper
+                        };
                         if (0.0..=*width).contains(&across) {
                             surface = *s;
-                            ridge = height * kerb_profile(across / width);
+                            ridge = h(across, along);
+                        }
+                        // The slope reaches half a tire beyond the edges,
+                        // where the tread already rests partly on the ramp.
+                        if !legacy && (-half..=*width + half).contains(&across) {
+                            let rise_across = (h(across + half, along) - h(across - half, along))
+                                / KERB_ENVELOPE_M;
+                            let rise_along = (h(across, along + half) - h(across, along - half))
+                                / KERB_ENVELOPE_M;
+                            let (_, heading) = self.paths[*path].at(along);
+                            // Across increases away from the path: toward
+                            // its left on a left kerb, its right on a right.
+                            let (sin, cos) = (fm::sin(heading), fm::cos(heading));
+                            slope = [
+                                -sin * side * rise_across + cos * rise_along,
+                                cos * side * rise_across + sin * rise_along,
+                            ];
                         }
                     }
                 }
             }
         }
-        (surface, ridge)
+        (surface, ridge, slope)
     }
 }
 
 impl Ground for Track {
     fn sample(&self, x: f64, y: f64) -> GroundSample<'_> {
-        let (index, ridge) = self.surface_at(x, y);
+        let (index, ridge, slope) = self.surface_detail(x, y);
         let surface = &self.surfaces[usize::from(index)];
         let rough = if surface.roughness_amplitude_m > 0.0 {
             let k = 1.0 / surface.roughness_wavelength_m;
@@ -1283,9 +1408,17 @@ impl Ground for Track {
         } else {
             0.0
         };
+        let mut normal = self.ground_normal(x, y);
+        if slope != [0.0, 0.0] {
+            // Add the kerb's slope to the terrain's and renormalise.
+            let nz = normal.z.max(1e-6);
+            let gx = -normal.x / nz + slope[0];
+            let gy = -normal.y / nz + slope[1];
+            normal = Vec3::new(-gx, -gy, 1.0).normalized_or(Vec3::Z);
+        }
         GroundSample {
             height: self.ground_height(x, y) + ridge + rough,
-            normal: self.ground_normal(x, y),
+            normal,
             surface,
             surface_index: index,
         }

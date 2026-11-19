@@ -66,6 +66,12 @@ segments = [
     { kind = "straight", length_m = 22.571 },
 ]
 
+# Track limits: the 12 m road and the kerbs. A lap with all four wheels
+# beyond them does not count.
+[track_limits]
+path = "circuit"
+half_width_m = 6.0
+
 [[regions]]
 kind = "path"
 surface = "tarmac"
@@ -76,7 +82,10 @@ half_width_m = 6.0
 
 # Raised kerbs, 1.2 m wide and 40 mm high: on the inside of every corner
 # around the apex and on the outside at the exit. They are part of the ground
-# the tires roll on. The height is a placeholder typical of circuit kerbs.
+# the tires roll on: a 1:9 ramp up from the road, a flat top, a steeper drop
+# at the outer edge and 1 m tapers at each end. Club-circuit kerbs are
+# typically 25 to 50 mm high and 1 to 1.5 m wide; these sit in that range.
+# Placeholder: chosen from general knowledge, not measured on any circuit.
 
 [[regions]]
 kind = "kerb"

@@ -91,7 +91,7 @@ func _ready() -> void:
 		facts.append("Best ever for this car and track: %s (setup: %s)" % [_format_time(ghost_time), summary.get("ghost_setup", "default")])
 	var invalid: int = summary.get("invalid", 0)
 	if invalid > 0:
-		facts.append("%d lap%s not counted: part of the course was missed." % [invalid, "" if invalid == 1 else "s"])
+		facts.append("%d lap%s not counted: track limits broken or part of the course missed." % [invalid, "" if invalid == 1 else "s"])
 	if not facts.is_empty():
 		var facts_label := Label.new()
 		facts_label.text = "\n".join(facts)

@@ -192,6 +192,10 @@ pub struct HudState {
     pub last_cones_hit: u32,
     /// Runs that reached the finish without taking the course.
     pub invalid_runs: u32,
+    /// True once the current lap has gone beyond the track limits.
+    pub limits_broken: bool,
+    /// Times the track limits were broken this session.
+    pub limit_breaches: u32,
     /// Controls the physics used on the last tick: steering (−1 to 1,
     /// positive left), accelerator, brake, clutch and handbrake (0 to 1).
     pub input: [f64; 5],
@@ -219,6 +223,8 @@ impl HudState {
             cones_hit: t.cones_hit,
             last_cones_hit: t.last_cones_hit,
             invalid_runs: t.invalid_runs,
+            limits_broken: t.limits_broken && t.running,
+            limit_breaches: t.limit_breaches,
             input: [0.0; 5],
         }
     }

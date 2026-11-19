@@ -827,3 +827,47 @@ exactly the ratio).
 The best lap stays the best lap for the car and track whatever the setup;
 the HUD and results say which setup it was driven with.
 
+## D-072 Track limits, and kerbs that push sideways
+
+**Track limits.** A track may name the road a lap must stay on
+(`[track_limits]`: a path and a half width); kerbs beside it count as
+track. Each tick of a timed run the four wheel centres are checked; once
+all four have been beyond the road and kerbs for 20 ms the run is marked
+and will not count at the line (it adds to the laps not counted, like a
+missed checkpoint). The 20 ms only stops a single-tick graze from
+counting; any real excursion lasts far longer. Ridgeline has limits at
+the 6 m road edge. The cone course and the gravel stage have none: their
+checkpoints and cones are the rule there. The new timing fields are part
+of the snapshot, so replays recorded before this change report that they
+no longer reproduce.
+
+**Kerb normals.** Before, a kerb raised the ground under the tire but the
+contact normal stayed that of the road, so climbing a kerb only lifted the
+tire. Now the kerb's slope tilts the normal: the load acts along it, so
+the ramp pushes the tire back toward the road as well as up, the tire's
+force plane and camber follow the ramp, and the kingpin moment (which
+already used the full contact force) carries it to the wheel. A tire does
+not feel a sharp edge at a point; the slope is averaged over 0.2 m, about
+a tread width, which also starts the tilt half a tire before the edge.
+
+**Kerb ends.** The kerbs used to start and stop with a 40 mm vertical
+step along the road. A tire meeting that step end-on gave a 13 N.m swing
+at the column in 30 ms, the largest kerb event in the model and not one a
+real kerb gives. Kerbs now taper over 1 m at each end, and the taper's
+slope tilts the normal too.
+
+**Size and grip.** Height 40 mm, width 1.2 m, ramp 1:9, kept: club-circuit
+kerbs are typically 25 to 50 mm high and 1 to 1.5 m wide. Grip 0.85 of
+tarmac kept (dry painted concrete); surface texture raised to 2 mm at
+0.3 m. All placeholders, from general knowledge, not measurement.
+
+**Force feedback before and after** (`qts-sim kerb-ffb`, Tern GT with the
+right wheels over the T1 inside kerb at about 18 m/s, CSL Elite preset;
+chart in `docs/img/kerb_ffb.svg`): the swing in column torque climbing on
+fell from 14.8 to 4.9 N.m, the output no longer drops to zero for an
+instant on entry or spikes on exit, and the steady torque on the kerb is
+unchanged (12.1 and 12.6 N.m). The sideways push itself is small at the
+column, about 0.5 to 1 N.m while a front tire climbs the ramp, which is
+what 450 N of push through 24 mm of trail and a 14.5:1 rack gives. The
+kerb is felt mostly through the road-detail channel, as before.
+

@@ -41,6 +41,9 @@ Commands:
   import FILE --profile ID [--targets]   read a logger CSV and summarise it
   channels                               telemetry channel table (Markdown)
   ffb-report FILE...                     clipping and grip-limit summary of FFB logs
+  kerb-ffb [--car ID] [--ffb PRESET] [--csv FILE]
+                                         force feedback over a Ridgeline kerb,
+                                         with and without kerb normals
   ffb-devices                            list steering devices
   input-read [--device ID] [--reads N]   read every axis and button of the
                                          attached controllers and time the reads
@@ -685,6 +688,115 @@ fn cmd_input_read(args: &Args) -> Result<(), String> {
     Ok(())
 }
 
+/// Drives the right wheels over Ridgeline's first kerb (the inside of T1)
+/// twice, with the kerb's slope tilting the contact normal and without, and
+/// compares the steering torque and force-feedback output.
+fn cmd_kerb_ffb(args: &Args) -> Result<(), String> {
+    use qts_sim::drivers::{PathFollower, PathFollowerConfig};
+    let root = data_root()?;
+    let car = args.text("car").unwrap_or("hatch_tern_gt");
+    let preset = args.text("ffb").unwrap_or("fanatec_csl_elite");
+    let ffb = root.load_ffb(preset).map_err(|e| e.to_string())?.value;
+    let config = SessionConfig {
+        assists: Assists {
+            auto_clutch: true,
+            auto_shift: true,
+            traction_control: true,
+        },
+        ..SessionConfig::default()
+    };
+    // (distance, on kerb, column torque, output, detail, front-right load)
+    let mut runs: Vec<Vec<[f64; 6]>> = Vec::new();
+    for tilt in [false, true] {
+        let mut assets =
+            SessionAssets::load(&root, car, "ridgeline_circuit").map_err(|e| e.to_string())?;
+        assets.track.set_legacy_kerbs(!tilt);
+        let mut s = Session::new(assets, config)?;
+        let mut pipeline = FfbPipeline::new(ffb.clone(), s.tick_rate_hz())?;
+        let path = s.track().path("circuit").ok_or("no circuit path")?.clone();
+        let kerb = s
+            .track()
+            .surfaces()
+            .iter()
+            .position(|x| x.id == "kerb")
+            .unwrap_or(usize::MAX);
+        let mut driver = PathFollower::offset(
+            &path,
+            -5.6,
+            PathFollowerConfig {
+                max_speed: 18.0,
+                ..PathFollowerConfig::default()
+            },
+        );
+        let mut rows = Vec::new();
+        for _ in 0..80_000 {
+            let frame = driver.frame(&s);
+            s.step(&frame);
+            let sample = pipeline.step(&ffb_input(&s, None));
+            let out = s.car().output();
+            let d = driver.progress();
+            if (440.0..=560.0).contains(&d) {
+                rows.push([
+                    d,
+                    if usize::from(out.wheels[1].surface_index) == kerb {
+                        1.0
+                    } else {
+                        0.0
+                    },
+                    out.steering_torque_nm,
+                    sample.output,
+                    sample.detail_nm,
+                    out.wheels[1].load,
+                ]);
+            }
+            if d > 560.0 {
+                break;
+            }
+        }
+        runs.push(rows);
+    }
+    let stats = |rows: &[[f64; 6]]| {
+        let on: Vec<&[f64; 6]> = rows.iter().filter(|r| r[1] > 0.0).collect();
+        let entry = rows.iter().position(|r| r[1] > 0.0).unwrap_or(0);
+        let before = rows[entry.saturating_sub(200)..entry]
+            .iter()
+            .map(|r| r[2])
+            .sum::<f64>()
+            / (entry - entry.saturating_sub(200)).max(1) as f64;
+        let mean_on = on.iter().map(|r| r[2]).sum::<f64>() / on.len().max(1) as f64;
+        // Peak change of column torque over 50 ms around climbing on.
+        let window = &rows[entry.saturating_sub(50)..(entry + 150).min(rows.len())];
+        let (lo, hi) = window.iter().fold((f64::MAX, f64::MIN), |(lo, hi), r| {
+            (lo.min(r[2]), hi.max(r[2]))
+        });
+        let out_rms = (on.iter().map(|r| r[3] * r[3]).sum::<f64>() / on.len().max(1) as f64).sqrt();
+        (on.len(), before, mean_on, hi - lo, out_rms)
+    };
+    println!("{car} on Ridgeline T1 inside kerb (right wheels), preset {preset}");
+    println!("                            ticks on kerb  torque before  torque on kerb  swing entering  output RMS on kerb");
+    for (name, rows) in ["before: flat, square ends", "now: tilted, tapered"]
+        .iter()
+        .zip(&runs)
+    {
+        let (n, before, on, swing, rms) = stats(rows);
+        println!(
+            "  {name:26} {n:13}  {before:+10.2} N.m  {on:+11.2} N.m  {swing:11.2} N.m  {rms:17.3}"
+        );
+    }
+    if let Some(path) = args.text("csv") {
+        let mut text = String::from("tick,distance_m,flat_on_kerb,flat_column_nm,flat_output,tilt_on_kerb,tilt_column_nm,tilt_output\n");
+        for (i, (a, b)) in runs[0].iter().zip(&runs[1]).enumerate() {
+            text.push_str(&format!(
+                "{i},{:.3},{},{:.4},{:.4},{},{:.4},{:.4}\n",
+                a[0], a[1], a[2], a[3], b[1], b[2], b[3]
+            ));
+        }
+        std::fs::write(path, text).map_err(|e| format!("{path}: {e}"))?;
+        println!("csv        {path}");
+    }
+    Ok(())
+}
+
 fn cmd_ffb_report(args: &Args) -> Result<(), String> {
     let files = &args.positional[1..];
     if files.is_empty() {
@@ -724,6 +836,7 @@ fn main() -> ExitCode {
             Ok(true)
         }
         "ffb-report" => cmd_ffb_report(&args).map(|()| true),
+        "kerb-ffb" => cmd_kerb_ffb(&args).map(|()| true),
         "ffb-devices" => cmd_ffb_devices().map(|()| true),
         "input-read" => cmd_input_read(&args).map(|()| true),
         "ffb-test" => cmd_ffb_test(&args).map(|()| true),

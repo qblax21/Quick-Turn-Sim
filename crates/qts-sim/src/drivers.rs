@@ -240,6 +240,22 @@ impl PathFollower {
         Self::from_points(path.points.clone(), config)
     }
 
+    /// Follows a line parallel to a track path, `offset_m` to its left
+    /// (negative: to its right).
+    pub fn offset(path: &PathGeom, offset_m: f64, config: PathFollowerConfig) -> Self {
+        let p = &path.points;
+        let n = p.len();
+        let points = (0..n)
+            .map(|i| {
+                let (a, b) = (p[i.saturating_sub(1)], p[(i + 1).min(n - 1)]);
+                let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+                let len = fm::sqrt(dx * dx + dy * dy).max(1e-9);
+                [p[i][0] - dy / len * offset_m, p[i][1] + dx / len * offset_m]
+            })
+            .collect();
+        Self::from_points(points, config)
+    }
+
     /// Follows a circle of the given radius, counter-clockwise, starting at
     /// the point of the circle nearest `(start_x, start_y)`.
     pub fn circle(
@@ -262,6 +278,11 @@ impl PathFollower {
                 ]
             })
             .collect();
+        Self::from_points(points, config)
+    }
+
+    /// Follows a line through `points`, in order.
+    pub fn through(points: Vec<[f64; 2]>, config: PathFollowerConfig) -> Self {
         Self::from_points(points, config)
     }
 

@@ -6,7 +6,7 @@ use crate::setup::Setup;
 use crate::track::{GateKind, Track, CONE_RADIUS_M, MIN_RUN_FRACTION, WALL_RADIUS_M};
 use qts_core::constants::{build_id, DEFAULT_TICK_RATE_HZ};
 use qts_core::input::{buttons, InputFrame, GEAR_NO_REQUEST};
-use qts_core::math::fm;
+use qts_core::math::{fm, Vec3};
 use qts_core::provenance::Provenance;
 use qts_core::replay::ReplayHeader;
 use qts_core::snapshot::{fnv1a64, Snapshot, SnapshotError, StateReader, StateWriter};
@@ -146,6 +146,13 @@ pub struct Timing {
     pub invalid_runs: u32,
     /// Checkpoints crossed so far in the current run, in order.
     pub checkpoints_passed: u32,
+    /// Ticks in a row with all four wheels outside the track limits.
+    pub off_limits_ticks: u32,
+    /// True once the current run has broken the track limits; it will not
+    /// count.
+    pub limits_broken: bool,
+    /// Times the track limits were broken in this session.
+    pub limit_breaches: u32,
     /// Distance covered in the current run, micrometres. Kept as an
     /// integer so the timing state stays exactly comparable.
     pub run_distance_um: u64,
@@ -213,6 +220,10 @@ const IMPACT_KICK_NM: f64 = 12.0;
 const IMPACT_KICK_FULL_NS: f64 = 6000.0;
 /// Time constant with which the kick dies away, s.
 const IMPACT_KICK_DECAY_S: f64 = 0.07;
+/// How long all four wheels may be off the track before the lap is
+/// broken, s. Long enough to ignore a single-tick graze from contact
+/// geometry, far shorter than any real excursion.
+pub const LIMITS_GRACE_S: f64 = 0.02;
 /// Overlap left in place after a contact, m, so a car resting against a
 /// barrier does not jitter.
 const OBSTACLE_SLOP_M: f64 = 0.002;
@@ -405,8 +416,34 @@ impl Session {
         let covered = t.run_distance_um as f64 * 1.0e-6;
         let seconds = self.ticks_to_seconds(self.tick - t.start_tick);
         t.checkpoints_passed as usize == self.track.checkpoints().len()
+            && !t.limits_broken
             && covered >= MIN_RUN_FRACTION * length
             && seconds * MAX_PLAUSIBLE_SPEED >= length
+    }
+
+    /// Track limits: a run is broken once all four wheels have been off the
+    /// road and kerbs for [`LIMITS_GRACE_S`].
+    fn update_limits(&mut self) {
+        if !self.timing.running || !self.track.has_limits() {
+            self.timing.off_limits_ticks = 0;
+            return;
+        }
+        let state = &self.car.state;
+        let all_off = self.car.output().wheels.iter().all(|w| {
+            let [x, y, z] = w.center_body;
+            let c = state.pos + state.rot.rotate(Vec3::new(x, y, z));
+            !self.track.within_limits(c.x, c.y)
+        });
+        if !all_off {
+            self.timing.off_limits_ticks = 0;
+            return;
+        }
+        self.timing.off_limits_ticks = self.timing.off_limits_ticks.saturating_add(1);
+        let grace = (LIMITS_GRACE_S * f64::from(self.config.tick_rate_hz)).ceil() as u32;
+        if self.timing.off_limits_ticks >= grace.max(1) && !self.timing.limits_broken {
+            self.timing.limits_broken = true;
+            self.timing.limit_breaches += 1;
+        }
     }
 
     fn update_timing(&mut self, before: [f64; 2], after: [f64; 2]) {
@@ -449,6 +486,8 @@ impl Session {
                 self.timing.start_tick = self.tick;
                 self.timing.run_distance_um = 0;
                 self.timing.checkpoints_passed = 0;
+                self.timing.limits_broken = false;
+                self.timing.off_limits_ticks = 0;
                 self.timing.stand_cones_up();
             }
         }
@@ -674,6 +713,7 @@ impl Simulation for Session {
         self.tick += 1;
         let after = [self.car.state.pos.x, self.car.state.pos.y];
         self.update_timing(before, after);
+        self.update_limits();
         self.update_cones();
     }
 
@@ -702,6 +742,9 @@ impl Snapshot for Session {
         w.write_u64(t.run_distance_um);
         w.write_u32(t.invalid_runs);
         w.write_u32(t.checkpoints_passed);
+        w.write_u32(t.off_limits_ticks);
+        w.write_bool(t.limits_broken);
+        w.write_u32(t.limit_breaches);
         w.write_u32(t.cones_hit);
         w.write_u32(t.last_cones_hit);
         w.write_u32(t.cone_down.len() as u32);
@@ -726,6 +769,9 @@ impl Snapshot for Session {
         t.run_distance_um = r.read_u64()?;
         t.invalid_runs = r.read_u32()?;
         t.checkpoints_passed = r.read_u32()?;
+        t.off_limits_ticks = r.read_u32()?;
+        t.limits_broken = r.read_bool()?;
+        t.limit_breaches = r.read_u32()?;
         t.cones_hit = r.read_u32()?;
         t.last_cones_hit = r.read_u32()?;
         let cones = r.read_u32()? as usize;

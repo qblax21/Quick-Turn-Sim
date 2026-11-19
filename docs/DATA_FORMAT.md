@@ -121,7 +121,9 @@ to_m = 70.0
 side = "left"                  # left or right of the path direction
 inner_m = 6.0                  # path to inner edge
 width_m = 1.2
-height_m = 0.04                # ramps up over 30 %, flat, drops over the last 15 %
+height_m = 0.04                # ramps up over 30 %, flat, drops over the last 15 %,
+                               # tapers over 1 m at each end; its slopes tilt the
+                               # contact normal, so it pushes sideways as well as up
 
 [[regions]]
 kind = "rect"                  # also: kind = "circle" with radius_m
@@ -205,7 +207,14 @@ path = "circuit"
 from_m = 5.0
 to_m = 440.0
 offset_m = 11.0                # positive is left of the path direction
+
+[track_limits]                 # optional: the road a lap must stay on
+path = "circuit"
+half_width_m = 6.0             # either side of the path; kerbs also count
 ```
+
+With track limits, a lap with all four wheel centres beyond the road and
+kerbs for 20 ms does not count.
 
 ## Validation targets
 

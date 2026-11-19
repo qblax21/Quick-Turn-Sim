@@ -12,6 +12,7 @@ var time_label: Label
 var debug_label: Label
 var notice_label: Label
 var delta_label: Label
+var limits_label: Label
 var invalid_seen := -1
 var invalid_shown_until := 0
 var flash_text := ""
@@ -85,6 +86,18 @@ func _ready() -> void:
 	delta_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	delta_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	add_child(delta_label)
+
+	# Track limits warning, large, under the time difference.
+	limits_label = Label.new()
+	limits_label.add_theme_font_size_override("font_size", 26)
+	limits_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.25))
+	limits_label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	limits_label.add_theme_constant_override("outline_size", 6)
+	limits_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP, Control.PRESET_MODE_MINSIZE, 12)
+	limits_label.position.y = 108.0
+	limits_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	limits_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	add_child(limits_label)
 
 	debug_label = Label.new()
 	debug_label.add_theme_font_size_override("font_size", 15)
@@ -213,8 +226,9 @@ func update(hud: Dictionary, status: Dictionary, input: Dictionary, telemetry_on
 	invalid_seen = invalid
 	if Time.get_ticks_msec() < flash_until:
 		notices.append(flash_text)
-	if Time.get_ticks_msec() < invalid_shown_until:
-		notices.append("LAP NOT COUNTED: part of the course was missed")
+	limits_label.text = "TRACK LIMITS: this lap will not count" if hud.get("limits_broken", false) else ""
+	if Time.get_ticks_msec() < invalid_shown_until and not hud.get("limits_broken", false):
+		notices.append("LAP NOT COUNTED: off the track or part of the course was missed")
 	if status.get("paused", false):
 		notices.append("PAUSED")
 	if telemetry_on:

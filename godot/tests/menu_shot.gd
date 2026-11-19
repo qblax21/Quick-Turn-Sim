@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Development tool: renders a screen and saves a screenshot.
-#   godot --path godot --script res://tests/menu_shot.gd -- OUTPUT.png [title|select|garage|setup|settings|pause|results|ffb]
+#   godot --path godot --script res://tests/menu_shot.gd -- OUTPUT.png [title|select|garage|setup|settings|pause|results|ffb|limits]
 extends SceneTree
 
 
@@ -37,7 +37,7 @@ func _run() -> void:
 			main._show_settings()
 		"setup":
 			main._show_input_setup()
-		"pause", "results", "ffb":
+		"pause", "results", "ffb", "limits":
 			var presets: PackedStringArray = main.sim.list_ids("ffb")
 			main._start_driving("hatch_tern_gt", "ridgeline_circuit", true, true, presets[0], "", false)
 			main.reader = FixedInput.new()
@@ -48,6 +48,18 @@ func _run() -> void:
 			var began := Time.get_ticks_msec()
 			while Time.get_ticks_msec() - began < 6000:
 				await process_frame
+				# Straight over the start line, then off to the left.
+				if mode == "limits" and Time.get_ticks_msec() - began > 2500:
+					main.reader.steer = 0.12
+			if mode == "limits":
+				# The breach as the HUD draws it; the state is set here, the
+				# rule is tested in the core.
+				main.set_process(false)
+				var v: Dictionary = main.sim.hud()
+				v["limits_broken"] = true
+				v["run_active"] = true
+				v["run_time"] = 31.4
+				main.hud.update(v, main.sim.status(), {"steer": 0.12, "throttle": 0.5, "brake": 0.0}, false, false)
 			if mode == "pause":
 				main._open_pause_menu()
 			elif mode == "results":

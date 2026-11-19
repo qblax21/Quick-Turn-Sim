@@ -6,10 +6,10 @@ name = "Painted kerb"
 description = "Painted kerb. Slightly less grip than tarmac; its height profile comes from the track file."
 tuned = false
 
-friction_scale = { value = 0.85, source = "guess for painted concrete", confidence = "placeholder" }
+friction_scale = { value = 0.85, source = "dry painted concrete kerbs grip somewhat less than asphalt; 0.8 to 0.9 of tarmac is the usual assumption. Dry only: there is no wet model", confidence = "placeholder" }
 stiffness_scale = { value = 1.0, source = "guess for painted concrete", confidence = "placeholder" }
 falloff = { value = 1.0, source = "guess for painted concrete", confidence = "placeholder" }
 rolling_resistance_add = { value = 0.0, source = "guess for painted concrete", confidence = "placeholder" }
 plough_coefficient = { value = 0.0, source = "guess for painted concrete", confidence = "placeholder" }
-roughness_amplitude_m = { value = 0.001, source = "guess for painted concrete", confidence = "placeholder" }
-roughness_wavelength_m = { value = 0.5, source = "guess for painted concrete", confidence = "placeholder" }
+roughness_amplitude_m = { value = 0.002, source = "textured concrete surface, a few millimetres of relief", confidence = "placeholder" }
+roughness_wavelength_m = { value = 0.3, source = "textured concrete surface", confidence = "placeholder" }

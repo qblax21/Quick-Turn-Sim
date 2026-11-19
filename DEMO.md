@@ -55,7 +55,9 @@ the car's own tire marks when it slides. Hitting a barrier or tree thuds
 and kicks the wheel.
 
 A lap counts only if it passes every checkpoint in order with a plausible
-time; a shortcut shows "LAP NOT COUNTED" and sets nothing.
+time and never has all four wheels beyond the road and kerbs; going off
+shows "TRACK LIMITS: this lap will not count" at once, and a shortcut
+shows "LAP NOT COUNTED" at the line. Neither sets a time.
 
 Keys: R back to the start, P pause, H hide everything on screen, M mute,
 F1 tire and force-feedback overlay, F2 telemetry recording, F3 save the
@@ -86,5 +88,4 @@ from when it no longer matches what was driven.
 ## What is not in the demo
 
 No other cars on track, no multiplayer, no damage, no weather or time of
-day, no track limits beyond the checkpoints, and no tuning or setup screen
-for the cars.
+day.
