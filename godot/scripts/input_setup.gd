@@ -24,6 +24,7 @@ const FFB_SLIDERS := [
 	["lowpass_cutoff_hz", "Low-pass cutoff (Hz, 0 = off)", 0.0, 200.0, 1.0],
 	["slew_limit_nm_per_s", "Slew limit (N·m/s, 0 = off)", 0.0, 3000.0, 10.0],
 	["soft_clip_knee", "Soft-clip knee", 0.3, 0.95, 0.01],
+	["min_force", "Minimum force (weak wheels)", 0.0, 0.3, 0.005],
 	["damping_nm_s_per_rad", "Damping", 0.0, 0.5, 0.005],
 	["friction_nm", "Friction (N·m)", 0.0, 2.0, 0.01],
 	["inertia_nm_s2_per_rad", "Inertia", 0.0, 0.05, 0.001],

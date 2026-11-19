@@ -731,3 +731,36 @@ order, with the time the core measured and the cones hit, mark the best,
 and give the best ever for that car and track and the number of laps not
 counted. The front end only notes each count as the core reports it; it
 times nothing itself.
+
+## D-069 Force-feedback tuning: meter, minimum force, lap logs
+
+Tuning a preset needs to see what the wheel is asked for, not just what it
+is sent. The host now reports the largest request over the last two
+seconds next to the clipping share, and F4 draws both against the
+soft-clip knee and full scale while driving. Gain and minimum force can be
+nudged from the keyboard while the meter shows; changes are kept per
+preset like those on the Controls screen.
+
+Minimum force is the usual remedy for a weak or belt-driven base whose own
+friction swallows small torques: any non-zero output is raised to
+`m + (1 − m)·|x|`, faded in linearly over the first 1 % of the scale so the
+output stays continuous through zero and the wheel does not buzz about the
+centre. It is applied after the soft clip and does not count as clipping.
+It changes only the device command. **Fidelity cost:** it compresses the
+difference between small torques (on-centre feel) by the same factor, so
+it defaults to zero and is capped at 0.3.
+
+An FFB log (F5) records the next full lap from the start line to the tick
+before the finish at the physics rate: the physics column torque and every
+pipeline stage, the device angle, and front slip angles, lateral forces,
+aligning moments and loads, with the preset written in the header. Rows
+are kept in memory and written by a separate thread when the lap ends so
+the physics thread never waits on the disk. A reset discards the lap and
+waits for the next. `qts-sim ffb-report` summarises a log: clipping
+stretches by lap distance, the 99th-percentile request, and mean column
+torque and output in 1° bands of front slip angle, which shows whether the
+fall in torque past the tire's peak (the cue that the front is at its
+limit) survives to the wheel or is flattened by clipping.
+
+The physics is not changed for any of this.
+

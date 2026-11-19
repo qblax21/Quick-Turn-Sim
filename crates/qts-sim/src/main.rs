@@ -34,11 +34,13 @@ Commands:
       --telemetry-rate HZ  telemetry rows per second (default 100)
       --hash-log FILE      write `tick hash` every 100 ticks
       --ffb PRESET         force-feedback preset used for the FFB channels
+      --ffb-log FILE       log the force-feedback signal for the first full lap
   replay FILE                            re-simulate a replay and compare hashes
   provenance --car ID [--track ID]       where every parameter came from
   track-info ID                          length, bounds and surfaces of a track
   import FILE --profile ID [--targets]   read a logger CSV and summarise it
   channels                               telemetry channel table (Markdown)
+  ffb-report FILE...                     clipping and grip-limit summary of FFB logs
   ffb-devices                            list steering devices
   ffb-test --device ID [--seconds N] [--amplitude A]
                                          send a slow sine to a device
@@ -247,6 +249,9 @@ fn cmd_run(args: &Args) -> Result<(), String> {
 
     // The wall clock is read here only to report how fast the run went.
     let started = std::time::Instant::now();
+    let mut ffb_log = args
+        .text("ffb-log")
+        .map(|path| qts_sim::ffb_log::FfbLogger::arm(path.into(), &session));
     let mut row = Vec::new();
     let mut max_speed: f64 = 0.0;
     let mut sample = FfbSample::default();
@@ -260,8 +265,12 @@ fn cmd_run(args: &Args) -> Result<(), String> {
             ));
         }
         max_speed = max_speed.max(session.car().output().speed);
-        if telemetry_out.is_some() {
-            sample = pipeline.step(&ffb_input(&session, None));
+        if telemetry_out.is_some() || ffb_log.is_some() {
+            let input = ffb_input(&session, None);
+            sample = pipeline.step(&input);
+            if let Some(log) = ffb_log.as_mut() {
+                log.observe(&session, &frame, &input, &sample, pipeline.config());
+            }
         }
         if let Some(writer) = telemetry_out.as_mut() {
             telemetry::fill_row(&session, &frame, &sample, &mut row);
@@ -332,6 +341,10 @@ fn cmd_run(args: &Args) -> Result<(), String> {
         let replay = rec.finish();
         std::fs::write(path, replay.to_bytes()).map_err(|e| format!("{path}: {e}"))?;
         println!("replay     {} frames -> {path}", replay.frames.len());
+    }
+    if let Some(mut log) = ffb_log {
+        log.stop(&session, pipeline.config());
+        println!("ffb log    {:?}", log.wait());
     }
     if let Some(mut log) = hash_log {
         log.flush().map_err(|e| format!("hash log: {e}"))?;
@@ -627,6 +640,19 @@ fn cmd_ffb_test(args: &Args) -> Result<(), String> {
     Ok(())
 }
 
+fn cmd_ffb_report(args: &Args) -> Result<(), String> {
+    let files = &args.positional[1..];
+    if files.is_empty() {
+        return Err("ffb-report needs one or more log files".into());
+    }
+    for file in files {
+        let text = std::fs::read_to_string(file).map_err(|e| format!("{file}: {e}"))?;
+        println!("== {file}");
+        println!("{}", qts_sim::ffb_log::report(&text)?);
+    }
+    Ok(())
+}
+
 fn main() -> ExitCode {
     let raw: Vec<String> = std::env::args().skip(1).collect();
     let args = match Args::parse(&raw) {
@@ -652,6 +678,7 @@ fn main() -> ExitCode {
             }
             Ok(true)
         }
+        "ffb-report" => cmd_ffb_report(&args).map(|()| true),
         "ffb-devices" => cmd_ffb_devices().map(|()| true),
         "ffb-test" => cmd_ffb_test(&args).map(|()| true),
         "" | "help" | "--help" | "-h" => {

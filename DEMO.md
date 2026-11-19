@@ -54,7 +54,9 @@ time; a shortcut shows "LAP NOT COUNTED" and sets nothing.
 
 Keys: R back to the start, P pause, H hide everything on screen, M mute,
 F1 tire and force-feedback overlay, F2 telemetry recording, F3 save the
-replay so far, Esc the pause menu.
+replay so far, F4 the force-feedback meter (with [ ] for gain and ; ' for
+minimum force), F5 log the force feedback for the next lap, Esc the pause
+menu.
 
 ## Pausing and finishing
 

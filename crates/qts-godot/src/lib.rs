@@ -23,6 +23,7 @@ use godot::prelude::*;
 use qts_core::constants::{CORE_VERSION, PRODUCT_NAME, PRODUCT_SHORT_NAME};
 use qts_core::input::{InputFrame, GEAR_NO_REQUEST};
 use qts_ffb::FfbConfig;
+use qts_sim::ffb_log::FfbLogStatus;
 use qts_sim::host::{HostCommand, HostOptions, RealtimeHost};
 use qts_sim::playback::Playback;
 use qts_sim::session::{Session, SessionAssets, SessionConfig};
@@ -1063,6 +1064,7 @@ impl SimBridge {
             "inertia_nm_s2_per_rad" => c.inertia_nm_s2_per_rad,
             "road_detail_gain_nm_per_n" => c.road_detail_gain_nm_per_n,
             "kerb_gain_nm_per_n" => c.kerb_gain_nm_per_n,
+            "min_force" => c.min_force,
         }
     }
 
@@ -1087,6 +1089,7 @@ impl SimBridge {
             "inertia_nm_s2_per_rad" => c.inertia_nm_s2_per_rad = value,
             "road_detail_gain_nm_per_n" => c.road_detail_gain_nm_per_n = value,
             "kerb_gain_nm_per_n" => c.kerb_gain_nm_per_n = value,
+            "min_force" => c.min_force = value,
             other => {
                 self.last_error = format!("unknown force-feedback setting `{other}`");
                 return false;
@@ -1108,6 +1111,16 @@ impl SimBridge {
             return VarDictionary::new();
         };
         let s = host.status();
+        let (log_state, log_seconds, log_path, log_counted) = match &s.ffb_log {
+            FfbLogStatus::Off => ("off", 0.0, String::new(), false),
+            FfbLogStatus::Waiting => ("waiting", 0.0, String::new(), false),
+            FfbLogStatus::Recording(t) => ("recording", *t, String::new(), false),
+            FfbLogStatus::Saving => ("saving", 0.0, String::new(), false),
+            FfbLogStatus::Saved { path, lap_counted } => {
+                ("saved", 0.0, path.display().to_string(), *lap_counted)
+            }
+            FfbLogStatus::Failed(e) => ("failed", 0.0, e.clone(), false),
+        };
         let (device_name, has_ffb) = match &s.device {
             Some(d) => (d.name.clone(), d.has_force_feedback),
             None => (String::new(), false),
@@ -1126,6 +1139,11 @@ impl SimBridge {
             "ffb_output" => s.ffb.output,
             "ffb_clipped" => s.ffb.clipped,
             "clip_fraction" => s.clip_fraction,
+            "peak_requested" => s.peak_requested,
+            "ffb_log_state" => gstr(log_state),
+            "ffb_log_seconds" => log_seconds,
+            "ffb_log_path" => gstr(&log_path),
+            "ffb_log_lap_counted" => log_counted,
             "tick_rate" => s.measured_tick_rate_hz,
             "worst_wake_ticks" => i64::from(s.worst_wake_ticks),
             "dropped_time" => s.dropped_time_s,
@@ -1152,6 +1170,22 @@ impl SimBridge {
     #[func]
     fn telemetry_stop(&self) {
         self.send(HostCommand::StopTelemetry);
+    }
+
+    /// Logs the force-feedback signal for the next full lap into a CSV
+    /// file.
+    #[func]
+    fn ffb_log_start(&self, path: GString) {
+        self.send(HostCommand::StartFfbLog {
+            path: path.to_string().into(),
+        });
+    }
+
+    /// Stops the force-feedback log; a lap in progress is saved as far as
+    /// it went.
+    #[func]
+    fn ffb_log_stop(&self) {
+        self.send(HostCommand::StopFfbLog);
     }
 
     /// Starts recording a replay from the current state.

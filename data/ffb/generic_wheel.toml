@@ -27,3 +27,4 @@ kerb_gain_nm_per_n = { value = 0.0015, source = "first guess", confidence = "pla
 detail_highpass_hz = { value = 10.0, source = "keeps steady cornering load out of the detail channels", confidence = "placeholder" }
 detail_limit_nm = { value = 1.0, source = "ceiling on the detail channels", confidence = "placeholder" }
 device_update_rate_hz = { value = 250.0, source = "cautious rate for an unknown device", confidence = "placeholder" }
+min_force = { value = 0.0, source = "off by default; raise it only if small forces disappear into the base's own friction", confidence = "placeholder" }

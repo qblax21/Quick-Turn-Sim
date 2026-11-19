@@ -88,6 +88,9 @@ func _run() -> void:
 	check(sim.ffb_set("gain", 0.25), "gain can be changed")
 	check(not sim.ffb_set("soft_clip_knee", 2.0), "an invalid setting is rejected")
 	check(absf(sim.ffb_config().gain - 0.25) < 1e-9, "the change is visible")
+	check(sim.ffb_set("min_force", 0.05), "minimum force can be set")
+	check(not sim.ffb_set("min_force", 0.6), "too much minimum force is rejected")
+	check(sim.ffb_set("min_force", 0.0), "minimum force can be cleared")
 
 	for car in cars:
 		for track in tracks:
@@ -111,6 +114,8 @@ func _run() -> void:
 			root.add_child(hud)
 			hud.setup(sim)
 			hud.toggle_debug()
+			hud.toggle_ffb_meter()
+			sim.ffb_log_start(OS.get_temp_dir().path_join("qts_smoke_ffb.csv"))
 			var start: Transform3D = sim.car_transform()
 			var input := {"steer": 0.05, "throttle": 1.0, "brake": 0.0, "clutch": 0.0, "handbrake": 0.0, "buttons": 0}
 			var began := Time.get_ticks_msec()
@@ -133,6 +138,10 @@ func _run() -> void:
 				check(sim.car_transform().origin.z < start.origin.z, label + ": drives toward -Z")
 			check(world.get_child_count() > 0, label + ": world geometry was built")
 			check(sim.status().get("error", "") == "", label + ": no host error")
+			var log_state: String = sim.status().get("ffb_log_state", "")
+			check(log_state in ["waiting", "recording"], label + ": FFB log armed (%s)" % log_state)
+			check(sim.status().has("peak_requested"), label + ": peak force reported")
+			sim.ffb_log_stop()
 			world.queue_free()
 			view.queue_free()
 			hud.queue_free()

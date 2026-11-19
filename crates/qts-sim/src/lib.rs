@@ -17,6 +17,7 @@
 
 pub mod data;
 pub mod drivers;
+pub mod ffb_log;
 pub mod ghost;
 pub mod host;
 pub mod playback;

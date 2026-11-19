@@ -11,6 +11,7 @@
 //! clock. The clock decides how many ticks to run and nothing else; no time
 //! value ever reaches [`Simulation::step`].
 
+use crate::ffb_log::{FfbLogStatus, FfbLogger, CLIP_THRESHOLD};
 use crate::ghost::{GhostLap, GhostRecorder};
 use crate::session::Session;
 use crate::telemetry;
@@ -233,6 +234,12 @@ pub struct HostStatus {
     /// Share of recent ticks (about the last second) in which the soft clip
     /// was compressing the output.
     pub clip_fraction: f64,
+    /// Largest `|requested|` force over the last two seconds or so, as a
+    /// fraction of the device's peak. Above the soft-clip knee the wheel is
+    /// being compressed; above one it is saturated.
+    pub peak_requested: f64,
+    /// The force-feedback log, if one was asked for.
+    pub ffb_log: FfbLogStatus,
     /// Ticks simulated per second of real time, measured.
     pub measured_tick_rate_hz: f64,
     /// Most ticks run in a single wake-up during the last second. Above a
@@ -297,6 +304,14 @@ pub enum HostCommand {
     },
     /// Pause or resume stepping.
     SetPaused(bool),
+    /// Log the force-feedback signal for the next full lap into a CSV file.
+    StartFfbLog {
+        /// Output path.
+        path: PathBuf,
+    },
+    /// Stop the force-feedback log, saving a lap in progress as far as it
+    /// went.
+    StopFfbLog,
 }
 
 #[derive(Default)]
@@ -482,6 +497,12 @@ struct SimThread {
     last_sample: FfbSample,
     last_error: Option<String>,
     clip_fraction: f64,
+    // Peak requested force: the current and previous one-second windows.
+    peak_now: f64,
+    peak_before: f64,
+    peak_ticks: u32,
+    ffb_log: Option<FfbLogger>,
+    ffb_log_status: FfbLogStatus,
 }
 
 fn ramp_axis(from: i16, to: i16, pos: u32, len: u32) -> i16 {
@@ -538,6 +559,11 @@ impl SimThread {
             last_sample: FfbSample::default(),
             last_error: None,
             clip_fraction: 0.0,
+            peak_now: 0.0,
+            peak_before: 0.0,
+            peak_ticks: 0,
+            ffb_log: None,
+            ffb_log_status: FfbLogStatus::Off,
         }
     }
 
@@ -612,6 +638,14 @@ impl SimThread {
                         Ok(()) => self.last_error = None,
                         Err(e) => self.last_error = Some(format!("replay {}: {e}", path.display())),
                     }
+                }
+            }
+            HostCommand::StartFfbLog { path } => {
+                self.ffb_log = Some(FfbLogger::arm(path, &self.session));
+            }
+            HostCommand::StopFfbLog => {
+                if let Some(log) = self.ffb_log.as_mut() {
+                    log.stop(&self.session, self.pipeline.config());
                 }
             }
             HostCommand::SetPaused(paused) => {
@@ -730,11 +764,32 @@ impl SimThread {
         }
         self.session.step(&frame);
 
-        let sample = self.pipeline.step(&ffb_input(&self.session, angle));
+        let input = ffb_input(&self.session, angle);
+        let sample = self.pipeline.step(&input);
         self.last_sample = sample;
         let rate = f64::from(self.session.tick_rate_hz());
-        let clipping = if sample.clipped > 0.02 { 1.0 } else { 0.0 };
+        let clipping = if sample.clipped > CLIP_THRESHOLD {
+            1.0
+        } else {
+            0.0
+        };
         self.clip_fraction += (clipping - self.clip_fraction) / rate;
+        self.peak_now = self.peak_now.max(sample.requested.abs());
+        self.peak_ticks += 1;
+        if self.peak_ticks >= self.session.tick_rate_hz() {
+            self.peak_before = self.peak_now;
+            self.peak_now = 0.0;
+            self.peak_ticks = 0;
+        }
+        if let Some(log) = self.ffb_log.as_mut() {
+            log.observe(
+                &self.session,
+                &frame,
+                &input,
+                &sample,
+                self.pipeline.config(),
+            );
+        }
 
         if self.device_phase == 0 && self.ffb_enabled {
             if let Some(device) = self.device.as_mut() {
@@ -834,6 +889,14 @@ impl SimThread {
                 s.ffb_enabled = self.ffb_enabled;
                 s.ffb = self.last_sample;
                 s.clip_fraction = self.clip_fraction;
+                s.peak_requested = self.peak_now.max(self.peak_before);
+                if let Some(log) = self.ffb_log.as_mut() {
+                    self.ffb_log_status = log.status();
+                    if log.is_done() {
+                        self.ffb_log = None;
+                    }
+                }
+                s.ffb_log = self.ffb_log_status.clone();
                 s.measured_tick_rate_hz = measured_rate;
                 s.worst_wake_ticks = reported_worst;
                 s.dropped_time_s = driver.dropped_time();

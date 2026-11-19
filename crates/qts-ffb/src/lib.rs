@@ -20,4 +20,4 @@ pub mod pipeline;
 pub mod platform;
 
 pub use device::{DeviceInfo, FfbDevice, FfbError, NullDevice};
-pub use pipeline::{soft_clip, FfbConfig, FfbInput, FfbPipeline, FfbSample};
+pub use pipeline::{apply_min_force, soft_clip, FfbConfig, FfbInput, FfbPipeline, FfbSample};

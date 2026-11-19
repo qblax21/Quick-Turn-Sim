@@ -110,10 +110,34 @@ wheel setup** first: assign and calibrate the axes, choose the wheel under
 | Tire and force-feedback overlay | F1 |
 | Record telemetry | F2 |
 | Save the replay so far (every session is recorded) | F3 |
+| Force-feedback tuning meter | F4 |
+| While the meter shows: gain down, up / minimum force down, up | [ ] / ; ' |
+| Log the force feedback for the next full lap | F5 |
 | Hide everything on screen | H |
 
 Recordings go to the `recordings` folder in Godot's user data directory for
 the project.
+
+### Tuning a wheel preset
+
+F4 shows the force-feedback meter: the bar is what the wheel is sent, the
+white line what was asked for before the soft clip, the orange lines the
+largest request of the last two seconds, the dashed lines the soft-clip
+knee and the solid lines the wheel's full force. Red means clipping: the
+wheel cannot give more, and a change in tire grip there is not felt.
+
+F5 arms a log of the next full lap: every stage of the force-feedback
+signal at 1000 Hz, the steering torque from the physics and the front tire
+state, about 20 MB of CSV per lap. Summarise one with
+
+```
+qts-sim ffb-report path/to/ffb_log.csv
+```
+
+which lists where the lap clipped and how the torque falls as the front
+tires pass their grip limit, and suggests a gain. **Minimum force** (F4 with
+; and ', or the Controls screen) lifts small forces above the friction of a
+weak base; leave it at zero unless small forces disappear.
 
 ### Force feedback: before you drive with a wheel
 

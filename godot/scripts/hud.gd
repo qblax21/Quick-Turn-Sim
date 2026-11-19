@@ -5,6 +5,7 @@ extends CanvasLayer
 
 const WHEEL_NAMES := ["FL", "FR", "RL", "RR"]
 const Minimap := preload("res://scripts/minimap.gd")
+const FfbMeter := preload("res://scripts/ffb_meter.gd")
 
 var main_label: Label
 var time_label: Label
@@ -23,9 +24,12 @@ var surface_tuned := PackedByteArray()
 var car_name := ""
 var electric := false
 var minimap
+var ffb_meter
+var sim_ref
 
 
 func setup(sim) -> void:
+	sim_ref = sim
 	var info: Dictionary = sim.track_info()
 	surface_names = info.get("surface_names", PackedStringArray())
 	surface_tuned = info.get("surface_tuned", PackedByteArray())
@@ -108,6 +112,15 @@ func _ready() -> void:
 	ffb_row.add_child(ffb_bar)
 	bars.add_child(ffb_row)
 
+	# Force-feedback tuning meter, bottom centre, off until F4.
+	ffb_meter = FfbMeter.new()
+	ffb_meter.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM, Control.PRESET_MODE_MINSIZE, 24)
+	ffb_meter.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	ffb_meter.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	ffb_meter.position.y -= 20.0
+	ffb_meter.visible = false
+	add_child(ffb_meter)
+
 
 func _bar_row(caption: String, minimum: float) -> HBoxContainer:
 	var row := HBoxContainer.new()
@@ -130,6 +143,14 @@ func _bar_row(caption: String, minimum: float) -> HBoxContainer:
 func flash(text: String) -> void:
 	flash_text = text
 	flash_until = Time.get_ticks_msec() + 2000
+
+
+func toggle_ffb_meter() -> void:
+	ffb_meter.visible = not ffb_meter.visible
+
+
+func ffb_meter_visible() -> bool:
+	return ffb_meter.visible
 
 
 func toggle_debug() -> void:
@@ -196,6 +217,14 @@ func update(hud: Dictionary, status: Dictionary, input: Dictionary, telemetry_on
 		notices.append("telemetry recording (%d rows)" % status.get("telemetry_rows", 0))
 	if replay_on:
 		notices.append("replay recording (%d ticks)" % status.get("replay_frames", 0))
+	if not ffb_meter.visible:
+		match status.get("ffb_log_state", "off"):
+			"waiting":
+				notices.append("FFB log: waiting for the start line")
+			"recording":
+				notices.append("FFB log: recording this lap")
+	if ffb_meter.visible and sim_ref:
+		ffb_meter.update_from(status, sim_ref.ffb_config())
 	var error: String = status.get("error", "")
 	if error != "":
 		notices.append(error)

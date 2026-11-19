@@ -543,6 +543,36 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			hud.flash("replay saved")
 		KEY_H:
 			hud.visible = not hud.visible
+		KEY_F4:
+			hud.toggle_ffb_meter()
+		KEY_F5:
+			var state: String = sim.status().get("ffb_log_state", "off")
+			if state == "waiting" or state == "recording":
+				sim.ffb_log_stop()
+			else:
+				sim.ffb_log_start(_recording_path("ffb_" + session_car + "_" + session_track, "csv"))
+				hud.flash("FFB log armed: it records the next full lap")
+		KEY_BRACKETLEFT:
+			_nudge_ffb("gain", -0.01, 0.0, 1.5)
+		KEY_BRACKETRIGHT:
+			_nudge_ffb("gain", 0.01, 0.0, 1.5)
+		KEY_SEMICOLON:
+			_nudge_ffb("min_force", -0.01, 0.0, 0.3)
+		KEY_APOSTROPHE:
+			_nudge_ffb("min_force", 0.01, 0.0, 0.3)
+
+
+# Live force-feedback adjustment while the tuning meter is showing. The
+# change is remembered for the preset, as on the Controls screen.
+func _nudge_ffb(name: String, step: float, lowest: float, highest: float) -> void:
+	if not hud.ffb_meter_visible():
+		return
+	var config: Dictionary = sim.ffb_config()
+	var value: float = clamp(snappedf(config.get(name, 0.0) + step, 0.001), lowest, highest)
+	if sim.ffb_set(name, value):
+		settings.set_ffb(config.get("id", ""), name, value)
+		settings.save()
+		hud.flash("%s %.2f" % [name.replace("_", " "), value])
 
 
 func _open_pause_menu() -> void:

@@ -13,6 +13,7 @@
 //!   → + road-detail and kerb channels (optional)
 //!   → ÷ device peak torque
 //!   → soft clip
+//!   → minimum force                  (optional, for weak or belt-driven bases)
 //!   → sign
 //!   → device
 //! ```
@@ -79,6 +80,12 @@ pub struct FfbConfig {
     pub detail_limit_nm: f64,
     /// How often the device is updated, Hz.
     pub device_update_rate_hz: f64,
+    /// Smallest output, as a fraction of device peak, that any non-zero
+    /// command is raised to. It lifts small forces above the friction and
+    /// dead zone of a weak base. Zero disables it. It changes only what is
+    /// sent to the device, never the simulation.
+    #[serde(default)]
+    pub min_force: f64,
 }
 
 impl FfbConfig {
@@ -122,6 +129,12 @@ impl FfbConfig {
         positive("detail_highpass_hz", self.detail_highpass_hz)?;
         non_negative("detail_limit_nm", self.detail_limit_nm)?;
         positive("device_update_rate_hz", self.device_update_rate_hz)?;
+        if !(0.0..=MAX_MIN_FORCE).contains(&self.min_force) {
+            return Err(format!(
+                "min_force must be between 0 and {MAX_MIN_FORCE}, got {}",
+                self.min_force
+            ));
+        }
         Ok(())
     }
 }
@@ -159,7 +172,8 @@ pub struct FfbSample {
     /// Output sent to the device, −1 to 1, in the simulation's sign
     /// convention (before `invert`).
     pub output: f64,
-    /// How much the soft clip removed: `|requested| − |output|`.
+    /// How much the soft clip removed: `|requested|` minus the clipped
+    /// level before the minimum force is added. Never negative.
     pub clipped: f64,
     /// Filtered velocity of the physical wheel, rad/s.
     pub wheel_velocity_rad_s: f64,
@@ -188,6 +202,34 @@ pub fn soft_clip(x: f64, knee: f64) -> f64 {
     let span = 1.0 - knee;
     let out = knee + span * ((magnitude - knee) / span).tanh();
     out.copysign(x)
+}
+
+/// Largest minimum-force setting accepted. Above this the wheel would
+/// have little range left to say anything with.
+pub const MAX_MIN_FORCE: f64 = 0.3;
+
+/// Output level, as a fraction of full scale, over which the minimum force
+/// fades in. Commands closer to zero are scaled linearly, so the output
+/// stays continuous through zero and the wheel does not chatter about the
+/// centre.
+pub const MIN_FORCE_RAMP: f64 = 0.01;
+
+/// Raises any non-zero output to at least `min_force`, keeping the order
+/// of magnitudes and the full-scale end: `|y| = m + (1 − m)·|x|`, faded in
+/// linearly below [`MIN_FORCE_RAMP`] so it is continuous at zero.
+pub fn apply_min_force(x: f64, min_force: f64) -> f64 {
+    let m = min_force.clamp(0.0, MAX_MIN_FORCE);
+    if m <= 0.0 {
+        return x;
+    }
+    let a = x.abs().min(1.0);
+    let lifted = |v: f64| m + (1.0 - m) * v;
+    let y = if a >= MIN_FORCE_RAMP {
+        lifted(a)
+    } else {
+        a / MIN_FORCE_RAMP * lifted(MIN_FORCE_RAMP)
+    };
+    y.copysign(x)
 }
 
 /// One-pole filter coefficient for a cutoff and step: the fraction of the
@@ -320,7 +362,8 @@ impl FfbPipeline {
         let detail = (self.detail_hp * detail_gain).clamp(-c.detail_limit_nm, c.detail_limit_nm);
 
         let requested = (filtered + effects + detail) / c.device_max_torque_nm;
-        let output = soft_clip(requested, c.soft_clip_knee);
+        let clipped_level = soft_clip(requested, c.soft_clip_knee);
+        let output = apply_min_force(clipped_level, c.min_force);
         FfbSample {
             raw_nm: raw,
             scaled_nm: scaled,
@@ -329,7 +372,7 @@ impl FfbPipeline {
             detail_nm: detail,
             requested,
             output,
-            clipped: requested.abs() - output.abs(),
+            clipped: (requested.abs() - clipped_level.abs()).max(0.0),
             wheel_velocity_rad_s: self.velocity,
         }
     }
@@ -360,6 +403,7 @@ pub fn test_config() -> FfbConfig {
         detail_highpass_hz: 8.0,
         detail_limit_nm: 2.0,
         device_update_rate_hz: 500.0,
+        min_force: 0.0,
     }
 }
 
@@ -568,6 +612,43 @@ mod tests {
             "kerb {peak_kerb} vs road {peak_road}"
         );
         assert!(peak_kerb <= 2.0 + 1e-12, "detail limit");
+    }
+
+    #[test]
+    fn min_force_lifts_small_commands_and_keeps_full_scale() {
+        assert_eq!(apply_min_force(0.3, 0.0), 0.3);
+        assert_eq!(apply_min_force(0.0, 0.1), 0.0);
+        // Above the ramp: m + (1 - m)·x.
+        assert!((apply_min_force(0.2, 0.1) - 0.28).abs() < 1e-12);
+        assert!((apply_min_force(-0.2, 0.1) + 0.28).abs() < 1e-12);
+        assert!((apply_min_force(1.0, 0.1) - 1.0).abs() < 1e-12);
+        // Continuous at the end of the ramp and monotonic through zero.
+        let h = 1e-9;
+        let below = apply_min_force(MIN_FORCE_RAMP - h, 0.1);
+        let above = apply_min_force(MIN_FORCE_RAMP + h, 0.1);
+        assert!((above - below).abs() < 1e-6);
+        let mut previous = -1.0;
+        for i in -1000..=1000 {
+            let y = apply_min_force(f64::from(i) / 1000.0, 0.15);
+            assert!(y >= previous);
+            previous = y;
+        }
+    }
+
+    #[test]
+    fn min_force_is_not_counted_as_clipping() {
+        let mut cfg = test_config();
+        cfg.min_force = 0.2;
+        let mut p = FfbPipeline::new(cfg, 1000).unwrap();
+        let s = p.step(&torque(1.0));
+        assert!((s.requested - 0.1).abs() < 1e-12);
+        assert!((s.output - 0.28).abs() < 1e-12);
+        assert_eq!(s.clipped, 0.0);
+        let s = p.step(&torque(25.0));
+        assert!(s.clipped > 1.0);
+        let mut cfg = test_config();
+        cfg.min_force = 0.5;
+        assert!(FfbPipeline::new(cfg, 1000).is_err());
     }
 
     #[test]
