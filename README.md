@@ -139,6 +139,13 @@ tires pass their grip limit, and suggests a gain. **Minimum force** (F4 with
 ; and ', or the Controls screen) lifts small forces above the friction of a
 weak base; leave it at zero unless small forces disappear.
 
+### Car setups
+
+**Garage...** on the car and track screen adjusts the car within ranges a
+club car of its class could run and saves the result by name for that car
+and track. The setup is stored in every replay (which is rebuilt with it)
+and every best lap. Ranges and their reasoning: [docs/SETUP.md](docs/SETUP.md).
+
 ### Wheel and pedals read on the physics thread
 
 On the Controls screen, **Assign** each control and move it: the wheel,

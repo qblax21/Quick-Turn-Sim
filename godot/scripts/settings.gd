@@ -32,6 +32,8 @@ const DEFAULTS := {
 var values := {}
 # Preset id -> {setting name: value}, applied on top of the preset file.
 var ffb := {}
+# "car__track" -> name of the setup chosen for that pair ("" = as delivered).
+var setups := {}
 
 
 func _init() -> void:
@@ -45,6 +47,9 @@ func _init() -> void:
 		# A value of the wrong type (hand-edited file) falls back to the default.
 		if typeof(stored) == typeof(DEFAULTS[key]):
 			values[key] = stored
+	if cfg.has_section("setups"):
+		for key in cfg.get_section_keys("setups"):
+			setups[key] = str(cfg.get_value("setups", key, ""))
 	for section in cfg.get_sections():
 		if section.begins_with("ffb:"):
 			var preset := section.substr(4)
@@ -61,7 +66,18 @@ func save() -> void:
 	for preset in ffb:
 		for name in ffb[preset]:
 			cfg.set_value("ffb:" + preset, name, ffb[preset][name])
+	for key in setups:
+		cfg.set_value("setups", key, setups[key])
 	cfg.save(PATH)
+
+
+# The setup chosen for a car and track, "" for the car as delivered.
+func get_setup(car: String, track: String) -> String:
+	return setups.get(car + "__" + track, "")
+
+
+func set_setup(car: String, track: String, setup_name: String) -> void:
+	setups[car + "__" + track] = setup_name
 
 
 func get_value(key: String):

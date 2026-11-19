@@ -22,6 +22,7 @@ var debug_visible := false
 var surface_names := PackedStringArray()
 var surface_tuned := PackedByteArray()
 var car_name := ""
+var setup_name := ""
 var electric := false
 var minimap
 var ffb_meter
@@ -36,6 +37,7 @@ func setup(sim) -> void:
 	var car: Dictionary = sim.car_info()
 	car_name = car.get("name", "")
 	electric = car.get("electric", false)
+	setup_name = sim.session_setup_name()
 	minimap = Minimap.new()
 	minimap.setup(sim)
 	minimap.position = Vector2(24.0, 236.0)
@@ -184,7 +186,8 @@ func update(hud: Dictionary, status: Dictionary, input: Dictionary, telemetry_on
 	time_label.text = "%s\nlast  %s   cones %d\nbest  %s\ncones this run: %d" % [
 		run_line, _format_time(hud.last_time), hud.last_cones_hit, _format_time(hud.best_time), hud.cones_hit]
 	if hud.get("ghost_time", 0.0) > 0.0:
-		time_label.text += "\nghost %s" % _format_time(hud.ghost_time)
+		time_label.text += "\nghost %s  (setup: %s)" % [_format_time(hud.ghost_time), hud.get("ghost_setup", "")]
+	time_label.text += "\nsetup %s" % setup_name
 
 	# Green when ahead of the best lap at this point of the track, red when behind.
 	if hud.get("ghost_has_delta", false):

@@ -369,18 +369,10 @@ fn cmd_replay(args: &Args) -> Result<bool, String> {
         h.build_id
     );
     let root = data_root()?;
-    let config = SessionConfig {
-        tick_rate_hz: h.tick_rate_hz,
-        ..SessionConfig::default()
-    };
-    let mut session = Session::from_data(&root, &h.car_id, &h.track_id, config)?;
-    if session.content_hash() != h.content_hash {
-        return Err(format!(
-            "the data files have changed since this replay was recorded (content hash {:016x}, replay has {:016x})",
-            session.content_hash(),
-            h.content_hash
-        ));
+    if !h.setup.is_empty() {
+        println!("setup      {}", h.setup.trim_end().replace('\n', ", "));
     }
+    let mut session = Session::for_replay(&root, h)?;
     if h.build_id != build_id() {
         println!(
             "WARNING    this build is {}; float results are only guaranteed to match within one build",

@@ -49,7 +49,7 @@ func _ready() -> void:
 	title.add_theme_font_size_override("font_size", 30)
 	box.add_child(title)
 	var what := Label.new()
-	what.text = "%s at %s, %s on track" % [summary.get("car", ""), summary.get("track", ""), _format_time(summary.get("duration", 0.0))]
+	what.text = "%s at %s, %s on track\nSetup: %s" % [summary.get("car", ""), summary.get("track", ""), _format_time(summary.get("duration", 0.0)), summary.get("setup", "default")]
 	what.add_theme_font_size_override("font_size", 17)
 	box.add_child(what)
 	box.add_child(HSeparator.new())
@@ -88,7 +88,7 @@ func _ready() -> void:
 		facts.append("Best this session: %s" % _format_time(laps[best].time))
 	var ghost_time: float = summary.get("ghost_time", 0.0)
 	if ghost_time > 0.0:
-		facts.append("Best ever for this car and track: %s" % _format_time(ghost_time))
+		facts.append("Best ever for this car and track: %s (setup: %s)" % [_format_time(ghost_time), summary.get("ghost_setup", "default")])
 	var invalid: int = summary.get("invalid", 0)
 	if invalid > 0:
 		facts.append("%d lap%s not counted: part of the course was missed." % [invalid, "" if invalid == 1 else "s"])

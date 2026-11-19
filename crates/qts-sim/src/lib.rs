@@ -23,9 +23,11 @@ pub mod ghost;
 pub mod host;
 pub mod playback;
 pub mod session;
+pub mod setup;
 pub mod telemetry;
 pub mod track;
 
 pub use data::{DataError, DataRoot};
 pub use session::{Session, SessionAssets, SessionConfig, Timing};
+pub use setup::Setup;
 pub use track::Track;

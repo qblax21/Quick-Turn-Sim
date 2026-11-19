@@ -20,6 +20,11 @@ var car_ids: PackedStringArray
 var track_ids: PackedStringArray
 var preset_ids: PackedStringArray
 var device_ids: Array = []
+const Garage := preload("res://scripts/garage.gd")
+var setup_label: Label
+# Changes made in the garage but not saved under a name, for this car and
+# track only.
+var unnamed := {}
 
 
 func setup(bridge, store) -> void:
@@ -57,8 +62,28 @@ func _ready() -> void:
 	box.add_child(description)
 	_restore(car_list, car_ids, "menu/car")
 	_restore(track_list, track_ids, "menu/track")
-	car_list.item_selected.connect(func(_i: int) -> void: _describe())
-	track_list.item_selected.connect(func(_i: int) -> void: _describe())
+	car_list.item_selected.connect(func(_i: int) -> void:
+		unnamed = {}
+		_describe()
+		_apply_setup())
+	track_list.item_selected.connect(func(_i: int) -> void:
+		unnamed = {}
+		_describe()
+		_apply_setup())
+	var setup_row := HBoxContainer.new()
+	setup_row.add_theme_constant_override("separation", 10)
+	var setup_caption := Label.new()
+	setup_caption.text = "Setup"
+	setup_caption.custom_minimum_size = Vector2(190, 0)
+	setup_row.add_child(setup_caption)
+	setup_label = Label.new()
+	setup_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	setup_row.add_child(setup_label)
+	var garage_button := Button.new()
+	garage_button.text = "Garage..."
+	garage_button.pressed.connect(_open_garage)
+	setup_row.add_child(garage_button)
+	box.add_child(setup_row)
 
 	auto_clutch = CheckBox.new()
 	auto_clutch.text = "Automatic clutch"
@@ -120,6 +145,40 @@ func _ready() -> void:
 	keys.add_theme_font_size_override("font_size", 13)
 	box.add_child(keys)
 	_describe()
+	_apply_setup()
+
+
+# Hands the core the setup chosen for the selected car and track.
+func _apply_setup() -> void:
+	var car := _selected(car_ids, car_list)
+	var track := _selected(track_ids, track_list)
+	var shown := "car as delivered"
+	if not unnamed.is_empty():
+		sim.setup_use(car, "", unnamed)
+		shown = "unnamed changes (not saved)"
+	else:
+		var chosen: String = settings.get_setup(car, track)
+		var ok := false
+		if chosen != "" and chosen in sim.setup_list(car, track):
+			var loaded: Dictionary = sim.setup_load(car, track, chosen)
+			ok = not loaded.is_empty() and sim.setup_use(car, chosen, loaded.values)
+			if ok:
+				shown = chosen
+			else:
+				error_label.text = "Setup \"%s\" could not be used: %s" % [chosen, sim.last_error()]
+		if not ok:
+			sim.setup_use(car, "", {})
+	setup_label.text = shown
+
+
+func _open_garage() -> void:
+	var garage = Garage.new()
+	garage.setup(sim, settings, _selected(car_ids, car_list), _selected(track_ids, track_list))
+	garage.closed.connect(func(setup_name: String) -> void:
+		unnamed = garage.values.duplicate() if setup_name == "unnamed" else {}
+		garage.queue_free()
+		_apply_setup())
+	add_child(garage)
 
 
 func _add_row(parent: Control, caption: String, control: Control) -> void:
@@ -173,6 +232,7 @@ func show_error(message: String) -> void:
 
 
 func _on_drive() -> void:
+	_apply_setup()
 	drive_requested.emit(
 		_selected(car_ids, car_list),
 		_selected(track_ids, track_list),

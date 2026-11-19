@@ -796,3 +796,34 @@ Measured here (60 fps vsync, about 430 fps without): hand-over 15.9 and
 1.5 ms mean before, device read to physics 0.09 ms after. A read costs
 about 1 microsecond (median), 4 at the 99th percentile.
 
+## D-071 Car setups as changes to the data file, carried by recordings
+
+A setup is a list of `key = value` changes to the car and tire files:
+cold pressures, camber, toe, springs, bump and rebound, anti-roll bars,
+brake bias, and for cars that have them the limited-slip differential and
+the gear ratios. Keys a car does not offer and values outside the garage
+range are refused, not clamped, so a setup file always means what it says
+and a hand-edited one cannot put the model outside what a real car could
+be. The ranges are in `docs/SETUP.md`; like the car values, they are
+placeholders.
+
+Brake bias keeps the total brake torque and moves its split. Pressures
+are gauge and become the tire's cold absolute pressure. Gear ratios must
+stay in order.
+
+A setup changes parameters, not state, so it is not in the snapshot and
+has to travel separately: the replay header (format 2) and the ghost file
+(format 2) store the canonical text, and `Session::for_replay` rebuilds a
+recording with it. Older files read as the car as delivered. A test
+re-simulates a recording made with a setup exactly, and shows the same
+inputs drive differently without it.
+
+`tests/setup.rs` moves every adjustment of every car to the far end of its
+range and requires the drive to change; pressure, camber, toe, anti-roll
+bars, brake bias and every gear ratio are also checked against their
+expected effect (for example, engine speed over wheel speed changes by
+exactly the ratio).
+
+The best lap stays the best lap for the car and track whatever the setup;
+the HUD and results say which setup it was driven with.
+

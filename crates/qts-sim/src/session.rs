@@ -2,6 +2,7 @@
 //! A session: one car on one track, stepped deterministically.
 
 use crate::data::{DataError, DataRoot};
+use crate::setup::Setup;
 use crate::track::{GateKind, Track, CONE_RADIUS_M, MIN_RUN_FRACTION, WALL_RADIUS_M};
 use qts_core::constants::{build_id, DEFAULT_TICK_RATE_HZ};
 use qts_core::input::{buttons, InputFrame, GEAR_NO_REQUEST};
@@ -54,6 +55,8 @@ pub struct SessionAssets {
     pub content_hash: u64,
     /// Provenance of every physical parameter that was loaded.
     pub provenance: Vec<Provenance>,
+    /// The setup applied to the car and tires (empty: as in the files).
+    pub setup: Setup,
 }
 
 impl SessionAssets {
@@ -120,6 +123,7 @@ impl SessionAssets {
             track,
             content_hash: fnv1a64(&bytes),
             provenance,
+            setup: Setup::default(),
         })
     }
 }
@@ -170,6 +174,7 @@ impl Timing {
 /// One car on one track.
 #[derive(Debug)]
 pub struct Session {
+    setup: Setup,
     config: SessionConfig,
     car: Car,
     track: Track,
@@ -248,6 +253,7 @@ impl Session {
         car.place(x, y, heading, assets.track.ground_height(x, y));
         let timing = Timing::new(assets.track.cones().len());
         Ok(Self {
+            setup: assets.setup,
             config,
             car,
             track: assets.track,
@@ -266,6 +272,33 @@ impl Session {
             impact_kick_nm: 0.0,
             yaw_inertia,
         })
+    }
+
+    /// Rebuilds the session a replay was recorded in: same car, track,
+    /// rate and setup. Refuses if the data files have changed since.
+    pub fn for_replay(root: &DataRoot, header: &ReplayHeader) -> Result<Self, String> {
+        let config = SessionConfig {
+            tick_rate_hz: header.tick_rate_hz,
+            ..SessionConfig::default()
+        };
+        let setup = Setup::from_text(&header.setup)?;
+        let assets = SessionAssets::load(root, &header.car_id, &header.track_id)
+            .map_err(|e| e.to_string())?
+            .with_setup(&setup)?;
+        let session = Self::new(assets, config)?;
+        if session.content_hash() != header.content_hash {
+            return Err(format!(
+                "the car or track files have changed since this was recorded (content hash {:016x}, recording has {:016x})",
+                session.content_hash(),
+                header.content_hash
+            ));
+        }
+        Ok(session)
+    }
+
+    /// The setup the car was built with.
+    pub fn setup(&self) -> &Setup {
+        &self.setup
     }
 
     /// Loads the named car and track from `root` and builds a session.
@@ -351,6 +384,7 @@ impl Session {
             build_id: build_id(),
             hash_interval,
             start_tick: self.tick,
+            setup: self.setup.to_text(),
         }
     }
 

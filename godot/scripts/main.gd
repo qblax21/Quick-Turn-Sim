@@ -84,6 +84,7 @@ func _ready() -> void:
 		_fatal("The data folder was not found next to the application or the project.")
 		return
 	sim.set_ghost_dir(ProjectSettings.globalize_path("user://ghosts"))
+	sim.set_setup_dir(ProjectSettings.globalize_path("user://setups"))
 
 	settings = Settings.new()
 	add_child(settings)
@@ -478,6 +479,7 @@ func _process(delta: float) -> void:
 	skid_marks.update(car_xform, sim.wheel_states(), values)
 	var ghost: Dictionary = sim.ghost()
 	values["ghost_time"] = ghost.get("time", 0.0)
+	values["ghost_setup"] = ghost.get("setup", "")
 	values["ghost_has_delta"] = ghost.get("has_delta", false)
 	values["ghost_delta"] = ghost.get("delta", 0.0)
 	_update_ghost(ghost, car_xform)
@@ -609,6 +611,8 @@ func _end_session() -> void:
 	var car_name: String = sim.car_info().get("name", "")
 	var track_name: String = sim.track_info().get("name", "")
 	var ghost_time: float = sim.ghost().get("time", 0.0)
+	var ghost_setup: String = sim.ghost().get("setup", "")
+	var setup_name: String = sim.session_setup_name()
 	_note_laps(sim.hud())
 	var duration := (Time.get_ticks_msec() - session_started_ms) / 1000.0
 	var invalid: int = sim.hud().get("invalid_runs", 0)
@@ -620,6 +624,7 @@ func _end_session() -> void:
 	results.setup({
 		"car": car_name, "track": track_name, "duration": duration, "laps": laps,
 		"invalid": invalid, "ghost_time": ghost_time, "replay": session_replay,
+		"setup": setup_name, "ghost_setup": ghost_setup,
 	})
 	results.replay_requested.connect(func(path: String) -> void:
 		_show_replays()

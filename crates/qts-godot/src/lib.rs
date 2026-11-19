@@ -31,6 +31,7 @@ use qts_sim::ffb_log::FfbLogStatus;
 use qts_sim::host::{HostCommand, HostOptions, RealtimeHost};
 use qts_sim::playback::Playback;
 use qts_sim::session::{Session, SessionAssets, SessionConfig};
+use qts_sim::setup::{setup_items, Setup};
 use qts_sim::track::{MarkerDef, RegionDef, Track};
 use qts_sim::DataRoot;
 use qts_vehicle::params::DrivetrainParams;
@@ -97,10 +98,75 @@ pub struct SimBridge {
     playback: Option<Playback>,
     /// Devices open for the Controls screen to watch.
     scan: Vec<Box<dyn InputSource>>,
+    /// Where setups are saved: one folder per car, then per track.
+    setup_dir: Option<std::path::PathBuf>,
+    /// Setup the next session is built with.
+    next_setup: Setup,
+    /// Setup of the running session.
+    session_setup: Setup,
     base: Base<RefCounted>,
 }
 
+/// A setup as the front end passes it around.
+fn setup_to_dict(setup: &Setup) -> VarDictionary {
+    let mut values = VarDictionary::new();
+    for (k, v) in &setup.values {
+        values.set(k.as_str(), *v);
+    }
+    vd! { "name" => gstr(&setup.name), "values" => values }
+}
+
+fn setup_from_dict(name: &str, values: &VarDictionary) -> Setup {
+    let mut setup = Setup {
+        name: name.trim().to_string(),
+        ..Setup::default()
+    };
+    for (k, v) in values.iter_shared() {
+        if let (Ok(key), Ok(value)) = (k.try_to::<GString>(), v.try_to::<f64>()) {
+            setup.values.insert(key.to_string(), value);
+        }
+    }
+    setup
+}
+
+/// A file name for a setup: letters, digits, spaces, `-` and `_` only.
+fn setup_file_name(name: &str) -> Option<String> {
+    let name = name.trim();
+    let ok = !name.is_empty()
+        && name.len() <= 60
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == ' ' || c == '-' || c == '_');
+    ok.then(|| format!("{name}.setup"))
+}
+
 impl SimBridge {
+    fn setup_folder(&self, car: &str, track: &str) -> Option<std::path::PathBuf> {
+        let safe = |s: &str| s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+        if !safe(car) || !safe(track) {
+            return None;
+        }
+        self.setup_dir.as_ref().map(|d| d.join(car).join(track))
+    }
+
+    fn setup_path(&self, car: &str, track: &str, name: &str) -> Option<std::path::PathBuf> {
+        Some(self.setup_folder(car, track)?.join(setup_file_name(name)?))
+    }
+
+    fn check_setup(&mut self, car_id: &str, setup: &Setup) -> Result<(), String> {
+        let root = self.root().ok_or_else(|| self.last_error.clone())?;
+        let mut car = root.load_car(car_id).map_err(|e| e.to_string())?.value;
+        let mut front = root
+            .load_tire(&car.tire_front)
+            .map_err(|e| e.to_string())?
+            .value;
+        let mut rear = root
+            .load_tire(&car.tire_rear)
+            .map_err(|e| e.to_string())?
+            .value;
+        setup.apply(&mut car, &mut front, &mut rear)
+    }
+
     fn root(&mut self) -> Option<DataRoot> {
         if self.root.is_none() {
             match DataRoot::discover() {
@@ -244,7 +310,8 @@ impl SimBridge {
         };
         let result = (|| -> Result<(RealtimeHost, Loaded, FfbConfig), String> {
             let assets = SessionAssets::load(&root, &car_id.to_string(), &track_id.to_string())
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| e.to_string())?
+                .with_setup(&self.next_setup)?;
             let ffb = match &self.ffb {
                 Some(config) => config.clone(),
                 None => {
@@ -292,6 +359,7 @@ impl SimBridge {
         })();
         match result {
             Ok((host, loaded, ffb)) => {
+                self.session_setup = self.next_setup.clone();
                 self.host = Some(host);
                 self.loaded = Some(loaded);
                 self.ffb = Some(ffb);
@@ -410,6 +478,7 @@ impl SimBridge {
             "track" => gstr(&p.session().track().def().id),
             "mismatch_tick" => p.first_mismatch().map_or(-1, |t| t as i64),
             "recorded_by" => gstr(p.recorded_by()),
+            "setup" => gstr(&p.session().setup().display_name()),
             "this_build" => gstr(&qts_core::constants::build_id()),
             "tick_rate" => f64::from(qts_core::step::Simulation::tick_rate_hz(p.session())),
         }
@@ -579,8 +648,14 @@ impl SimBridge {
         };
         let (pose, time) = host.ghost();
         let delta = host.ghost_delta();
+        let setup_name = Setup::from_text(&host.ghost_setup())
+            .map(|s| s.display_name())
+            .unwrap_or_default();
         let Some(pose) = pose else {
-            return vd! { "visible" => false, "time" => time, "has_delta" => false, "delta" => 0.0 };
+            return vd! {
+                "visible" => false, "time" => time, "has_delta" => false, "delta" => 0.0,
+                "setup" => gstr(&setup_name),
+            };
         };
         let mut wheels = Vec::with_capacity(20);
         for w in &pose.wheels {
@@ -590,6 +665,7 @@ impl SimBridge {
         vd! {
             "visible" => true,
             "time" => time,
+            "setup" => gstr(&setup_name),
             "has_delta" => delta.is_some(),
             "delta" => delta.unwrap_or(0.0),
             "transform" => Transform3D::new(
@@ -1171,6 +1247,167 @@ impl SimBridge {
             "steer_lag_measured" => s.input_delay.frame_steer_lag_ms.is_some(),
             "steer_lag_ms" => s.input_delay.frame_steer_lag_ms.unwrap_or(0.0),
         }
+    }
+
+    // ----- car setups -----------------------------------------------------
+
+    /// Folder setups are saved in.
+    #[func]
+    fn set_setup_dir(&mut self, path: GString) {
+        self.setup_dir = Some(path.to_string().into());
+    }
+
+    /// Every adjustment the garage offers for a car: `key`, `group`,
+    /// `label`, `unit`, `min`, `max`, `step` and `default` (the value in the
+    /// car's data file).
+    #[func]
+    fn setup_items(&mut self, car_id: GString) -> Array<VarDictionary> {
+        let mut out = Array::new();
+        let Some(root) = self.root() else {
+            return out;
+        };
+        let car = match root.load_car(&car_id.to_string()) {
+            Ok(c) => c.value,
+            Err(e) => {
+                self.last_error = e.to_string();
+                return out;
+            }
+        };
+        let tires = root
+            .load_tire(&car.tire_front)
+            .and_then(|f| root.load_tire(&car.tire_rear).map(|r| (f.value, r.value)));
+        let (front, rear) = match tires {
+            Ok(t) => t,
+            Err(e) => {
+                self.last_error = e.to_string();
+                return out;
+            }
+        };
+        for item in setup_items(&car, &front, &rear) {
+            out.push(&vd! {
+                "key" => gstr(&item.key),
+                "group" => gstr(item.group),
+                "label" => gstr(&item.label),
+                "unit" => gstr(item.unit),
+                "min" => item.min,
+                "max" => item.max,
+                "step" => item.step,
+                "default" => item.default,
+            });
+        }
+        out
+    }
+
+    /// Names of the setups saved for a car and track.
+    #[func]
+    fn setup_list(&self, car_id: GString, track_id: GString) -> PackedStringArray {
+        let mut names: Vec<String> = Vec::new();
+        if let Some(dir) = self.setup_folder(&car_id.to_string(), &track_id.to_string()) {
+            if let Ok(entries) = std::fs::read_dir(dir) {
+                for e in entries.flatten() {
+                    let path = e.path();
+                    if path.extension().is_some_and(|x| x == "setup") {
+                        if let Some(stem) = path.file_stem() {
+                            names.push(stem.to_string_lossy().into_owned());
+                        }
+                    }
+                }
+            }
+        }
+        names.sort();
+        names.iter().map(|n| gstr(n)).collect()
+    }
+
+    /// A saved setup: `name` and `values` (key to number). Empty if it
+    /// cannot be read.
+    #[func]
+    fn setup_load(&mut self, car_id: GString, track_id: GString, name: GString) -> VarDictionary {
+        let Some(path) = self.setup_path(
+            &car_id.to_string(),
+            &track_id.to_string(),
+            &name.to_string(),
+        ) else {
+            return VarDictionary::new();
+        };
+        let parsed = std::fs::read_to_string(&path)
+            .map_err(|e| format!("{}: {e}", path.display()))
+            .and_then(|text| Setup::from_text(&text));
+        match parsed {
+            Ok(setup) => setup_to_dict(&setup),
+            Err(e) => {
+                self.last_error = e;
+                VarDictionary::new()
+            }
+        }
+    }
+
+    /// Checks a setup against the car and saves it under `name`. Returns
+    /// false (with `last_error`) if a value is out of range or the file
+    /// cannot be written.
+    #[func]
+    fn setup_save(
+        &mut self,
+        car_id: GString,
+        track_id: GString,
+        name: GString,
+        values: VarDictionary,
+    ) -> bool {
+        let setup = setup_from_dict(&name.to_string(), &values);
+        if let Err(e) = self.check_setup(&car_id.to_string(), &setup) {
+            self.last_error = e;
+            return false;
+        }
+        let Some(path) = self.setup_path(&car_id.to_string(), &track_id.to_string(), &setup.name)
+        else {
+            self.last_error = "a setup needs a name of letters, digits, spaces, - or _".into();
+            return false;
+        };
+        if let Some(dir) = path.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let text = format!(
+            "# Car setup for {car_id} at {track_id}. Values outside the garage ranges are refused.\n{}",
+            setup.to_text()
+        );
+        match std::fs::write(&path, text) {
+            Ok(()) => true,
+            Err(e) => {
+                self.last_error = format!("{}: {e}", path.display());
+                false
+            }
+        }
+    }
+
+    /// Deletes a saved setup.
+    #[func]
+    fn setup_delete(&mut self, car_id: GString, track_id: GString, name: GString) -> bool {
+        match self.setup_path(
+            &car_id.to_string(),
+            &track_id.to_string(),
+            &name.to_string(),
+        ) {
+            Some(path) => std::fs::remove_file(path).is_ok(),
+            None => false,
+        }
+    }
+
+    /// Uses a setup (name and values) for the next session. An empty
+    /// dictionary of values is the car as delivered.
+    #[func]
+    fn setup_use(&mut self, car_id: GString, name: GString, values: VarDictionary) -> bool {
+        let setup = setup_from_dict(&name.to_string(), &values);
+        if let Err(e) = self.check_setup(&car_id.to_string(), &setup) {
+            self.last_error = e;
+            return false;
+        }
+        self.next_setup = setup;
+        true
+    }
+
+    /// Name of the setup the running session uses.
+    #[func]
+    fn session_setup_name(&self) -> GString {
+        gstr(&self.session_setup.display_name())
     }
 
     // ----- devices read directly ------------------------------------------

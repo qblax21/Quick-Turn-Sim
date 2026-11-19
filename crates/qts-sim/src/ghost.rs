@@ -21,7 +21,7 @@ const DELTA_MAX_GAP_M: f64 = 40.0;
 /// Marks a ghost file.
 const MAGIC: &[u8; 4] = b"GLAP";
 /// Version of the ghost file layout.
-const FORMAT_VERSION: u32 = 1;
+const FORMAT_VERSION: u32 = 2;
 
 /// One recorded lap.
 #[derive(Clone, Debug, PartialEq)]
@@ -38,6 +38,9 @@ pub struct GhostLap {
     pub sample_ticks: u32,
     /// Poses from the start of the lap onward.
     pub poses: Vec<RenderPose>,
+    /// Setup the lap was driven with, as canonical text (empty for the car
+    /// as delivered). Files from before setups existed read as empty.
+    pub setup: String,
 }
 
 impl GhostLap {
@@ -113,6 +116,7 @@ impl GhostLap {
                 small(&mut w, wheel.spin_angle);
             }
         }
+        w.write_str(&self.setup);
         w.into_bytes()
     }
 
@@ -123,7 +127,8 @@ impl GhostLap {
         if r.read_raw(4)? != MAGIC {
             return Err(bad("not a ghost lap file"));
         }
-        if r.read_u32()? != FORMAT_VERSION {
+        let version = r.read_u32()?;
+        if !(1..=FORMAT_VERSION).contains(&version) {
             return Err(bad("unsupported ghost lap version"));
         }
         let car_id = r.read_string()?;
@@ -167,6 +172,11 @@ impl GhostLap {
             }
             poses.push(pose);
         }
+        let setup = if version >= 2 {
+            r.read_string()?
+        } else {
+            String::new()
+        };
         r.finish()?;
         Ok(Self {
             car_id,
@@ -175,6 +185,7 @@ impl GhostLap {
             lap_ticks,
             sample_ticks,
             poses,
+            setup,
         })
     }
 }
@@ -232,6 +243,7 @@ impl GhostRecorder {
                     lap_ticks: timing.last_ticks,
                     sample_ticks: GHOST_SAMPLE_TICKS,
                     poses: std::mem::take(&mut self.current),
+                    setup: session.setup().to_text(),
                 };
                 // The session only counts runs that took the course; this
                 // second check guards the file against anything it missed.
@@ -342,6 +354,7 @@ mod tests {
             tick_rate_hz: 1000,
             lap_ticks: (poses as u64 - 1) * 20 + 7,
             sample_ticks: 20,
+            setup: "name = test\nfront.camber_deg = -2\n".into(),
             poses: (0..poses)
                 .map(|i| RenderPose {
                     tick: i as u64 * 20,

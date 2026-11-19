@@ -31,6 +31,11 @@ volume, the starting view, seat height, the ghost and the track map.
   strip, gravel patch).
 - Automatic clutch, automatic gears and traction control can each be
   switched off. The force-feedback preset and wheel are chosen here.
+- **Garage...** opens the car's setup for that track: tire pressures,
+  camber, toe, springs, bump and rebound damping, anti-roll bars, brake
+  bias, the differential (limited-slip car) and the gearing, each within a
+  range a club car of the class could run. Setups are saved by name per
+  car and track, and every replay and best lap records which one was used.
 
 ## Driving
 

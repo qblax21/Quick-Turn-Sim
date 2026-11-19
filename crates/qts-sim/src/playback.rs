@@ -12,7 +12,7 @@
 
 use crate::data::DataRoot;
 use crate::host::RenderPose;
-use crate::session::{Session, SessionConfig};
+use crate::session::Session;
 use qts_core::replay::Replay;
 use qts_core::snapshot::{restore_bytes, state_hash};
 use qts_core::step::Simulation;
@@ -60,16 +60,7 @@ impl Playback {
     pub fn load(root: &DataRoot, bytes: &[u8]) -> Result<Self, String> {
         let replay = Replay::from_bytes(bytes).map_err(|e| e.to_string())?;
         let h = &replay.header;
-        let config = SessionConfig {
-            tick_rate_hz: h.tick_rate_hz,
-            ..SessionConfig::default()
-        };
-        let mut session = Session::from_data(root, &h.car_id, &h.track_id, config)?;
-        if session.content_hash() != h.content_hash {
-            return Err(
-                "the car or track files have changed since this replay was recorded".into(),
-            );
-        }
+        let mut session = Session::for_replay(root, h)?;
         restore_bytes(&mut session, &replay.initial_snapshot).map_err(|e| e.to_string())?;
         let mut playback = Self {
             replay,

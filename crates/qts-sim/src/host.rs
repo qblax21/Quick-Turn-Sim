@@ -412,6 +412,7 @@ struct Published {
     ghost: Option<RenderPose>,
     ghost_time_s: f64,
     ghost_delta_s: Option<f64>,
+    ghost_setup: String,
 }
 
 struct Shared {
@@ -471,6 +472,7 @@ impl RealtimeHost {
                 ghost: None,
                 ghost_time_s: 0.0,
                 ghost_delta_s: None,
+                ghost_setup: String::new(),
             }),
             status: Mutex::new(HostStatus {
                 ffb_enabled: true,
@@ -520,6 +522,12 @@ impl RealtimeHost {
     /// negative is ahead. `None` when there is nothing to compare with.
     pub fn ghost_delta(&self) -> Option<f64> {
         lock(&self.shared.published).ghost_delta_s
+    }
+
+    /// Setup the best lap was driven with, as canonical text (empty for
+    /// the car as delivered or when there is no best lap).
+    pub fn ghost_setup(&self) -> String {
+        lock(&self.shared.published).ghost_setup.clone()
     }
 
     /// Which cones are currently knocked down, in track cone order.
@@ -1018,6 +1026,11 @@ impl SimThread {
                 p.ghost = self.ghost.pose_now(&self.session, p.alpha);
                 p.ghost_time_s = self.ghost.best().map_or(0.0, GhostLap::seconds);
                 p.ghost_delta_s = self.ghost.delta_s();
+                if let Some(best) = self.ghost.best() {
+                    if p.ghost_setup != best.setup {
+                        p.ghost_setup.clone_from(&best.setup);
+                    }
+                }
             }
             {
                 let mut s = lock(&self.shared.status);

@@ -130,6 +130,7 @@ fn bogus_lap(s: &Session) -> GhostLap {
         lap_ticks,
         sample_ticks: GHOST_SAMPLE_TICKS,
         poses,
+        setup: String::new(),
     }
 }
 

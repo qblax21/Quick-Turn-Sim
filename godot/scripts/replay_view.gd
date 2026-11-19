@@ -222,6 +222,7 @@ func _update_overlay(frame: Dictionary, info: Dictionary, available: float) -> v
 	]
 	if frame.run_time >= 0.0:
 		lines.append("run %s" % _format_time(frame.run_time))
+	lines.append("setup %s" % info.get("setup", "default"))
 	info_label.text = "\n".join(lines)
 	if not slider_busy:
 		slider.set_value_no_signal(time)

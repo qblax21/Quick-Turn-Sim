@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Development tool: renders a screen and saves a screenshot.
-#   godot --path godot --script res://tests/menu_shot.gd -- OUTPUT.png [title|select|setup|settings|pause|results|ffb]
+#   godot --path godot --script res://tests/menu_shot.gd -- OUTPUT.png [title|select|garage|setup|settings|pause|results|ffb]
 extends SceneTree
 
 
@@ -29,6 +29,10 @@ func _run() -> void:
 	match mode:
 		"select":
 			main._show_select()
+		"garage":
+			main._show_select()
+			await _wait(2)
+			main.menu._open_garage()
 		"settings":
 			main._show_settings()
 		"setup":

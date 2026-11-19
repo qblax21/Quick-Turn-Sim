@@ -18,7 +18,7 @@ use std::fmt;
 pub const REPLAY_MAGIC: [u8; 4] = *b"SRPL";
 
 /// Version of the replay container layout.
-pub const REPLAY_FORMAT_VERSION: u32 = 1;
+pub const REPLAY_FORMAT_VERSION: u32 = 2;
 
 /// Metadata stored at the start of a replay.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -37,6 +37,9 @@ pub struct ReplayHeader {
     pub hash_interval: u32,
     /// Tick number of the initial snapshot.
     pub start_tick: u64,
+    /// Car setup the session was built with, as canonical text (empty for
+    /// the car as in its data file). Added in format version 2.
+    pub setup: String,
 }
 
 /// A complete recorded run.
@@ -167,6 +170,7 @@ impl Replay {
         w.write_str(&self.header.build_id);
         w.write_u32(self.header.hash_interval);
         w.write_u64(self.header.start_tick);
+        w.write_str(&self.header.setup);
         w.write_bytes(&self.initial_snapshot);
         w.write_u64(self.frames.len() as u64);
         for f in &self.frames {
@@ -186,10 +190,10 @@ impl Replay {
             return Err(ReplayError::BadMagic);
         }
         let version = r.read_u32()?;
-        if version != REPLAY_FORMAT_VERSION {
+        if !(1..=REPLAY_FORMAT_VERSION).contains(&version) {
             return Err(ReplayError::UnsupportedVersion(version));
         }
-        let header = ReplayHeader {
+        let mut header = ReplayHeader {
             tick_rate_hz: r.read_u32()?,
             car_id: r.read_string()?,
             track_id: r.read_string()?,
@@ -197,7 +201,11 @@ impl Replay {
             build_id: r.read_string()?,
             hash_interval: r.read_u32()?.max(1),
             start_tick: r.read_u64()?,
+            setup: String::new(),
         };
+        if version >= 2 {
+            header.setup = r.read_string()?;
+        }
         let initial_snapshot = r.read_bytes()?.to_vec();
         let frame_count = r.read_u64()? as usize;
         if frame_count > r.remaining() / InputFrame::ENCODED_LEN {
@@ -319,6 +327,7 @@ mod tests {
             build_id: crate::constants::build_id(),
             hash_interval: 10,
             start_tick: 0,
+            setup: String::new(),
         }
     }
 
@@ -399,5 +408,37 @@ mod tests {
             Replay::from_bytes(&wrong_version),
             Err(ReplayError::UnsupportedVersion(99))
         );
+    }
+
+    #[test]
+    fn the_setup_is_stored_and_version_1_files_still_read() {
+        let (mut replay, _) = record(30);
+        replay.header.setup = "name = wet
+front.camber_deg = -1.5
+"
+        .into();
+        let back = Replay::from_bytes(&replay.to_bytes()).unwrap();
+        assert_eq!(back, replay);
+
+        // A version 1 file is the same without the setup string.
+        replay.header.setup = String::new();
+        let v2 = replay.to_bytes();
+        let mut w = StateWriter::recording();
+        w.write_str(&replay.header.build_id);
+        let build_len = w.into_bytes().len();
+        let mut w = StateWriter::recording();
+        w.write_str("car");
+        let car_len = w.into_bytes().len();
+        let mut w = StateWriter::recording();
+        w.write_str("track");
+        let track_len = w.into_bytes().len();
+        let setup_at = 4 + 4 + 4 + car_len + track_len + 8 + build_len + 4 + 8;
+        let mut w = StateWriter::recording();
+        w.write_str("");
+        let empty_len = w.into_bytes().len();
+        let mut v1 = v2[..setup_at].to_vec();
+        v1.extend_from_slice(&v2[setup_at + empty_len..]);
+        v1[4..8].copy_from_slice(&1u32.to_le_bytes());
+        assert_eq!(Replay::from_bytes(&v1).unwrap(), replay);
     }
 }
