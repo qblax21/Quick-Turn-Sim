@@ -88,6 +88,11 @@ func _run() -> void:
 	check(sim.ffb_set("gain", 0.25), "gain can be changed")
 	check(not sim.ffb_set("soft_clip_knee", 2.0), "an invalid setting is rejected")
 	check(absf(sim.ffb_config().gain - 0.25) < 1e-9, "the change is visible")
+	var scanned: Array = sim.input_scan()
+	for d in scanned:
+		check(d.axes.size() == 8, "device %s reports eight axes" % d.name)
+	sim.input_scan_close()
+	print("devices read directly: %d" % scanned.size())
 	check(sim.ffb_set("min_force", 0.05), "minimum force can be set")
 	check(not sim.ffb_set("min_force", 0.6), "too much minimum force is rejected")
 	check(sim.ffb_set("min_force", 0.0), "minimum force can be cleared")
@@ -116,6 +121,9 @@ func _run() -> void:
 			hud.toggle_debug()
 			hud.toggle_ffb_meter()
 			sim.ffb_log_start(OS.get_temp_dir().path_join("qts_smoke_ffb.csv"))
+			check(sim.set_direct_inputs({"axes": [], "buttons": []}), label + ": an empty direct map is accepted")
+			var bogus := {"axes": [{"action": "throttle", "device": "00000000000000000000000000000001", "axis": 1}], "buttons": []}
+			check(not sim.set_direct_inputs(bogus), label + ": a missing device is reported")
 			var start: Transform3D = sim.car_transform()
 			var input := {"steer": 0.05, "throttle": 1.0, "brake": 0.0, "clutch": 0.0, "handbrake": 0.0, "buttons": 0}
 			var began := Time.get_ticks_msec()
@@ -137,7 +145,8 @@ func _run() -> void:
 			if absf(info.spawn_heading) < 0.01:
 				check(sim.car_transform().origin.z < start.origin.z, label + ": drives toward -Z")
 			check(world.get_child_count() > 0, label + ": world geometry was built")
-			check(sim.status().get("error", "") == "", label + ": no host error")
+			check(sim.status().has("input_delay_frame_ms"), label + ": input delay reported")
+			check(sim.hud().has("input_throttle"), label + ": controls used are reported")
 			var log_state: String = sim.status().get("ffb_log_state", "")
 			check(log_state in ["waiting", "recording"], label + ": FFB log armed (%s)" % log_state)
 			check(sim.status().has("peak_requested"), label + ": peak force reported")

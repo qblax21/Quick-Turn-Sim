@@ -12,7 +12,7 @@
 //!   backend (evdev force feedback) would be a new sibling module wired in
 //!   here.
 
-use crate::device::{DeviceInfo, FfbDevice, FfbError};
+use crate::device::{DeviceInfo, FfbDevice, FfbError, InputSource};
 
 #[cfg(windows)]
 pub mod dinput;
@@ -26,6 +26,22 @@ pub fn enumerate() -> Result<Vec<DeviceInfo>, FfbError> {
     #[cfg(not(windows))]
     {
         Ok(Vec::new())
+    }
+}
+
+/// Opens a device for reading its axes and buttons, without exclusive
+/// access, by the identifier [`enumerate`] returned.
+pub fn open_input(id: &str) -> Result<Box<dyn InputSource>, FfbError> {
+    #[cfg(windows)]
+    {
+        Ok(Box::new(dinput::DInputReader::open(id)?))
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = id;
+        Err(FfbError::Unsupported(
+            "direct device input is only implemented for Windows (DirectInput) so far",
+        ))
     }
 }
 

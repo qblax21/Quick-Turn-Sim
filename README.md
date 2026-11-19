@@ -139,6 +139,30 @@ tires pass their grip limit, and suggests a gain. **Minimum force** (F4 with
 ; and ', or the Controls screen) lifts small forces above the friction of a
 weak base; leave it at zero unless small forces disappear.
 
+### Wheel and pedals read on the physics thread
+
+On the Controls screen, **Assign** each control and move it: the wheel,
+pedals, shifter and buttons are then read straight from the device by the
+physics thread, once per tick, instead of once per drawn frame (the box
+"Read wheel, pedals and shifter on the physics thread" turns this off).
+Controls mapped before this change need assigning again once. Keyboard
+and gamepad still work for anything not mapped.
+
+Measured on the development machine (RTX 3060, CSL Elite attached),
+from handing the input over to the physics having all of it:
+
+| Path | 60 fps, vsync on | about 430 fps, vsync off |
+| --- | --- | --- |
+| Per frame through Godot (before) | 15.9 ms mean, 16.9 ms max | 1.5 ms mean, 3.7 ms max |
+| Read on the physics thread (now) | 0.09 ms mean, 0.2 ms max | 0.09 ms mean, 0.4 ms max |
+
+The per-frame path also waits for Godot to poll the device, once per
+frame, which these figures do not include. With a control mapped both
+ways, F1 shows the measured lag of Godot's steering behind the device's,
+which does include it, and every session appends its figures to
+`recordings/input_delay.log`. `qts-sim input-read` lists every axis and
+button the attached controllers report and times the reads.
+
 ### Force feedback: before you drive with a wheel
 
 The DirectInput output and the wheel presets have **not been tried on

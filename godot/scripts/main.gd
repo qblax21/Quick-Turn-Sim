@@ -399,6 +399,7 @@ func _clear_session() -> void:
 	if audio:
 		audio.stop()
 	if sim and sim.is_running():
+		_log_input_delay()
 		_save_session_replay()
 		sim.stop_session()
 	telemetry_on = false
@@ -455,6 +456,11 @@ func _start_driving(car_id: String, track_id: String, auto_clutch: bool, auto_sh
 	if device_id != "":
 		sim.ffb_open(device_id, DisplayServer.window_get_native_handle(DisplayServer.WINDOW_HANDLE))
 		sim.ffb_set_direct_steering(direct_steering)
+	# Wheel, pedals and shifter read on the physics thread at full rate.
+	var direct_map: Dictionary = reader.direct_map()
+	if not direct_map.axes.is_empty() or not direct_map.buttons.is_empty():
+		if not sim.set_direct_inputs(direct_map):
+			hud.flash(sim.last_error())
 
 
 func _process(delta: float) -> void:
@@ -631,6 +637,27 @@ func _note_laps(values: Dictionary) -> void:
 	if runs > session_runs_seen:
 		session_laps.append({"time": values.get("last_time", 0.0), "cones": values.get("last_cones_hit", 0)})
 		session_runs_seen = runs
+
+
+# Appends the input delay the core measured to a log, one line per
+# session, so the per-frame and physics-thread paths can be compared.
+func _log_input_delay() -> void:
+	var s: Dictionary = sim.status()
+	if not s.has("input_delay_frame_ms"):
+		return
+	var dir := ProjectSettings.globalize_path("user://recordings")
+	DirAccess.make_dir_recursive_absolute(dir)
+	var path := dir.path_join("input_delay.log")
+	var file := FileAccess.open(path, FileAccess.READ_WRITE if FileAccess.file_exists(path) else FileAccess.WRITE)
+	if file == null:
+		return
+	file.seek_end()
+	file.store_line("%s  %s on %s  fps %.0f  direct %s  frame path %.2f ms (max %.2f)  device read %.3f ms (max %.3f)  steering lag %s" % [
+		Time.get_datetime_string_from_system(), session_car, session_track, Engine.get_frames_per_second(),
+		"on" if s.get("direct_inputs", false) else "off",
+		s.get("input_delay_frame_ms", 0.0), s.get("input_delay_frame_max_ms", 0.0),
+		s.get("input_delay_direct_ms", 0.0), s.get("input_delay_direct_max_ms", 0.0),
+		("%.1f ms" % s.get("steer_lag_ms", 0.0)) if s.get("steer_lag_measured", false) else "not measured"])
 
 
 func _recording_path(kind: String, extension: String) -> String:

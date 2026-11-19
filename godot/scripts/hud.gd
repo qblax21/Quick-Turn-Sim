@@ -194,9 +194,10 @@ func update(hud: Dictionary, status: Dictionary, input: Dictionary, telemetry_on
 	else:
 		delta_label.text = ""
 
-	input_bars["steer"].value = -input.steer
-	input_bars["throttle"].value = input.throttle
-	input_bars["brake"].value = input.brake
+	# What the physics used, wherever it was read.
+	input_bars["steer"].value = -hud.get("input_steer", input.steer)
+	input_bars["throttle"].value = hud.get("input_throttle", input.throttle)
+	input_bars["brake"].value = hud.get("input_brake", input.brake)
 	ffb_bar.value = status.get("ffb_output", 0.0)
 	ffb_bar.modulate = Color(1.0, 0.35, 0.3) if status.get("ffb_clipped", 0.0) > 0.02 else Color(1, 1, 1)
 
@@ -258,6 +259,14 @@ func update(hud: Dictionary, status: Dictionary, input: Dictionary, telemetry_on
 			if not status.get("device_force_feedback", false):
 				device += " (no force feedback)"
 		lines.append("wheel: %s" % device)
+		var lag := "not measured (needs the wheel mapped both ways and moving)"
+		if status.get("steer_lag_measured", false):
+			lag = "%.1f ms" % status.get("steer_lag_ms", 0.0)
+		lines.append("input  %s   frame hand-over %.1f ms (max %.1f)   device read %.2f ms" % [
+			"read on physics thread" if status.get("direct_inputs", false) else "per frame",
+			status.get("input_delay_frame_ms", 0.0), status.get("input_delay_frame_max_ms", 0.0),
+			status.get("input_delay_direct_ms", 0.0)])
+		lines.append("per-frame steering behind the device: %s" % lag)
 		lines.append("physics %4.0f Hz   worst wake %d ticks   dropped %.2f s" % [
 			status.get("tick_rate", 0.0), status.get("worst_wake_ticks", 0), status.get("dropped_time", 0.0)])
 		debug_label.text = "\n".join(lines)

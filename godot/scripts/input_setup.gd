@@ -44,6 +44,12 @@ var baseline := {}       # device -> [axis values] when listening started
 var calibrating := ""    # axis action being calibrated
 var cal_min := 0.0
 var cal_max := 0.0
+# Devices read directly by the core: id -> {"name", "axes", "buttons"}.
+var scan := {}
+var direct_baseline := {}  # id -> axes when listening started
+var direct_held := {}      # id -> buttons held when listening started
+var cal_dmin := 0.0
+var cal_dmax := 0.0
 
 
 func setup(bridge, input_reader, store) -> void:
@@ -75,6 +81,12 @@ func _ready() -> void:
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	help.add_theme_font_size_override("font_size", 13)
 	left.add_child(help)
+	var direct_box := CheckBox.new()
+	direct_box.text = "Read wheel, pedals and shifter on the physics thread (recommended)"
+	direct_box.button_pressed = reader.use_direct
+	direct_box.toggled.connect(func(on: bool) -> void: reader.use_direct = on)
+	left.add_child(direct_box)
+	_refresh_scan()
 	for action in reader.AXIS_ACTIONS:
 		_axis_row(left, action)
 	left.add_child(HSeparator.new())
@@ -135,6 +147,7 @@ func _ready() -> void:
 	done.pressed.connect(func() -> void:
 		reader.save_config()
 		settings.save()
+		sim.input_scan_close()
 		closed.emit())
 	right.add_child(done)
 
@@ -174,11 +187,15 @@ func _axis_row(parent: Control, action: String) -> void:
 	var invert := CheckBox.new()
 	invert.text = "Invert"
 	invert.button_pressed = reader.axes[action].invert
-	invert.toggled.connect(func(on: bool) -> void: reader.axes[action].invert = on)
+	invert.toggled.connect(func(on: bool) -> void:
+		reader.axes[action].invert = on
+		reader.direct[action].invert = on)
 	row.add_child(invert)
 	var clear := Button.new()
 	clear.text = "Clear"
-	clear.pressed.connect(func() -> void: reader.axes[action].device = -1)
+	clear.pressed.connect(func() -> void:
+		reader.axes[action].device = -1
+		reader.direct[action].device = "")
 	row.add_child(clear)
 	parent.add_child(row)
 	rows[action] = {"value": value, "bar": bar}
@@ -200,7 +217,9 @@ func _button_row(parent: Control, action: String) -> void:
 	row.add_child(assign)
 	var clear := Button.new()
 	clear.text = "Clear"
-	clear.pressed.connect(func() -> void: reader.buttons[action].device = -1)
+	clear.pressed.connect(func() -> void:
+		reader.buttons[action].device = -1
+		reader.direct[action].device = "")
 	row.add_child(clear)
 	parent.add_child(row)
 	rows[action] = {"value": value}
@@ -244,34 +263,68 @@ func _snapshot_axes() -> Dictionary:
 	return snap
 
 
+func _refresh_scan() -> void:
+	scan.clear()
+	for d in sim.input_scan():
+		scan[d.id] = d
+
+
+func _direct_raw(action: String) -> float:
+	var m: Dictionary = reader.direct[action]
+	if m.device == "" or not scan.has(m.device):
+		return 0.0
+	var axes: PackedFloat32Array = scan[m.device].axes
+	return axes[m.axis] if m.axis < axes.size() else 0.0
+
+
+func _direct_pressed(action: String) -> bool:
+	var m: Dictionary = reader.direct[action]
+	return m.device != "" and scan.has(m.device) and m.button in scan[m.device].buttons
+
+
 func _listen(action: String, is_axis: bool) -> void:
 	listening = action
 	listen_is_axis = is_axis
 	baseline = _snapshot_axes()
+	direct_baseline.clear()
+	direct_held.clear()
+	for id in scan:
+		direct_baseline[id] = scan[id].axes.duplicate()
+		direct_held[id] = scan[id].buttons.duplicate()
 	status.text = "Waiting for input for: %s  (Esc to cancel)" % (AXIS_LABELS.get(action, BUTTON_LABELS.get(action, action)))
 
 
 func _toggle_calibration(action: String, button: Button) -> void:
+	var mapped: bool = reader.axes[action].device >= 0 or reader.has_direct(action)
 	if calibrating == action:
 		# Finish: the current position is the centre (matters for steering).
 		var m: Dictionary = reader.axes[action]
-		m.min = cal_min
-		m.max = cal_max
-		m.center = reader.raw_axis(action) if action == "steer" else cal_min
+		if m.device >= 0:
+			m.min = cal_min
+			m.max = cal_max
+			m.center = reader.raw_axis(action) if action == "steer" else cal_min
+		var d: Dictionary = reader.direct[action]
+		if d.device != "":
+			d.min = cal_dmin
+			d.max = cal_dmax
+			d.center = _direct_raw(action) if action == "steer" else cal_dmin
 		calibrating = ""
 		button.text = "Calibrate"
-		status.text = "Calibrated %s: %.3f to %.3f" % [AXIS_LABELS[action], cal_min, cal_max]
-	elif calibrating == "" and reader.axes[action].device >= 0:
+		status.text = "Calibrated %s." % AXIS_LABELS[action]
+	elif calibrating == "" and mapped:
 		calibrating = action
 		cal_min = reader.raw_axis(action)
 		cal_max = cal_min
+		cal_dmin = _direct_raw(action)
+		cal_dmax = cal_dmin
 		button.text = "Done"
 		status.text = "Move %s through its whole range, then press Done." % AXIS_LABELS[action]
-	elif reader.axes[action].device < 0:
+	elif not mapped:
 		status.text = "Assign %s before calibrating it." % AXIS_LABELS[action]
 
 
 func _process(_delta: float) -> void:
+	_refresh_scan()
 	if listening != "":
 		if Input.is_physical_key_pressed(KEY_ESCAPE):
 			listening = ""
@@ -284,10 +337,19 @@ func _process(_delta: float) -> void:
 		var raw: float = reader.raw_axis(calibrating)
 		cal_min = minf(cal_min, raw)
 		cal_max = maxf(cal_max, raw)
+		var draw: float = _direct_raw(calibrating)
+		cal_dmin = minf(cal_dmin, draw)
+		cal_dmax = maxf(cal_dmax, draw)
 	for action in reader.AXIS_ACTIONS:
 		var m: Dictionary = reader.axes[action]
 		var row: Dictionary = rows[action]
-		if m.device < 0:
+		if reader.has_direct(action):
+			var d: Dictionary = reader.direct[action]
+			var raw_d := _direct_raw(action)
+			var device_name: String = scan[d.device].name if scan.has(d.device) else "missing device"
+			row.value.text = "%s %s  raw %+.2f" % [device_name.left(14), sim.input_axis_name(d.axis), raw_d]
+			row.bar.value = reader.direct_calibrated(action, raw_d)
+		elif m.device < 0:
 			row.value.text = "keyboard / gamepad"
 			row.bar.value = 0.0
 		else:
@@ -295,33 +357,76 @@ func _process(_delta: float) -> void:
 			row.bar.value = reader._calibrated_centered(action) if action == "steer" else reader._calibrated_pedal(action)
 	for action in reader.BUTTON_ACTIONS:
 		var b: Dictionary = reader.buttons[action]
+		if reader.has_direct(action):
+			var d: Dictionary = reader.direct[action]
+			var device_name: String = scan[d.device].name if scan.has(d.device) else "missing device"
+			rows[action].value.text = "%s button %d%s" % [device_name.left(14), d.button, "  (pressed)" if _direct_pressed(action) else ""]
+			continue
 		rows[action].value.text = "not assigned" if b.device < 0 else "device %d button %d%s" % [b.device, b.button, "  (pressed)" if reader._button(action) else ""]
 
 
 func _detect_axis() -> void:
-	# The axis that has moved furthest from where it was when listening began.
-	var best_change := 0.5
-	var found := false
+	# The axis that has moved furthest from where it was when listening
+	# began, both as Godot sees the devices and as the core reads them.
+	var best_pad := [0.0, -1, 0]
 	for pad in Input.get_connected_joypads():
 		if not baseline.has(pad):
 			continue
 		for axis in range(JOY_AXIS_MAX):
 			var change := absf(Input.get_joy_axis(pad, axis) - baseline[pad][axis])
-			if change > best_change:
-				best_change = change
-				reader.axes[listening].device = pad
-				reader.axes[listening].axis = axis
-				found = true
-	if found:
+			if change > best_pad[0]:
+				best_pad = [change, pad, axis]
+	var best_direct := [0.0, "", 0]
+	for id in scan:
+		if not direct_baseline.has(id):
+			continue
+		var axes: PackedFloat32Array = scan[id].axes
+		for axis in range(axes.size()):
+			var change := absf(axes[axis] - direct_baseline[id][axis])
+			if change > best_direct[0]:
+				best_direct = [change, id, axis]
+	if maxf(best_pad[0], best_direct[0]) < 0.5:
+		return
+	# Map every way the movement was seen; the core reads the device itself
+	# and compares with what Godot read to measure the delay.
+	var said: Array = []
+	if best_pad[0] > 0.3:
 		var m: Dictionary = reader.axes[listening]
+		m.device = best_pad[1]
+		m.axis = best_pad[2]
 		m.min = -1.0
 		m.center = 0.0 if listening == "steer" else -1.0
 		m.max = 1.0
-		status.text = "Assigned %s to device %d axis %d. Calibrate it next." % [AXIS_LABELS[listening], m.device, m.axis]
-		listening = ""
+		said.append("Godot device %d axis %d" % [m.device, m.axis])
+	if best_direct[0] > 0.3:
+		var d: Dictionary = reader.direct[listening]
+		d.device = best_direct[1]
+		d.axis = best_direct[2]
+		d.min = -1.0
+		d.center = 0.0 if listening == "steer" else -1.0
+		d.max = 1.0
+		said.append("%s %s, read on the physics thread" % [scan[d.device].name, sim.input_axis_name(d.axis)])
+	status.text = "Assigned %s to %s. Calibrate it next." % [AXIS_LABELS[listening], " and ".join(said)]
+	listening = ""
 
 
 func _detect_button() -> void:
+	for id in scan:
+		for button in scan[id].buttons:
+			if direct_held.has(id) and button in direct_held[id]:
+				continue
+			var d: Dictionary = reader.direct[listening]
+			d.device = id
+			d.button = button
+			# Godot's view of the same press, for keyboard-free fallback.
+			for pad in Input.get_connected_joypads():
+				for b in range(JOY_BUTTON_MAX):
+					if Input.is_joy_button_pressed(pad, b):
+						reader.buttons[listening].device = pad
+						reader.buttons[listening].button = b
+			status.text = "Assigned %s to %s button %d." % [BUTTON_LABELS[listening], scan[id].name, button]
+			listening = ""
+			return
 	for pad in Input.get_connected_joypads():
 		for button in range(JOY_BUTTON_MAX):
 			if Input.is_joy_button_pressed(pad, button):

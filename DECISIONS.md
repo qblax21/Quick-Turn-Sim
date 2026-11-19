@@ -764,3 +764,35 @@ limit) survives to the wheel or is flattened by clipping.
 
 The physics is not changed for any of this.
 
+## D-070 Wheel, pedals and shifter read on the physics thread
+
+Before, every control reached the physics through Godot: read once per
+frame, handed to the sim thread, and spread over the ticks until the next
+frame so it did not arrive as a staircase. That costs a frame of hand-over
+plus the age of Godot's once-per-frame device poll.
+
+Now the mapped controls are read from their devices by the sim thread at
+the start of every tick (DirectInput, opened shared so the force-feedback
+device can be pushed at the same time) and written into the tick's input
+frame; unmapped controls keep the value Godot sent, so keyboard and gamepad
+work as before. The frame is what replays record, so recordings reproduce
+exactly however the input arrived (tested by re-simulating a host
+recording made with a device-driven throttle and wheel).
+
+Mapping stays on the Controls screen: assigning watches both Godot's view
+of the devices and the core's, and maps every way the movement was seen.
+DirectInput axis indices do not match Godot's, so mappings made before
+this change are kept for the per-frame path but need assigning once more
+to be read directly.
+
+The host measures, each second: the per-frame hand-over (Godot handing the
+value over to the physics having all of it), the time from the device read
+to the end of the tick, and, while a wheel is mapped both ways and moving,
+the lag of Godot's steering behind the device's by matching the two
+signals (2 s window, 0 to 150 ms searched, median of recent estimates).
+That last figure is the complete one and needs a person at the wheel.
+
+Measured here (60 fps vsync, about 430 fps without): hand-over 15.9 and
+1.5 ms mean before, device read to physics 0.09 ms after. A read costs
+about 1 microsecond (median), 4 at the 99th percentile.
+

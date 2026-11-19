@@ -11,6 +11,7 @@
 //! clock. The clock decides how many ticks to run and nothing else; no time
 //! value ever reaches [`Simulation::step`].
 
+use crate::direct_input::DirectInputs;
 use crate::ffb_log::{FfbLogStatus, FfbLogger, CLIP_THRESHOLD};
 use crate::ghost::{GhostLap, GhostRecorder};
 use crate::session::Session;
@@ -191,6 +192,9 @@ pub struct HudState {
     pub last_cones_hit: u32,
     /// Runs that reached the finish without taking the course.
     pub invalid_runs: u32,
+    /// Controls the physics used on the last tick: steering (−1 to 1,
+    /// positive left), accelerator, brake, clutch and handbrake (0 to 1).
+    pub input: [f64; 5],
 }
 
 impl HudState {
@@ -215,6 +219,54 @@ impl HudState {
             cones_hit: t.cones_hit,
             last_cones_hit: t.last_cones_hit,
             invalid_runs: t.invalid_runs,
+            input: [0.0; 5],
+        }
+    }
+}
+
+/// How late driver input reaches the physics, measured over about the
+/// last second. Times are from when the value was read to the end of the
+/// tick that first used it in full.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct InputDelay {
+    /// Per-frame path: mean time from the front end handing over a value
+    /// to the physics having all of it (the hand-over is spread over the
+    /// ticks until the next frame), ms. Does not include how old the value
+    /// already was when the front end read it.
+    pub frame_mean_ms: f64,
+    /// Per-frame path, largest, ms.
+    pub frame_max_ms: f64,
+    /// Device read on the physics thread: mean time from the read to the
+    /// end of the tick that used it, ms.
+    pub direct_mean_ms: f64,
+    /// Device read on the physics thread, largest, ms.
+    pub direct_max_ms: f64,
+    /// Measured lag of the front end's steering behind the device's read
+    /// on the physics thread, ms, when both read the same wheel. This one
+    /// includes everything: the front end's polling, its frame and the
+    /// hand-over.
+    pub frame_steer_lag_ms: Option<f64>,
+}
+
+#[derive(Default)]
+struct DelayWindow {
+    frame_sum: f64,
+    frame_n: u32,
+    frame_max: f64,
+    direct_sum: f64,
+    direct_n: u32,
+    direct_max: f64,
+}
+
+impl DelayWindow {
+    fn report(&self, lag: Option<f64>) -> InputDelay {
+        let mean = |sum: f64, n: u32| if n > 0 { sum / f64::from(n) } else { 0.0 };
+        InputDelay {
+            frame_mean_ms: mean(self.frame_sum, self.frame_n) * 1000.0,
+            frame_max_ms: self.frame_max * 1000.0,
+            direct_mean_ms: mean(self.direct_sum, self.direct_n) * 1000.0,
+            direct_max_ms: self.direct_max * 1000.0,
+            frame_steer_lag_ms: lag,
         }
     }
 }
@@ -256,10 +308,14 @@ pub struct HostStatus {
     /// Angle of the physical wheel, rad, positive left, if a device reports
     /// it.
     pub device_angle_rad: Option<f64>,
+    /// True while controls are read from their devices on the physics
+    /// thread.
+    pub direct_inputs: bool,
+    /// How late input reaches the physics.
+    pub input_delay: InputDelay,
 }
 
 /// Instructions for the sim thread.
-#[derive(Clone, Debug)]
 pub enum HostCommand {
     /// Open a steering device by identifier. `window` is the native handle
     /// of the application window.
@@ -312,12 +368,38 @@ pub enum HostCommand {
     /// Stop the force-feedback log, saving a lap in progress as far as it
     /// went.
     StopFfbLog,
+    /// Read the mapped controls from their devices every tick, or stop
+    /// (`None`) and use only what the front end sends.
+    SetDirectInputs(Option<Box<DirectInputs>>),
+}
+
+impl std::fmt::Debug for HostCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match self {
+            HostCommand::OpenDevice { .. } => "OpenDevice",
+            HostCommand::CloseDevice => "CloseDevice",
+            HostCommand::SetFfbConfig(_) => "SetFfbConfig",
+            HostCommand::SetFfbEnabled(_) => "SetFfbEnabled",
+            HostCommand::SetDirectSteering(_) => "SetDirectSteering",
+            HostCommand::StartTelemetry { .. } => "StartTelemetry",
+            HostCommand::StopTelemetry => "StopTelemetry",
+            HostCommand::StartReplay { .. } => "StartReplay",
+            HostCommand::StopReplay { .. } => "StopReplay",
+            HostCommand::SaveReplay { .. } => "SaveReplay",
+            HostCommand::SetPaused(_) => "SetPaused",
+            HostCommand::StartFfbLog { .. } => "StartFfbLog",
+            HostCommand::StopFfbLog => "StopFfbLog",
+            HostCommand::SetDirectInputs(_) => "SetDirectInputs",
+        };
+        f.write_str(name)
+    }
 }
 
 #[derive(Default)]
 struct InputSlot {
     frame: InputFrame,
     sequence: u64,
+    sent_at: Option<Instant>,
 }
 
 #[derive(Default)]
@@ -411,6 +493,7 @@ impl RealtimeHost {
         let mut slot = lock(&self.shared.input);
         slot.frame = frame;
         slot.sequence += 1;
+        slot.sent_at = Some(Instant::now());
     }
 
     /// Queues a command for the sim thread.
@@ -503,6 +586,12 @@ struct SimThread {
     peak_ticks: u32,
     ffb_log: Option<FfbLogger>,
     ffb_log_status: FfbLogStatus,
+    // Driver input read on this thread, and delay measurement.
+    direct: Option<Box<DirectInputs>>,
+    ramp_sent_at: Option<Instant>,
+    delay: DelayWindow,
+    delay_report: InputDelay,
+    last_frame: InputFrame,
 }
 
 fn ramp_axis(from: i16, to: i16, pos: u32, len: u32) -> i16 {
@@ -564,6 +653,11 @@ impl SimThread {
             peak_ticks: 0,
             ffb_log: None,
             ffb_log_status: FfbLogStatus::Off,
+            direct: None,
+            ramp_sent_at: None,
+            delay: DelayWindow::default(),
+            delay_report: InputDelay::default(),
+            last_frame: InputFrame::default(),
         }
     }
 
@@ -643,6 +737,12 @@ impl SimThread {
             HostCommand::StartFfbLog { path } => {
                 self.ffb_log = Some(FfbLogger::arm(path, &self.session));
             }
+            HostCommand::SetDirectInputs(direct) => {
+                self.direct = direct.map(|mut d| {
+                    d.set_compare_steering(true);
+                    d
+                });
+            }
             HostCommand::StopFfbLog => {
                 if let Some(log) = self.ffb_log.as_mut() {
                     log.stop(&self.session, self.pipeline.config());
@@ -679,12 +779,13 @@ impl SimThread {
 
     /// The input frame for the next tick.
     fn next_frame(&mut self) -> InputFrame {
-        let (target, sequence) = {
+        let (target, sequence, sent_at) = {
             let slot = lock(&self.shared.input);
-            (slot.frame, slot.sequence)
+            (slot.frame, slot.sequence, slot.sent_at)
         };
         if sequence != self.seen_sequence {
             self.seen_sequence = sequence;
+            self.ramp_sent_at = sent_at;
             let rate = f64::from(self.session.tick_rate_hz());
             let longest = (MAX_INPUT_RAMP_S * rate).max(1.0) as u32;
             self.ramp_from = self.interpolated();
@@ -754,6 +855,11 @@ impl SimThread {
 
     fn tick(&mut self) {
         let mut frame = self.next_frame();
+        let ramp_done = self.ramp_pos >= self.ramp_len;
+        let read_at = Instant::now();
+        if let Some(direct) = self.direct.as_mut() {
+            direct.apply(&mut frame);
+        }
         let angle = self.device_angle();
         if self.direct_steering {
             if let Some(a) = angle {
@@ -763,6 +869,22 @@ impl SimThread {
             }
         }
         self.session.step(&frame);
+        self.last_frame = frame;
+        let stepped = Instant::now();
+        if self.direct.is_some() {
+            let d = stepped.duration_since(read_at).as_secs_f64();
+            self.delay.direct_sum += d;
+            self.delay.direct_n += 1;
+            self.delay.direct_max = self.delay.direct_max.max(d);
+        }
+        if ramp_done {
+            if let Some(sent) = self.ramp_sent_at.take() {
+                let d = stepped.duration_since(sent).as_secs_f64();
+                self.delay.frame_sum += d;
+                self.delay.frame_n += 1;
+                self.delay.frame_max = self.delay.frame_max.max(d);
+            }
+        }
 
         let input = ffb_input(&self.session, angle);
         let sample = self.pipeline.step(&input);
@@ -863,6 +985,13 @@ impl SimThread {
             worst_wake = worst_wake.max(ticks);
             let window = now.duration_since(window_start).as_secs_f64();
             if window >= 1.0 {
+                let tick_ms = 1000.0 / f64::from(rate.max(1));
+                let lag = self
+                    .direct
+                    .as_ref()
+                    .and_then(|d| d.steering_lag_ticks())
+                    .map(|(ticks, _)| f64::from(ticks) * tick_ms);
+                self.delay_report = std::mem::take(&mut self.delay).report(lag);
                 measured_rate = f64::from(window_ticks) / window;
                 reported_worst = worst_wake;
                 window_start = now;
@@ -875,6 +1004,14 @@ impl SimThread {
                 p.current = self.current;
                 p.alpha = if self.paused { 1.0 } else { driver.alpha() };
                 p.hud = HudState::of(&self.session);
+                let f = &self.last_frame;
+                p.hud.input = [
+                    f.steer_f64(),
+                    f.throttle_f64(),
+                    f.brake_f64(),
+                    f.clutch_f64(),
+                    f.handbrake_f64(),
+                ];
                 p.cones_down.clear();
                 p.cones_down
                     .extend_from_slice(&self.session.timing().cone_down);
@@ -903,6 +1040,11 @@ impl SimThread {
                 s.telemetry_rows = self.telemetry.as_ref().map(|t| t.rows());
                 s.replay_frames = self.recorder.as_ref().map(|r| r.len());
                 s.paused = self.paused;
+                s.direct_inputs = self.direct.is_some();
+                s.input_delay = self.delay_report;
+                if let Some(e) = self.direct.as_ref().and_then(|d| d.last_error()) {
+                    s.last_error = Some(format!("input: {e}"));
+                }
                 s.device_angle_rad = if self.angle_valid {
                     Some(self.angle_to)
                 } else {

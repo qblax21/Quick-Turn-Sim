@@ -19,6 +19,13 @@ const BUTTON_RESET := 4
 var axes := {}
 # Each button mapping: device (-1 = unmapped) and button index.
 var buttons := {}
+# The same controls read straight from the device on the physics thread:
+# device id ("" = not mapped), axis or button index, and calibration in the
+# device's raw units (-1..1). These take over from the mappings above while
+# driving when `use_direct` is on; the mappings above are still read so the
+# core can measure how much later they arrive.
+var direct := {}
+var use_direct := true
 var keyboard_steer := 0.0
 var keyboard_throttle := 0.0
 var keyboard_brake := 0.0
@@ -29,6 +36,10 @@ func _ready() -> void:
 		axes[action] = {"device": -1, "axis": 0, "min": -1.0, "center": 0.0, "max": 1.0, "invert": false}
 	for action in BUTTON_ACTIONS:
 		buttons[action] = {"device": -1, "button": 0}
+	for action in AXIS_ACTIONS:
+		direct[action] = {"device": "", "axis": 0, "min": -1.0, "center": 0.0, "max": 1.0, "invert": false}
+	for action in BUTTON_ACTIONS:
+		direct[action] = {"device": "", "button": 0}
 	load_config()
 
 
@@ -42,6 +53,10 @@ func load_config() -> void:
 	for action in BUTTON_ACTIONS:
 		for key in buttons[action].keys():
 			buttons[action][key] = cfg.get_value("button_" + action, key, buttons[action][key])
+	for action in direct.keys():
+		for key in direct[action].keys():
+			direct[action][key] = cfg.get_value("direct_" + action, key, direct[action][key])
+	use_direct = cfg.get_value("input", "use_direct", true)
 
 
 func save_config() -> void:
@@ -52,7 +67,49 @@ func save_config() -> void:
 	for action in BUTTON_ACTIONS:
 		for key in buttons[action].keys():
 			cfg.set_value("button_" + action, key, buttons[action][key])
+	for action in direct.keys():
+		for key in direct[action].keys():
+			cfg.set_value("direct_" + action, key, direct[action][key])
+	cfg.set_value("input", "use_direct", use_direct)
 	cfg.save(CONFIG_PATH)
+
+
+func has_direct(action: String) -> bool:
+	return direct.has(action) and direct[action].device != ""
+
+
+# The controls to read on the physics thread, in the form the core takes.
+func direct_map() -> Dictionary:
+	var out := {"axes": [], "buttons": []}
+	if not use_direct:
+		return out
+	for action in direct.keys():
+		var m: Dictionary = direct[action]
+		if m.device == "":
+			continue
+		var entry := m.duplicate()
+		entry["action"] = action
+		if m.has("axis"):
+			out.axes.append(entry)
+		else:
+			out.buttons.append(entry)
+	return out
+
+
+# Calibrated value of a directly read axis from a raw device value, the
+# same arithmetic as the core uses.
+func direct_calibrated(action: String, raw: float) -> float:
+	var m: Dictionary = direct[action]
+	var value := 0.0
+	if action == "steer":
+		if raw >= m.center:
+			value = (raw - m.center) / maxf(m.max - m.center, 0.001)
+		else:
+			value = (raw - m.center) / maxf(m.center - m.min, 0.001)
+		value = clampf(value, -1.0, 1.0)
+		return -value if m.invert else value
+	value = clampf((raw - m.min) / maxf(m.max - m.min, 0.001), 0.0, 1.0)
+	return 1.0 - value if m.invert else value
 
 
 func is_mapped(action: String) -> bool:

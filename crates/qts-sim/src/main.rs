@@ -42,6 +42,8 @@ Commands:
   channels                               telemetry channel table (Markdown)
   ffb-report FILE...                     clipping and grip-limit summary of FFB logs
   ffb-devices                            list steering devices
+  input-read [--device ID] [--reads N]   read every axis and button of the
+                                         attached controllers and time the reads
   ffb-test --device ID [--seconds N] [--amplitude A]
                                          send a slow sine to a device
 ";
@@ -640,6 +642,57 @@ fn cmd_ffb_test(args: &Args) -> Result<(), String> {
     Ok(())
 }
 
+fn cmd_input_read(args: &Args) -> Result<(), String> {
+    let reads = args.number("reads", 2000.0)?.max(1.0) as usize;
+    let devices = qts_ffb::platform::enumerate().map_err(|e| e.to_string())?;
+    if devices.is_empty() {
+        println!("no game controllers attached");
+    }
+    for d in devices {
+        if args.text("device").is_some_and(|id| id != d.id) {
+            continue;
+        }
+        let mut reader = qts_ffb::platform::open_input(&d.id).map_err(|e| e.to_string())?;
+        let mut state = reader.read_state().map_err(|e| e.to_string())?;
+        let mut times: Vec<f64> = Vec::with_capacity(reads);
+        let mut changes = 0usize;
+        for _ in 0..reads {
+            let start = std::time::Instant::now();
+            let now = reader.read_state().map_err(|e| e.to_string())?;
+            times.push(start.elapsed().as_secs_f64() * 1e6);
+            if now != state {
+                changes += 1;
+            }
+            state = now;
+            // Spread the reads over time as the physics thread would.
+            std::thread::sleep(std::time::Duration::from_micros(500));
+        }
+        times.sort_by(f64::total_cmp);
+        println!("{}  {}", d.id, d.name);
+        let present = reader.axes_present();
+        for ((name, value), here) in qts_ffb::AXIS_NAMES.iter().zip(state.axes).zip(present) {
+            if here {
+                print!("  {name} {value:+.3}");
+            }
+        }
+        print!("  ({} buttons)", reader.button_count());
+        println!();
+        let held: Vec<usize> = (0..qts_ffb::INPUT_BUTTONS)
+            .filter(|b| state.button(*b))
+            .collect();
+        println!("  buttons held: {held:?}");
+        println!(
+            "  {} reads: median {:.1} us, 99th percentile {:.1} us, longest {:.1} us; state changed {} times",
+            reads,
+            times[reads / 2],
+            times[(reads * 99) / 100],
+            times[reads - 1],
+            changes
+        );
+    }
+    Ok(())
+}
+
 fn cmd_ffb_report(args: &Args) -> Result<(), String> {
     let files = &args.positional[1..];
     if files.is_empty() {
@@ -680,6 +733,7 @@ fn main() -> ExitCode {
         }
         "ffb-report" => cmd_ffb_report(&args).map(|()| true),
         "ffb-devices" => cmd_ffb_devices().map(|()| true),
+        "input-read" => cmd_input_read(&args).map(|()| true),
         "ffb-test" => cmd_ffb_test(&args).map(|()| true),
         "" | "help" | "--help" | "-h" => {
             println!("{PRODUCT_NAME} headless simulator\n\n{USAGE}");

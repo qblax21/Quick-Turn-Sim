@@ -23,6 +23,10 @@ use godot::prelude::*;
 use qts_core::constants::{CORE_VERSION, PRODUCT_NAME, PRODUCT_SHORT_NAME};
 use qts_core::input::{InputFrame, GEAR_NO_REQUEST};
 use qts_ffb::FfbConfig;
+use qts_ffb::InputSource;
+use qts_sim::direct_input::{
+    AxisAction, AxisBinding, ButtonAction, ButtonBinding, DirectInputMap, DirectInputs,
+};
 use qts_sim::ffb_log::FfbLogStatus;
 use qts_sim::host::{HostCommand, HostOptions, RealtimeHost};
 use qts_sim::playback::Playback;
@@ -91,6 +95,8 @@ pub struct SimBridge {
     traction_control_off: bool,
     /// A replay open for watching.
     playback: Option<Playback>,
+    /// Devices open for the Controls screen to watch.
+    scan: Vec<Box<dyn InputSource>>,
     base: Base<RefCounted>,
 }
 
@@ -641,6 +647,11 @@ impl SimBridge {
             "temp_carcass" => per_wheel(&|w| w.temp_carcass_c),
             "pressure" => per_wheel(&|w| w.pressure_pa),
             "surface" => surfaces,
+            "input_steer" => h.input[0],
+            "input_throttle" => h.input[1],
+            "input_brake" => h.input[2],
+            "input_clutch" => h.input[3],
+            "input_handbrake" => h.input[4],
         }
     }
 
@@ -1152,6 +1163,146 @@ impl SimBridge {
             "replay_active" => s.replay_frames.is_some(),
             "replay_frames" => s.replay_frames.unwrap_or(0) as i64,
             "paused" => s.paused,
+            "direct_inputs" => s.direct_inputs,
+            "input_delay_frame_ms" => s.input_delay.frame_mean_ms,
+            "input_delay_frame_max_ms" => s.input_delay.frame_max_ms,
+            "input_delay_direct_ms" => s.input_delay.direct_mean_ms,
+            "input_delay_direct_max_ms" => s.input_delay.direct_max_ms,
+            "steer_lag_measured" => s.input_delay.frame_steer_lag_ms.is_some(),
+            "steer_lag_ms" => s.input_delay.frame_steer_lag_ms.unwrap_or(0.0),
+        }
+    }
+
+    // ----- devices read directly ------------------------------------------
+
+    /// Every attached game controller with all its axes (-1 to 1) and the
+    /// buttons held, for mapping and calibration. The devices stay open
+    /// until `input_scan_close`.
+    #[func]
+    fn input_scan(&mut self) -> Array<VarDictionary> {
+        if self.scan.is_empty() {
+            match qts_ffb::platform::enumerate() {
+                Ok(devices) => {
+                    for d in devices {
+                        match qts_ffb::platform::open_input(&d.id) {
+                            Ok(reader) => self.scan.push(reader),
+                            Err(e) => self.last_error = format!("{}: {e}", d.name),
+                        }
+                    }
+                }
+                Err(e) => self.last_error = e.to_string(),
+            }
+        }
+        let mut out = Array::new();
+        for device in &mut self.scan {
+            let Ok(state) = device.read_state() else {
+                continue;
+            };
+            let axes: PackedFloat32Array = state.axes.iter().copied().collect();
+            let held: PackedInt32Array = (0..qts_ffb::INPUT_BUTTONS)
+                .filter(|b| state.button(*b))
+                .map(|b| b as i32)
+                .collect();
+            out.push(&vd! {
+                "id" => gstr(&device.info().id),
+                "name" => gstr(&device.info().name),
+                "axes" => axes,
+                "buttons" => held,
+            });
+        }
+        out
+    }
+
+    /// Releases the devices opened by `input_scan`.
+    #[func]
+    fn input_scan_close(&mut self) {
+        self.scan.clear();
+    }
+
+    /// Name of an axis index as the device reports it.
+    #[func]
+    fn input_axis_name(index: i64) -> GString {
+        gstr(
+            usize::try_from(index)
+                .ok()
+                .and_then(|i| qts_ffb::AXIS_NAMES.get(i))
+                .copied()
+                .unwrap_or("?"),
+        )
+    }
+
+    /// Reads the mapped controls from their devices on the physics thread
+    /// for the running session. `map` has `axes`, an array of
+    /// {action, device, axis, min, center, max, invert}, and `buttons`, an
+    /// array of {action, device, button}. An empty map turns it off.
+    /// Returns false (with `last_error`) if a device would not open; the
+    /// controls that did open are still used.
+    #[func]
+    fn set_direct_inputs(&mut self, map: VarDictionary) -> bool {
+        let get_f = |d: &VarDictionary, k: &str, default: f64| -> f64 {
+            d.get(k)
+                .and_then(|v| v.try_to::<f64>().ok())
+                .unwrap_or(default)
+        };
+        let get_s = |d: &VarDictionary, k: &str| -> String {
+            d.get(k)
+                .and_then(|v| v.try_to::<GString>().ok())
+                .map(|s| s.to_string())
+                .unwrap_or_default()
+        };
+        let list = |k: &str| -> Vec<VarDictionary> {
+            map.get(k)
+                .and_then(|v| v.try_to::<VarArray>().ok())
+                .map(|a| {
+                    a.iter_shared()
+                        .filter_map(|v| v.try_to::<VarDictionary>().ok())
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        let mut parsed = DirectInputMap::default();
+        for d in list("axes") {
+            let Some(action) = AxisAction::from_name(&get_s(&d, "action")) else {
+                continue;
+            };
+            parsed.axes.push(AxisBinding {
+                action,
+                device: get_s(&d, "device"),
+                axis: get_f(&d, "axis", 0.0).max(0.0) as usize,
+                min: get_f(&d, "min", -1.0) as f32,
+                center: get_f(&d, "center", 0.0) as f32,
+                max: get_f(&d, "max", 1.0) as f32,
+                invert: d
+                    .get("invert")
+                    .and_then(|v| v.try_to::<bool>().ok())
+                    .unwrap_or(false),
+            });
+        }
+        for d in list("buttons") {
+            let Some(action) = ButtonAction::from_name(&get_s(&d, "action")) else {
+                continue;
+            };
+            parsed.buttons.push(ButtonBinding {
+                action,
+                device: get_s(&d, "device"),
+                button: get_f(&d, "button", 0.0).max(0.0) as usize,
+            });
+        }
+        if parsed.axes.is_empty() && parsed.buttons.is_empty() {
+            self.send(HostCommand::SetDirectInputs(None));
+            return true;
+        }
+        // The Controls screen's readers are no longer needed.
+        self.scan.clear();
+        let (direct, errors) = DirectInputs::open(parsed, |id| {
+            qts_ffb::platform::open_input(id).map_err(|e| e.to_string())
+        });
+        self.send(HostCommand::SetDirectInputs(Some(Box::new(direct))));
+        if errors.is_empty() {
+            true
+        } else {
+            self.last_error = errors.join("; ");
+            false
         }
     }
 

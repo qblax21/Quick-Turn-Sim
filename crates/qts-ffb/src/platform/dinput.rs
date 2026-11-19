@@ -17,18 +17,21 @@
 //! for that.
 #![allow(unsafe_code)]
 
-use crate::device::{DeviceInfo, FfbDevice, FfbError};
+use crate::device::{
+    DeviceInfo, FfbDevice, FfbError, InputSource, RawInputState, INPUT_AXES, INPUT_BUTTONS,
+};
 use std::ffi::c_void;
 use windows::core::w;
 use windows::core::GUID;
 use windows::Win32::Devices::HumanInterfaceDevice::{
     DirectInput8Create, IDirectInput8W, IDirectInputDevice8W, IDirectInputEffect,
-    DI8DEVCLASS_GAMECTRL, DICONSTANTFORCE, DIDATAFORMAT, DIDEVICEINSTANCEW, DIDFT_ANYINSTANCE,
-    DIDFT_AXIS, DIDF_ABSAXIS, DIEB_NOTRIGGER, DIEDFL_ATTACHEDONLY, DIEDFL_FORCEFEEDBACK, DIEFFECT,
-    DIEFF_CARTESIAN, DIEFF_OBJECTOFFSETS, DIENUM_CONTINUE, DIEP_START, DIEP_TYPESPECIFICPARAMS,
-    DIERR_INPUTLOST, DIERR_NOTACQUIRED, DIOBJECTDATAFORMAT, DIPH_BYOFFSET, DIPH_DEVICE,
-    DIPROPAUTOCENTER_OFF, DIPROPDWORD, DIPROPHEADER, DIPROPRANGE, DIRECTINPUT_VERSION,
-    DISCL_BACKGROUND, DISCL_EXCLUSIVE, DISFFC_RESET, DISFFC_SETACTUATORSON, DI_FFNOMINALMAX,
+    DI8DEVCLASS_GAMECTRL, DICONSTANTFORCE, DIDATAFORMAT, DIDEVICEINSTANCEW,
+    DIDEVICEOBJECTINSTANCEW, DIDFT_ANYINSTANCE, DIDFT_AXIS, DIDFT_BUTTON, DIDF_ABSAXIS,
+    DIEB_NOTRIGGER, DIEDFL_ATTACHEDONLY, DIEDFL_FORCEFEEDBACK, DIEFFECT, DIEFF_CARTESIAN,
+    DIEFF_OBJECTOFFSETS, DIENUM_CONTINUE, DIEP_START, DIEP_TYPESPECIFICPARAMS, DIERR_INPUTLOST,
+    DIERR_NOTACQUIRED, DIOBJECTDATAFORMAT, DIPH_BYOFFSET, DIPH_DEVICE, DIPROPAUTOCENTER_OFF,
+    DIPROPDWORD, DIPROPHEADER, DIPROPRANGE, DIRECTINPUT_VERSION, DISCL_BACKGROUND, DISCL_EXCLUSIVE,
+    DISCL_NONEXCLUSIVE, DISFFC_RESET, DISFFC_SETACTUATORSON, DI_FFNOMINALMAX,
 };
 use windows::Win32::Foundation::{BOOL, HINSTANCE, HWND};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -42,6 +45,12 @@ pub const BACKEND: &str = "directinput";
 // Object and effect GUIDs from dinput.h. They are defined in a static
 // library there; the values are fixed parts of the DirectInput ABI.
 const GUID_X_AXIS: GUID = GUID::from_u128(0xa36d02e0_c9f3_11cf_bfc7_444553540000);
+const GUID_Y_AXIS: GUID = GUID::from_u128(0xa36d02e1_c9f3_11cf_bfc7_444553540000);
+const GUID_Z_AXIS: GUID = GUID::from_u128(0xa36d02e2_c9f3_11cf_bfc7_444553540000);
+const GUID_RX_AXIS: GUID = GUID::from_u128(0xa36d02f4_c9f3_11cf_bfc7_444553540000);
+const GUID_RY_AXIS: GUID = GUID::from_u128(0xa36d02f5_c9f3_11cf_bfc7_444553540000);
+const GUID_RZ_AXIS: GUID = GUID::from_u128(0xa36d02e3_c9f3_11cf_bfc7_444553540000);
+const GUID_SLIDER: GUID = GUID::from_u128(0xa36d02e4_c9f3_11cf_bfc7_444553540000);
 const GUID_CONSTANT_FORCE: GUID = GUID::from_u128(0x13541c20_8e33_11d0_9ad0_00a0c9a06e35);
 
 // DirectInput property identifiers are small integers cast to GUID
@@ -49,6 +58,8 @@ const GUID_CONSTANT_FORCE: GUID = GUID::from_u128(0x13541c20_8e33_11d0_9ad0_00a0
 const DIPROP_RANGE: *const GUID = std::ptr::without_provenance(4);
 const DIPROP_AUTOCENTER: *const GUID = std::ptr::without_provenance(9);
 
+/// Object flag: the object may be missing from the device (dinput.h).
+const DIDFT_OPTIONAL: u32 = 0x8000_0000;
 /// Effect duration meaning "until stopped".
 const INFINITE: u32 = u32::MAX;
 /// Axis range requested from the device.
@@ -369,6 +380,224 @@ impl DInputDevice {
     }
 }
 
+/// Creates the hidden top-level window DirectInput needs for its
+/// cooperative level when the caller has none to offer.
+fn hidden_window() -> Result<HWND, FfbError> {
+    // SAFETY: plain window creation with static class and title strings.
+    unsafe {
+        let module = GetModuleHandleW(None).map_err(|e| device_error("GetModuleHandle", e))?;
+        CreateWindowExW(
+            WINDOW_EX_STYLE(0),
+            w!("STATIC"),
+            w!("device input"),
+            WS_OVERLAPPED,
+            0,
+            0,
+            0,
+            0,
+            None,
+            None,
+            HINSTANCE(module.0),
+            None,
+        )
+        .map_err(|e| device_error("CreateWindow (hidden)", e))
+    }
+}
+
+/// Size of the state block of [`DInputReader`]: eight 4-byte axes, then
+/// one byte per button.
+const READER_STATE_BYTES: usize = INPUT_AXES * 4 + INPUT_BUTTONS;
+
+/// A device opened for reading every axis and button, without exclusive
+/// access. Several readers and one force-feedback device can share a
+/// physical device.
+pub struct DInputReader {
+    info: DeviceInfo,
+    axes_present: [bool; INPUT_AXES],
+    buttons: usize,
+    device: IDirectInputDevice8W,
+    _direct_input: IDirectInput8W,
+    window: Option<HWND>,
+}
+
+// SAFETY: as for `DInputDevice`: DirectInput device objects may be called
+// from any thread, and this type is only used through `&mut self`.
+unsafe impl Send for DInputReader {}
+
+impl DInputReader {
+    /// Opens a device by the identifier [`enumerate`] returned.
+    pub fn open(id: &str) -> Result<Self, FfbError> {
+        let guid = id_to_guid(id).ok_or_else(|| FfbError::NotFound(id.to_string()))?;
+        let di = create_direct_input()?;
+        let (_, name) = enumerate_with(&di, DIEDFL_ATTACHEDONLY)?
+            .into_iter()
+            .find(|(g, _)| *g == guid)
+            .ok_or_else(|| FfbError::NotFound(id.to_string()))?;
+        // SAFETY: every pointer passed below refers to a local or a static
+        // that outlives the call it is passed to.
+        unsafe {
+            let mut created: Option<IDirectInputDevice8W> = None;
+            di.CreateDevice(&guid, &mut created, None)
+                .map_err(|e| device_error("CreateDevice", e))?;
+            let device = created
+                .ok_or_else(|| FfbError::Device("CreateDevice returned no device".into()))?;
+
+            // Eight optional axes, then optional buttons, one byte each.
+            let axis_guids: [&GUID; INPUT_AXES] = [
+                &GUID_X_AXIS,
+                &GUID_Y_AXIS,
+                &GUID_Z_AXIS,
+                &GUID_RX_AXIS,
+                &GUID_RY_AXIS,
+                &GUID_RZ_AXIS,
+                &GUID_SLIDER,
+                &GUID_SLIDER,
+            ];
+            let mut objects: Vec<DIOBJECTDATAFORMAT> =
+                Vec::with_capacity(INPUT_AXES + INPUT_BUTTONS);
+            for (i, g) in axis_guids.iter().enumerate() {
+                objects.push(DIOBJECTDATAFORMAT {
+                    pguid: *g,
+                    dwOfs: (i * 4) as u32,
+                    dwType: DIDFT_AXIS | DIDFT_ANYINSTANCE | DIDFT_OPTIONAL,
+                    dwFlags: 0,
+                });
+            }
+            for b in 0..INPUT_BUTTONS {
+                objects.push(DIOBJECTDATAFORMAT {
+                    pguid: std::ptr::null(),
+                    dwOfs: (INPUT_AXES * 4 + b) as u32,
+                    dwType: DIDFT_BUTTON | DIDFT_ANYINSTANCE | DIDFT_OPTIONAL,
+                    dwFlags: 0,
+                });
+            }
+            let mut format = DIDATAFORMAT {
+                dwSize: std::mem::size_of::<DIDATAFORMAT>() as u32,
+                dwObjSize: std::mem::size_of::<DIOBJECTDATAFORMAT>() as u32,
+                dwFlags: DIDF_ABSAXIS,
+                dwDataSize: READER_STATE_BYTES as u32,
+                dwNumObjs: objects.len() as u32,
+                rgodf: objects.as_mut_ptr(),
+            };
+            device
+                .SetDataFormat(&mut format)
+                .map_err(|e| device_error("SetDataFormat", e))?;
+            let window = hidden_window()?;
+            let result = (|| {
+                device
+                    .SetCooperativeLevel(window, DISCL_NONEXCLUSIVE | DISCL_BACKGROUND)
+                    .map_err(|e| device_error("SetCooperativeLevel (shared, background)", e))?;
+                // One range for every axis on the device.
+                let mut range = DIPROPRANGE {
+                    diph: DIPROPHEADER {
+                        dwSize: std::mem::size_of::<DIPROPRANGE>() as u32,
+                        dwHeaderSize: std::mem::size_of::<DIPROPHEADER>() as u32,
+                        dwObj: 0,
+                        dwHow: DIPH_DEVICE,
+                    },
+                    lMin: -AXIS_MAX,
+                    lMax: AXIS_MAX,
+                };
+                device
+                    .SetProperty(DIPROP_RANGE, &mut range.diph)
+                    .map_err(|e| device_error("SetProperty(range)", e))?;
+                device.Acquire().map_err(|e| device_error("Acquire", e))
+            })();
+            if let Err(e) = result {
+                let _ = DestroyWindow(window);
+                return Err(e);
+            }
+            // Which slots of the format the device filled.
+            let exists = |offset: usize| {
+                let mut object = DIDEVICEOBJECTINSTANCEW {
+                    dwSize: std::mem::size_of::<DIDEVICEOBJECTINSTANCEW>() as u32,
+                    ..DIDEVICEOBJECTINSTANCEW::default()
+                };
+                device
+                    .GetObjectInfo(&mut object, offset as u32, DIPH_BYOFFSET)
+                    .is_ok()
+            };
+            let mut axes_present = [false; INPUT_AXES];
+            for (i, present) in axes_present.iter_mut().enumerate() {
+                *present = exists(i * 4);
+            }
+            let buttons = (0..INPUT_BUTTONS)
+                .filter(|b| exists(INPUT_AXES * 4 + b))
+                .count();
+            Ok(Self {
+                info: DeviceInfo {
+                    id: id.to_string(),
+                    name,
+                    has_force_feedback: false,
+                    backend: BACKEND,
+                },
+                axes_present,
+                buttons,
+                device,
+                _direct_input: di,
+                window: Some(window),
+            })
+        }
+    }
+}
+
+impl InputSource for DInputReader {
+    fn info(&self) -> &DeviceInfo {
+        &self.info
+    }
+
+    fn axes_present(&self) -> [bool; INPUT_AXES] {
+        self.axes_present
+    }
+
+    fn button_count(&self) -> usize {
+        self.buttons
+    }
+
+    fn read_state(&mut self) -> Result<RawInputState, FfbError> {
+        let mut raw = [0u8; READER_STATE_BYTES];
+        // SAFETY: the buffer is exactly the size of the registered format.
+        unsafe {
+            let _ = self.device.Poll();
+            let ptr = raw.as_mut_ptr() as *mut c_void;
+            let mut result = self.device.GetDeviceState(READER_STATE_BYTES as u32, ptr);
+            if let Err(e) = &result {
+                if e.code() == DIERR_INPUTLOST || e.code() == DIERR_NOTACQUIRED {
+                    self.device
+                        .Acquire()
+                        .map_err(|e| device_error("Acquire", e))?;
+                    result = self.device.GetDeviceState(READER_STATE_BYTES as u32, ptr);
+                }
+            }
+            result.map_err(|e| device_error("GetDeviceState", e))?;
+        }
+        let mut state = RawInputState::default();
+        for (i, axis) in state.axes.iter_mut().enumerate() {
+            let v =
+                i32::from_le_bytes([raw[i * 4], raw[i * 4 + 1], raw[i * 4 + 2], raw[i * 4 + 3]]);
+            *axis = (v as f32 / AXIS_MAX as f32).clamp(-1.0, 1.0);
+        }
+        for b in 0..INPUT_BUTTONS {
+            if raw[INPUT_AXES * 4 + b] & 0x80 != 0 {
+                state.buttons |= 1u128 << b;
+            }
+        }
+        Ok(state)
+    }
+}
+
+impl Drop for DInputReader {
+    fn drop(&mut self) {
+        // SAFETY: plain COM and window calls on objects this struct owns.
+        unsafe {
+            let _ = self.device.Unacquire();
+            if let Some(window) = self.window.take() {
+                let _ = DestroyWindow(window);
+            }
+        }
+    }
+}
+
 impl FfbDevice for DInputDevice {
     fn info(&self) -> &DeviceInfo {
         &self.info
@@ -466,6 +695,18 @@ mod tests {
         for d in devices {
             assert_eq!(d.backend, BACKEND);
             assert_eq!(d.id.len(), 32);
+        }
+    }
+
+    #[test]
+    fn every_attached_device_can_be_read_without_exclusive_access() {
+        for d in enumerate().unwrap() {
+            let mut reader = DInputReader::open(&d.id).expect("open for reading");
+            let state = reader.read_state().expect("read");
+            assert!(state.axes.iter().all(|a| a.is_finite() && a.abs() <= 1.0));
+            // A second reader of the same device works alongside the first.
+            let mut second = DInputReader::open(&d.id).expect("second reader");
+            second.read_state().expect("read again");
         }
     }
 
