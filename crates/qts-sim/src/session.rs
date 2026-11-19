@@ -694,6 +694,7 @@ impl Simulation for Session {
             handbrake: input.handbrake_f64(),
             shift_up: rising & buttons::SHIFT_UP != 0,
             shift_down: rising & buttons::SHIFT_DOWN != 0,
+            starter: input.buttons & buttons::STARTER != 0,
             gear_request: if input.gear_request == GEAR_NO_REQUEST {
                 None
             } else {

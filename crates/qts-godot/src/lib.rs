@@ -696,6 +696,8 @@ impl SimBridge {
             "speed" => h.speed,
             "gear" => i64::from(h.drive.gear),
             "shifting" => h.drive.shifting,
+            "stalled" => h.drive.stalled,
+            "grinding" => h.drive.grinding,
             "engine_rpm" => h.drive.engine_rpm,
             "clutch_engagement" => h.drive.clutch_engagement,
             "battery_soc" => h.drive.battery_soc,

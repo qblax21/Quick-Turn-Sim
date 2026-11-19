@@ -129,25 +129,146 @@ fn manual_clutch_and_gear_lever_work_in_both_directions() {
 }
 
 #[test]
-fn stopping_in_gear_stalls_and_the_clutch_restarts_the_engine() {
+fn stopping_in_gear_stalls_and_only_the_starter_restarts_the_engine() {
     let mut car = build(car_engine_manual(false));
-    let c = DriverControls {
+    // Clutch in, first gear, then the clutch let out against the brakes.
+    let mut c = DriverControls {
+        clutch: 1.0,
         gear_request: Some(1),
         brake: 1.0,
         ..DriverControls::default()
     };
+    run(&mut car, &c, &MANUAL, 0.5);
+    assert_eq!(car.output().drive.gear, 1);
+    c.clutch = 0.0;
     run(&mut car, &c, &MANUAL, 2.0);
-    assert!(car.output().drive.engine_rpm < 50.0, "engine should stall");
-    let c = DriverControls {
-        clutch: 1.0,
-        brake: 1.0,
+    let d = car.output().drive;
+    assert!(d.stalled, "the engine should stall");
+    assert!(d.engine_rpm < 50.0, "{} rpm", d.engine_rpm);
+    // Clutch down is not enough: a stalled engine stays stalled.
+    c.clutch = 1.0;
+    run(&mut car, &c, &MANUAL, 1.0);
+    assert!(car.output().drive.stalled);
+    // The starter will not turn it with the clutch up in gear.
+    c.clutch = 0.0;
+    c.starter = true;
+    run(&mut car, &c, &MANUAL, 1.0);
+    assert!(car.output().drive.stalled, "starter interlock");
+    // Clutch down and the starter: it fires and settles at idle.
+    c.clutch = 1.0;
+    run(&mut car, &c, &MANUAL, 0.6);
+    c.starter = false;
+    run(&mut car, &c, &MANUAL, 1.5);
+    let d = car.output().drive;
+    assert!(
+        !d.stalled && d.engine_rpm > 700.0,
+        "restarted at {} rpm",
+        d.engine_rpm
+    );
+}
+
+#[test]
+fn a_gear_forced_in_without_the_clutch_grinds_and_stays_in_neutral() {
+    let mut car = build(car_engine_manual(false));
+    run(&mut car, &DriverControls::default(), &MANUAL, 0.5);
+    // Engine at idle, car at rest: first gear without the clutch.
+    let mut c = DriverControls {
+        gear_request: Some(1),
         ..DriverControls::default()
     };
-    run(&mut car, &c, &MANUAL, 2.0);
+    run(&mut car, &c, &MANUAL, 0.5);
+    let d = car.output().drive;
+    assert!(d.grinding, "should grind");
+    assert_eq!(d.gear, 0, "stays in neutral");
+    assert!(!d.stalled);
+    assert!(car.output().speed < 0.01);
+    // The clutch down lets it in.
+    c.clutch = 1.0;
+    run(&mut car, &c, &MANUAL, 0.5);
+    let d = car.output().drive;
+    assert!(!d.grinding);
+    assert_eq!(d.gear, 1);
+}
+
+#[test]
+fn a_rev_matched_gear_goes_in_without_the_clutch() {
+    let mut car = build(car_engine_manual(false));
+    // Under way in second with the automatic clutch's help.
+    let c = DriverControls {
+        throttle: 0.6,
+        gear_request: Some(2),
+        ..DriverControls::default()
+    };
+    run(&mut car, &c, &AUTO, 4.0);
+    assert_eq!(car.output().drive.gear, 2);
+    // Out to neutral without the clutch, and straight back into second:
+    // the engine is still turning at second gear's speed.
+    let mut c = DriverControls {
+        gear_request: Some(0),
+        ..DriverControls::default()
+    };
+    run(&mut car, &c, &MANUAL, 0.03);
+    assert_eq!(car.output().drive.gear, 0);
+    c.gear_request = Some(2);
+    run(&mut car, &c, &MANUAL, 0.3);
+    let d = car.output().drive;
     assert!(
-        car.output().drive.engine_rpm > 700.0,
-        "engine should restart"
+        !d.grinding && d.gear == 2,
+        "matched shift refused: gear {} grinding {}",
+        d.gear,
+        d.grinding
     );
+    // Fourth is far too tall for this speed: refused.
+    c.gear_request = Some(0);
+    run(&mut car, &c, &MANUAL, 0.3);
+    c.gear_request = Some(4);
+    run(&mut car, &c, &MANUAL, 0.05);
+    assert!(car.output().drive.grinding);
+}
+
+#[test]
+fn a_stalled_engine_bump_starts_when_the_wheels_turn_it() {
+    let mut car = build(car_engine_manual(false));
+    // Under way in second.
+    let c = DriverControls {
+        throttle: 0.7,
+        gear_request: Some(2),
+        ..DriverControls::default()
+    };
+    run(&mut car, &c, &AUTO, 4.0);
+    // Clutch down, sixth, and the clutch dropped at low speed: the engine
+    // is dragged below its stall speed while the car rolls on.
+    let mut c = DriverControls {
+        clutch: 1.0,
+        gear_request: Some(6),
+        brake: 0.6,
+        ..DriverControls::default()
+    };
+    let (g, e) = (ground(), env());
+    for _ in 0..5000 {
+        car.step(&c, &MANUAL, &g, &e, DT);
+        if car.output().speed < 4.0 {
+            break;
+        }
+    }
+    c.brake = 0.0;
+    c.clutch = 0.0;
+    run(&mut car, &c, &MANUAL, 0.6);
+    let rolling = car.output().speed;
+    assert!(
+        car.output().drive.stalled,
+        "stall in sixth at {rolling:.1} m/s, {} rpm",
+        car.output().drive.engine_rpm
+    );
+    assert!(rolling > 1.5, "still rolling at {rolling:.1} m/s");
+    // Clutch down, second, clutch out: the wheels turn it and it fires.
+    c.clutch = 1.0;
+    c.gear_request = Some(2);
+    run(&mut car, &c, &MANUAL, 0.3);
+    c.clutch = 0.0;
+    run(&mut car, &c, &MANUAL, 0.5);
+    let d = car.output().drive;
+    assert!(!d.stalled, "bump start failed at {} rpm", d.engine_rpm);
 }
 
 #[test]

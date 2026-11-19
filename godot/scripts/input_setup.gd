@@ -17,6 +17,14 @@ const BUTTON_LABELS := {
 	"shift_down": "Shift down",
 	"reset": "Reset car",
 	"handbrake_button": "Handbrake (button)",
+	"starter": "Starter",
+	"gear_1": "Shifter gate 1",
+	"gear_2": "Shifter gate 2",
+	"gear_3": "Shifter gate 3",
+	"gear_4": "Shifter gate 4",
+	"gear_5": "Shifter gate 5",
+	"gear_6": "Shifter gate 6",
+	"gear_r": "Shifter gate R",
 }
 const FFB_SLIDERS := [
 	["gain", "Gain", 0.0, 1.5, 0.01],
@@ -71,10 +79,15 @@ func _ready() -> void:
 	margin.add_child(columns)
 
 	# Left column: mapping and calibration.
+	# The controls list is longer than the screen with a shifter: it scrolls.
+	var left_scroll := ScrollContainer.new()
+	left_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	columns.add_child(left_scroll)
 	var left := VBoxContainer.new()
 	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	left.add_theme_constant_override("separation", 6)
-	columns.add_child(left)
+	left_scroll.add_child(left)
 	_heading(left, "Controls")
 	var help := Label.new()
 	help.text = "Assign: press the button, then move the control fully (or press the button on the device).\nCalibrate: press, move the control through its whole range, then press Done. For steering, finish with the wheel centred.\nUnassigned controls fall back to the keyboard and the first gamepad."
@@ -86,15 +99,34 @@ func _ready() -> void:
 	direct_box.button_pressed = reader.use_direct
 	direct_box.toggled.connect(func(on: bool) -> void: reader.use_direct = on)
 	left.add_child(direct_box)
+	var mode_row := HBoxContainer.new()
+	var mode_label := Label.new()
+	mode_label.text = "Gear change"
+	mode_label.custom_minimum_size = Vector2(150, 0)
+	mode_row.add_child(mode_label)
+	var mode := OptionButton.new()
+	mode.add_item("Sequential (shift up and down)")
+	mode.add_item("H-pattern shifter (assign each gate below)")
+	mode.select(1 if reader.shift_mode == "h_pattern" else 0)
+	mode.item_selected.connect(func(i: int) -> void: reader.shift_mode = "h_pattern" if i == 1 else "sequential")
+	mode_row.add_child(mode)
+	left.add_child(mode_row)
+	var shifter_help := Label.new()
+	shifter_help.text = "H-pattern: press Assign, then put the lever in that gate. With a manual clutch (Automatic clutch off), a gear only goes in with the clutch down or the revs matched; otherwise it grinds and stays in neutral. Let the clutch out too fast and the engine stalls: clutch down and the starter (I) to restart."
+	shifter_help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	shifter_help.add_theme_font_size_override("font_size", 13)
+	left.add_child(shifter_help)
+	# Feedback from Assign and Calibrate, where it is seen.
+	status = Label.new()
+	status.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	left.add_child(status)
 	_refresh_scan()
 	for action in reader.AXIS_ACTIONS:
 		_axis_row(left, action)
 	left.add_child(HSeparator.new())
 	for action in reader.BUTTON_ACTIONS:
 		_button_row(left, action)
-	status = Label.new()
-	status.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
-	left.add_child(status)
 	var pads := Label.new()
 	var names: Array = []
 	for pad in Input.get_connected_joypads():

@@ -59,6 +59,8 @@ pub enum ButtonAction {
     Reset,
     /// Handbrake fully on while held.
     Handbrake,
+    /// Starter motor while held.
+    Starter,
     /// One gate of an H-pattern shifter: the gear selected while held
     /// (−1 reverse, 1 and up forward).
     Gear(i8),
@@ -73,6 +75,7 @@ impl ButtonAction {
             "shift_down" => Self::ShiftDown,
             "reset" => Self::Reset,
             "handbrake_button" => Self::Handbrake,
+            "starter" => Self::Starter,
             "gear_r" => Self::Gear(-1),
             other => {
                 let n: i8 = other.strip_prefix("gear_")?.parse().ok()?;
@@ -405,6 +408,7 @@ impl DirectInputs {
                 ButtonAction::ShiftDown => frame.buttons |= buttons::SHIFT_DOWN,
                 ButtonAction::Reset => frame.buttons |= buttons::RESET,
                 ButtonAction::Handbrake => frame.handbrake = AXIS_MAX,
+                ButtonAction::Starter => frame.buttons |= buttons::STARTER,
                 ButtonAction::Gear(g) => gear = Some(g),
             }
         }

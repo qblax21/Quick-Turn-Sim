@@ -33,6 +33,8 @@ func _ready() -> void:
 	_add("loose", _noise(rng, 2.0, [[500.0, 0.6, 1.0], [1800.0, 0.8, 0.5]], true))
 	_add("road", _noise(rng, 2.0, [[140.0, 0.7, 1.0]], false))
 	_add("wind", _noise(rng, 2.0, [[1500.0, 0.5, 1.0]], false))
+	# Gears grinding: harsh, rattling metal.
+	_add("grind", _noise(rng, 1.0, [[2600.0, 3.0, 1.0], [4100.0, 4.0, 0.7], [700.0, 2.0, 0.4]], true))
 	_add_thump(rng)
 
 
@@ -238,5 +240,7 @@ func update(hud: Dictionary, input: Dictionary, delta: float, paused: bool) -> v
 	_drive("squeal", master * clampf(squeal, 0.0, 1.0) * 0.55, 0.85 + 0.3 * clampf(squeal, 0.0, 1.0), delta)
 	_drive("loose", master * clampf(crunch, 0.0, 1.0) * 0.6, 0.8 + speed / 60.0, delta)
 	_drive("road", master * clampf(speed / 40.0, 0.0, 1.0) * 0.3, 0.6 + speed / 50.0, delta)
+	var grind_rpm: float = clampf(hud.get("engine_rpm", 0.0) / 3000.0, 0.4, 2.0)
+	_drive("grind", master * (0.45 if hud.get("grinding", false) else 0.0), grind_rpm, delta)
 	var wind := clampf(speed / 45.0, 0.0, 1.0)
 	_drive("wind", master * wind * wind * 0.3, 0.7 + speed / 80.0, delta)

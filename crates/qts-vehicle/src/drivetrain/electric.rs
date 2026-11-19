@@ -362,6 +362,7 @@ impl Drivetrain for DualMotor {
             regen_power_w: regen_power,
             battery_power_w: battery_power,
             battery_soc: self.battery_energy_j / self.p.battery.capacity_j,
+            ..DriveTelemetry::default()
         };
         result
     }

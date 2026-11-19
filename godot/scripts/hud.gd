@@ -229,6 +229,10 @@ func update(hud: Dictionary, status: Dictionary, input: Dictionary, telemetry_on
 	limits_label.text = "TRACK LIMITS: this lap will not count" if hud.get("limits_broken", false) else ""
 	if Time.get_ticks_msec() < invalid_shown_until and not hud.get("limits_broken", false):
 		notices.append("LAP NOT COUNTED: off the track or part of the course was missed")
+	if hud.get("stalled", false):
+		notices.append("ENGINE STALLED: clutch down and the starter (I) to restart")
+	if hud.get("grinding", false):
+		notices.append("GRINDING: clutch down or match the revs to engage")
 	if status.get("paused", false):
 		notices.append("PAUSED")
 	if telemetry_on:

@@ -871,3 +871,41 @@ column, about 0.5 to 1 N.m while a front tire climbs the ramp, which is
 what 450 N of push through 24 mm of trail and a 14.5:1 rack gives. The
 kerb is felt mostly through the road-detail channel, as before.
 
+## D-073 H-pattern shifter, analog clutch, grinding and stalling
+
+**Shifter.** Each gate of an H-pattern shifter is mapped to a button on
+the Controls screen (gates 1 to 6 and R); the lever's gate, or neutral
+between gates, is sent every tick as the gear request. Read on the physics
+thread when assigned that way, so a shift reaches the gearbox within a
+tick. While the lever position is known, nothing else shifts the box:
+sequential buttons and automatic gears are ignored. Sequential shifting is
+unchanged and stays the default.
+
+**Grinding.** With the automatic clutch off, a gear goes in only with the
+clutch pedal at least 85 % down, or with the engine already within about
+150 rpm of the speed that gear would turn it at (a rev-matched clutchless
+shift). Otherwise the synchroniser cannot bring the engine round: the box
+stays in neutral, the HUD says so and a grinding sound plays, until the
+clutch goes down or the lever comes out. Coming out of gear needs nothing
+and is immediate. There is no damage model.
+
+**Stalling.** This replaces the implicit stall of D-020. A running engine
+dragged below 40 % of idle speed stalls: no combustion torque and no idle
+control, only friction. It fires again once turned above 25 % of idle by
+the starter, or above 60 % of idle by the wheels (a bump start); the gap
+between 40 % and 60 % stops a dragged engine flickering between the two.
+The starter (I, or a mapped button) gives 80 N.m at rest falling to
+nothing at 35 % of idle, and works only with the clutch down or in
+neutral, like the interlock on a road car. With the automatic clutch on,
+the starter turns a stalled engine by itself and the clutch never lets the
+engine stall, as before.
+
+**Clutch.** The pedal is analog and calibrated like any axis.
+Engagement stays linear in pedal travel; a free-travel and bite-point
+curve is not modelled (flagged in STATUS).
+
+Stall and grind state are part of the snapshot. Tests: stalling in gear,
+the starter interlock, restarting, grinding without the clutch, a
+rev-matched shift back into second, refusal of a gear far too tall, and a
+bump start from rolling in second.
+

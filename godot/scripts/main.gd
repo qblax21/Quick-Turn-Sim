@@ -470,7 +470,7 @@ func _process(delta: float) -> void:
 	if sim == null or not sim.is_running():
 		return
 	var input: Dictionary = fixed_input if not fixed_input.is_empty() else reader.read(delta)
-	sim.set_input(input.steer, input.throttle, input.brake, input.clutch, input.handbrake, input.buttons, -128)
+	sim.set_input(input.steer, input.throttle, input.brake, input.clutch, input.handbrake, input.buttons, input.get("gear", -128))
 	var car_xform: Transform3D = sim.car_transform()
 	var values: Dictionary = sim.hud()
 	_note_laps(values)

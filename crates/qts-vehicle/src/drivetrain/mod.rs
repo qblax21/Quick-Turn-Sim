@@ -32,6 +32,8 @@ pub struct DriveControls {
     pub auto_clutch: bool,
     /// Automatic gear selection assist.
     pub auto_shift: bool,
+    /// Starter motor held.
+    pub starter: bool,
 }
 
 /// Everything a drivetrain needs for one tick.
@@ -86,6 +88,11 @@ pub struct DriveTelemetry {
     pub battery_power_w: f64,
     /// Battery state of charge, 0 to 1 (zero without a battery).
     pub battery_soc: f64,
+    /// True while the engine is stalled.
+    pub stalled: bool,
+    /// True while a gear is being forced in without the clutch: the box
+    /// stays in neutral and grinds.
+    pub grinding: bool,
 }
 
 /// Result of one drivetrain tick.

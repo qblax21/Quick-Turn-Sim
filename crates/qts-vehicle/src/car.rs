@@ -81,6 +81,8 @@ pub struct DriverControls {
     pub shift_down: bool,
     /// Direct gear selection.
     pub gear_request: Option<i8>,
+    /// Starter motor held.
+    pub starter: bool,
 }
 
 /// Driver assists, fixed for a session.
@@ -856,6 +858,7 @@ impl Car {
                     gear_request: controls.gear_request,
                     auto_clutch: assists.auto_clutch,
                     auto_shift: assists.auto_shift,
+                    starter: controls.starter,
                 },
                 wheel_omega: self.state.wheel_omega,
                 wheel_inertia,

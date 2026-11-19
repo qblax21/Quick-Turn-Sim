@@ -18,6 +18,26 @@ const LIMITER_HYSTERESIS_RPM: f64 = 150.0;
 const AUTO_SHIFT_COOLDOWN_S: f64 = 0.4;
 /// Speed below which reverse may be selected from a forward gear, m/s.
 const REVERSE_SELECT_SPEED: f64 = 2.0;
+/// A running engine dragged below this share of idle speed stalls.
+const STALL_IDLE_FRACTION: f64 = 0.4;
+/// A stalled engine on the starter fires once it turns faster than this
+/// share of idle speed.
+const FIRE_IDLE_FRACTION: f64 = 0.25;
+/// A stalled engine turned by the wheels (a bump start) fires once it
+/// turns faster than this share of idle speed. Above the stall speed, so a
+/// dragged engine cannot flicker between stalled and running.
+const BUMP_FIRE_IDLE_FRACTION: f64 = 0.6;
+/// Starter motor torque at the crank at rest, N·m. It falls to nothing at
+/// the cranking speed.
+const STARTER_TORQUE_NM: f64 = 80.0;
+/// Cranking speed as a share of idle speed.
+const CRANK_IDLE_FRACTION: f64 = 0.35;
+/// Clutch pedal travel beyond which a gear can be selected cleanly.
+const CLUTCH_FREE_PEDAL: f64 = 0.85;
+/// Largest difference between engine speed and the speed the selected gear
+/// would turn it at, rad/s, for a gear to go in without the clutch (a
+/// rev-matched clutchless shift). About 150 rpm.
+const SYNC_MATCH_RAD_S: f64 = 15.7;
 
 /// The engine-and-manual-gearbox drivetrain module.
 #[derive(Clone, Debug)]
@@ -32,6 +52,8 @@ pub struct EngineManual {
     limiter_cut: bool,
     diff_input_torque: f64,
     auto_shift_cooldown: f64,
+    stalled: bool,
+    grinding: bool,
 }
 
 impl EngineManual {
@@ -60,6 +82,8 @@ impl EngineManual {
             limiter_cut: false,
             diff_input_torque: 0.0,
             auto_shift_cooldown: 0.0,
+            stalled: false,
+            grinding: false,
         }
     }
 
@@ -114,11 +138,35 @@ impl EngineManual {
             }
             return;
         }
+        self.grinding = false;
         if let Some(g) = c.gear_request {
             if (-1..=top).contains(&g) && g != self.gear {
-                self.begin_shift(g);
+                // An H-pattern lever: pulling out of gear always works, but
+                // putting a gear in needs the clutch down or the engine
+                // already turning at the speed that gear would turn it.
+                let clutch_free = c.auto_clutch || c.clutch >= CLUTCH_FREE_PEDAL;
+                let [left, right] = self.driven;
+                let shaft =
+                    0.5 * (ctx.wheel_omega[left] + ctx.wheel_omega[right]) * self.overall_ratio(g);
+                let matched = (self.engine_omega - shaft).abs() < SYNC_MATCH_RAD_S;
+                if g == 0 {
+                    // Out of gear is immediate: nothing has to synchronise.
+                    self.gear = 0;
+                    self.target_gear = 0;
+                    self.shift_timer = 0.0;
+                } else if clutch_free || matched {
+                    self.begin_shift(g);
+                } else {
+                    // The synchroniser cannot bring the engine round: the
+                    // lever stays at the gate, the box in neutral.
+                    self.gear = 0;
+                    self.target_gear = 0;
+                    self.grinding = true;
+                }
                 return;
             }
+            // The lever says where the gearbox is; nothing else shifts it.
+            return;
         }
         if c.shift_up && self.gear < top {
             self.begin_shift(self.gear + 1);
@@ -182,6 +230,35 @@ impl Drivetrain for EngineManual {
             pedal
         };
 
+        // Stalling and starting. A stalled engine makes no torque of its
+        // own; it fires again once turned fast enough.
+        let idle_omega = e.idle_rpm / RAD_S_TO_RPM;
+        // The starter needs the clutch down or the box in neutral; the
+        // automatic clutch restarts a stalled engine by itself.
+        let starter_engaged =
+            c.auto_clutch || (c.starter && (c.clutch >= CLUTCH_FREE_PEDAL || self.gear == 0));
+        if self.stalled {
+            let fire = if starter_engaged {
+                FIRE_IDLE_FRACTION
+            } else {
+                BUMP_FIRE_IDLE_FRACTION
+            };
+            if self.engine_omega >= fire * idle_omega {
+                self.stalled = false;
+            }
+        } else if self.engine_omega < STALL_IDLE_FRACTION * idle_omega && !starter_engaged {
+            self.stalled = true;
+        }
+        // The starter turns the engine while held, until it runs on its own.
+        let cranking = starter_engaged
+            && (self.stalled || self.engine_omega < STALL_IDLE_FRACTION * idle_omega);
+        let starter_torque = if cranking {
+            STARTER_TORQUE_NM
+                * (1.0 - self.engine_omega / (CRANK_IDLE_FRACTION * idle_omega)).max(0.0)
+        } else {
+            0.0
+        };
+
         // Engine torque.
         if rpm > e.redline_rpm {
             self.limiter_cut = true;
@@ -194,14 +271,15 @@ impl Drivetrain for EngineManual {
             clamp(c.throttle, 0.0, 1.0)
         };
         let full = self.full_throttle_torque(rpm);
-        let mut engine_torque = throttle * full;
+        let mut engine_torque = if self.stalled { 0.0 } else { throttle * full };
         if self.engine_omega > 0.0 {
             engine_torque -= e.friction_torque_nm + e.friction_nm_per_rad_s * self.engine_omega;
         }
-        if rpm < e.idle_rpm {
+        if rpm < e.idle_rpm && !self.stalled {
             let idle_limit = 0.6 * self.full_throttle_torque(e.idle_rpm);
             engine_torque += (IDLE_GAIN_NM_PER_RPM * (e.idle_rpm - rpm)).min(idle_limit);
         }
+        engine_torque += starter_torque;
 
         // Coupled solve: four wheels plus the engine.
         const ENGINE: usize = 4;
@@ -289,6 +367,8 @@ impl Drivetrain for EngineManual {
             regen_power_w: 0.0,
             battery_power_w: 0.0,
             battery_soc: 0.0,
+            stalled: self.stalled,
+            grinding: self.grinding,
         };
         result
     }
@@ -319,6 +399,8 @@ impl Snapshot for EngineManual {
         w.write_bool(self.limiter_cut);
         w.write_f64(self.diff_input_torque);
         w.write_f64(self.auto_shift_cooldown);
+        w.write_bool(self.stalled);
+        w.write_bool(self.grinding);
     }
 
     fn load(&mut self, r: &mut StateReader<'_>) -> Result<(), SnapshotError> {
@@ -329,6 +411,8 @@ impl Snapshot for EngineManual {
         self.limiter_cut = r.read_bool()?;
         self.diff_input_torque = r.read_f64()?;
         self.auto_shift_cooldown = r.read_f64()?;
+        self.stalled = r.read_bool()?;
+        self.grinding = r.read_bool()?;
         let top = self.p.gearbox.ratios.len() as i8;
         if !(-1..=top).contains(&self.gear) || !(-1..=top).contains(&self.target_gear) {
             return Err(SnapshotError::Invalid("gear out of range"));

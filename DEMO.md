@@ -62,8 +62,14 @@ shows "LAP NOT COUNTED" at the line. Neither sets a time.
 Keys: R back to the start, P pause, H hide everything on screen, M mute,
 F1 tire and force-feedback overlay, F2 telemetry recording, F3 save the
 replay so far, F4 the force-feedback meter (with [ ] for gain and ; ' for
-minimum force), F5 log the force feedback for the next lap, Esc the pause
+minimum force), F5 log the force feedback for the next lap, I the starter, Esc the pause
 menu.
+
+With the automatic clutch off, the clutch pedal and an H-pattern shifter
+(Controls screen, one gate per gear) behave as in a real car: a gear
+forced in without the clutch grinds and stays out unless the revs match,
+letting the clutch out too fast stalls the engine, and it restarts on the
+starter with the clutch down, or by bump-starting it rolling in gear.
 
 ## Pausing and finishing
 

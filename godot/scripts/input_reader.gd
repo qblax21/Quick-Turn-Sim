@@ -7,12 +7,17 @@ extends Node
 
 const CONFIG_PATH := "user://input.cfg"
 const AXIS_ACTIONS := ["steer", "throttle", "brake", "clutch", "handbrake"]
-const BUTTON_ACTIONS := ["shift_up", "shift_down", "reset", "handbrake_button"]
+const BUTTON_ACTIONS := ["shift_up", "shift_down", "reset", "handbrake_button", "starter",
+	"gear_1", "gear_2", "gear_3", "gear_4", "gear_5", "gear_6", "gear_r"]
+const GEAR_GATES := {"gear_1": 1, "gear_2": 2, "gear_3": 3, "gear_4": 4, "gear_5": 5, "gear_6": 6, "gear_r": -1}
+# Gear request meaning "no lever position": sequential shifting.
+const NO_GEAR := -128
 
 # Bit values defined by the simulation core (qts_core::input::buttons).
 const BUTTON_SHIFT_UP := 1
 const BUTTON_SHIFT_DOWN := 2
 const BUTTON_RESET := 4
+const BUTTON_STARTER := 8
 
 # Each axis mapping: device (-1 = unmapped), axis index, calibrated minimum,
 # centre and maximum of the raw value, and whether to flip it.
@@ -26,6 +31,8 @@ var buttons := {}
 # core can measure how much later they arrive.
 var direct := {}
 var use_direct := true
+# "sequential" (up and down) or "h_pattern" (a shifter with a gate per gear).
+var shift_mode := "sequential"
 var keyboard_steer := 0.0
 var keyboard_throttle := 0.0
 var keyboard_brake := 0.0
@@ -57,6 +64,7 @@ func load_config() -> void:
 		for key in direct[action].keys():
 			direct[action][key] = cfg.get_value("direct_" + action, key, direct[action][key])
 	use_direct = cfg.get_value("input", "use_direct", true)
+	shift_mode = cfg.get_value("input", "shift_mode", "sequential")
 
 
 func save_config() -> void:
@@ -71,6 +79,7 @@ func save_config() -> void:
 		for key in direct[action].keys():
 			cfg.set_value("direct_" + action, key, direct[action][key])
 	cfg.set_value("input", "use_direct", use_direct)
+	cfg.set_value("input", "shift_mode", shift_mode)
 	cfg.save(CONFIG_PATH)
 
 
@@ -86,6 +95,9 @@ func direct_map() -> Dictionary:
 	for action in direct.keys():
 		var m: Dictionary = direct[action]
 		if m.device == "":
+			continue
+		# Shifter gates only in H-pattern mode.
+		if GEAR_GATES.has(action) and shift_mode != "h_pattern":
 			continue
 		var entry := m.duplicate()
 		entry["action"] = action
@@ -213,6 +225,21 @@ func read(delta: float) -> Dictionary:
 		bits |= BUTTON_SHIFT_DOWN
 	if reset:
 		bits |= BUTTON_RESET
+	if Input.is_physical_key_pressed(KEY_I) or _button("starter"):
+		bits |= BUTTON_STARTER
+
+	# H-pattern: the lever's gate, or neutral between gates.
+	var gear := NO_GEAR
+	if shift_mode == "h_pattern":
+		var any_gate := false
+		gear = 0
+		for gate in GEAR_GATES:
+			if buttons[gate].device >= 0:
+				any_gate = true
+				if _button(gate):
+					gear = GEAR_GATES[gate]
+		if not any_gate:
+			gear = NO_GEAR
 
 	return {
 		"steer": clampf(steer, -1.0, 1.0),
@@ -221,4 +248,5 @@ func read(delta: float) -> Dictionary:
 		"clutch": clampf(clutch, 0.0, 1.0),
 		"handbrake": clampf(handbrake, 0.0, 1.0),
 		"buttons": bits,
+		"gear": gear,
 	}

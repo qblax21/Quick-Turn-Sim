@@ -21,6 +21,8 @@ pub mod buttons {
     pub const SHIFT_DOWN: u16 = 1 << 1;
     /// Return the car to the track's spawn point, at the rising edge.
     pub const RESET: u16 = 1 << 2;
+    /// Starter motor, while held.
+    pub const STARTER: u16 = 1 << 3;
 }
 
 /// Complete driver input for one tick.

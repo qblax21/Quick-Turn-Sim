@@ -10,7 +10,7 @@ says so.
 | Area | State |
 | --- | --- |
 | Workspace builds with one command on Windows | Verified (`tools\build.ps1`, GNU toolchain) |
-| Test suite | 172 tests pass in release |
+| Test suite | 201 tests pass in release |
 | Headless sim runs and replays exactly | Verified |
 | All cars drivable on all four tracks | Verified with scripted drivers and the front-end smoke test |
 | Front end renders, HUD and overlay work | Verified by screenshots |
@@ -78,8 +78,15 @@ sees in the demo is described in `DEMO.md`.
 - Pre-filter and post-filter signals logged to telemetry.
 - DirectInput backend: compiles, enumerates devices, structure sizes match
   the DirectInput ABI, errors are reported. A test torque on a Fanatec CSL
-  Elite moved the wheel in the commanded direction. Driving through the
-  front end with it is still untested.
+  Elite moved the wheel in the commanded direction, and the project owner
+  has driven with it.
+- Tuning tools (D-069): live meter (F4) of output against request, knee
+  and full scale with the recent peak; minimum force for weak bases; a
+  one-lap log of every pipeline stage (F5) and `qts-sim ffb-report`.
+- Wheel, pedals and shifter can be read on the physics thread every tick
+  (D-070): 0.09 ms from read to physics against 15.9 ms of hand-over at
+  60 fps through Godot. Shared DirectInput access, so the same base can be
+  pushed and read.
 
 ### Telemetry, import, validation
 - Telemetry CSV with 108 documented channels; a test keeps the document and
@@ -111,9 +118,16 @@ plausible range. It is not evidence of realism.
 - Ghost of the best lap per car and track, saved between sessions (D-051).
   A live time difference to that lap is shown while driving (D-063).
 - A run counts only if it passes every checkpoint in order with a plausible
-  distance and time; invalid saved ghosts are ignored (D-064). There are
-  no track limits yet.  The recorder is tested; the ghost has not yet been seen on screen by
-  anyone, because that needs a completed lap by a person.
+  distance and time, and on Ridgeline never has all four wheels beyond the
+  road and kerbs (D-064, D-072); a HUD warning shows the moment a lap is
+  lost to track limits. Invalid saved ghosts are ignored.
+- Garage (D-071): pressures, camber, toe, springs, dampers, bars, brake
+  bias, limited-slip differential and gearing within club-car ranges,
+  saved per car and track and stored in every replay and best lap.
+- H-pattern shifter and analog clutch (D-073): each gate mapped on the
+  Controls screen; without the clutch a gear grinds and stays out unless
+  the revs match; the engine stalls, starts on the starter with the clutch
+  down, and bump-starts. Sequential shifting remains.
 - Standalone release package via `tools/package.ps1` (D-053): 129 MB on
   disk, 42 MB zipped. Verified to start and drive (`--self-test`) from a
   copy outside the repository with Rust and Godot off the path; not yet
@@ -125,7 +139,8 @@ plausible range. It is not evidence of realism.
 - Track map with three modes (N), painted edge lines, distance boards
   before corners, worn-in rubber on an approximate fast line, tire marks
   left by the car while sliding, and trackside trees (D-056, D-059, D-061).
-- Raised kerbs on every Ridgeline corner, solid for the tires (D-065); a
+- Raised kerbs on every Ridgeline corner, solid for the tires, whose ramps
+  and tapered ends tilt the contact so they push sideways (D-065, D-072); a
   generated sky with cloud, cascaded sun shadows, varied terrain colour
   and mown runoff.
 - Solid trees and barriers (D-060, D-062): the car is stopped by them,
@@ -162,15 +177,16 @@ plausible range. It is not evidence of realism.
   modelled landscape, and the drawn terrain sits 8 cm below the real one.
 - **Linux force-feedback output**: none. The trait and the null device are
   there; a backend is not.
-- **H-pattern shifter in the front end**: the core accepts a direct gear
-  selection; the front end only sends sequential shifts.
 - **Cones** are detected and counted, not simulated as objects.
 - **Impacts**: trees and barriers stop the car with a rigid impulse on the
   whole car. No damage, no deformation, nothing through the suspension.
 - **Power steering**: a fixed assist fraction per car, not a speed-sensitive
   model.
 - **Stability control**: none. Traction control is not per axle.
-- **Engine stall and starter**: implicit (see D-020).
+- **Clutch pedal curve**: engagement is linear in pedal travel; a real
+  clutch has free travel at the top and a bite zone. Not modelled yet.
+- **Over-revving on a missed downshift**: the clutch slips at its torque
+  limit, but the engine takes no damage.
 - **Wheel gyroscopic effects, chassis flex, driveline compliance, gearbox
   efficiency, brake temperature and fade, tire wear, wet surfaces, wind**:
   not modelled.
@@ -203,8 +219,12 @@ Everything numeric. In particular:
 - Selecting a wheel pauses the simulation for a few hundred milliseconds
   while DirectInput enumerates devices.
 - Input read through Godot arrives once per frame and is ramped across the
-  frame interval, adding up to one frame of latency. The direct-steering
-  option avoids this for the wheel but is untested.
+  frame interval, adding up to one frame of latency. Controls assigned to
+  be read on the physics thread avoid this; controls mapped before D-070
+  need assigning once more for it.
+- Replays and ghost laps recorded before the setup and track-limits
+  changes still load; replays made before track limits report that they
+  no longer reproduce from the start.
 - Debug and release builds are different builds: a replay recorded by one is
   not expected to match on the other, and the replay command warns about it.
 - The `windows` crate is pinned to 0.58 because newer versions do not link
@@ -216,21 +236,20 @@ Everything numeric. In particular:
 
 ## Next five things to do
 
-1. **Tune the force feedback on the wheel.** The CSL Elite preset, the new
-   kerb channel input and the impact kick have not been tuned by feel.
-   Drive Ridgeline with the overlay on (F1), watch for clipping, and adjust.
-2. **Bring in real data.** Import skidpad, launch and braking runs
+1. **Retune the CSL Elite preset from the lap logs.** Three F5 logs of
+   Ridgeline, then `qts-sim ffb-report`: set the gain so fast corners stop
+   clipping and the fall in torque past the front tires' peak reaches the
+   wheel.
+2. **Measure the input delay on the wheel.** With steering assigned both
+   ways, the F1 overlay and `recordings/input_delay.log` give the real lag
+   of the per-frame path; confirm the physics-thread path on hardware.
+3. **Bring in real data.** Import skidpad, launch and braking runs
    (`docs/TELEMETRY_IMPORT.md`), replace the placeholder targets with
-   measured ones, and let the validation failures drive calibration of the
-   tires and cars.
-3. **Cross-platform determinism check.** Transcendental math is now in
-   software (D-066); add a CI job that runs the same inputs on Windows and
-   Linux and compares hash sequences, before claiming replays cross over.
-4. **Track limits.** Checkpoints stop shortcuts but not corner cutting;
-   count a lap invalid when all four wheels leave the road and kerbs.
-5. **Kerb and contact detail.** Tilt the contact normal on kerb ramps so a
-   kerb pushes sideways as well as up, and give the gravel stage crests and
-   camber.
+   measured ones, and calibrate the tires and cars.
+4. **Cross-platform determinism check.** Run the same inputs on Windows and
+   Linux in CI and compare hash sequences.
+5. **Clutch pedal curve and shifter feel.** Free travel and a bite zone for
+   the clutch; try the H-pattern and stall model on a real shifter.
 
 After those: a Linux force-feedback backend, a speed-sensitive power
 steering model, and the first torque-vectoring strategy.
