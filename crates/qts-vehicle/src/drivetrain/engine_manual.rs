@@ -32,8 +32,15 @@ const BUMP_FIRE_IDLE_FRACTION: f64 = 0.6;
 const STARTER_TORQUE_NM: f64 = 80.0;
 /// Cranking speed as a share of idle speed.
 const CRANK_IDLE_FRACTION: f64 = 0.35;
-/// Clutch pedal travel beyond which a gear can be selected cleanly.
-const CLUTCH_FREE_PEDAL: f64 = 0.85;
+/// Clutch pedal travel at which the starter interlock switch closes. Real
+/// cars put the switch close to the floor, below the release point.
+const STARTER_INTERLOCK_TRAVEL: f64 = 0.85;
+/// Damage per second at the failure speed, falling with the square of how
+/// far past the damage speed the engine is. Placeholder: half a second at
+/// the midpoint of the band costs an eighth of the engine.
+const OVERREV_DAMAGE_RATE_PER_S: f64 = 1.0;
+/// Share of full-throttle torque lost at full damage, before failure.
+const DAMAGE_TORQUE_LOSS: f64 = 0.6;
 /// Largest difference between engine speed and the speed the selected gear
 /// would turn it at, rad/s, for a gear to go in without the clutch (a
 /// rev-matched clutchless shift). About 150 rpm.
@@ -54,6 +61,9 @@ pub struct EngineManual {
     auto_shift_cooldown: f64,
     stalled: bool,
     grinding: bool,
+    grind_speed: f64,
+    peak_omega: f64,
+    damage: f64,
 }
 
 impl EngineManual {
@@ -84,7 +94,20 @@ impl EngineManual {
             auto_shift_cooldown: 0.0,
             stalled: false,
             grinding: false,
+            grind_speed: 0.0,
+            peak_omega: idle,
+            damage: 0.0,
         }
+    }
+
+    /// Engine damage, 0 (healthy) to 1 (failed).
+    pub fn damage(&self) -> f64 {
+        self.damage
+    }
+
+    /// True once over-revving has destroyed the engine.
+    pub fn failed(&self) -> bool {
+        self.damage >= 1.0
     }
 
     /// Engine speed, rad/s.
@@ -139,12 +162,13 @@ impl EngineManual {
             return;
         }
         self.grinding = false;
+        self.grind_speed = 0.0;
         if let Some(g) = c.gear_request {
             if (-1..=top).contains(&g) && g != self.gear {
                 // An H-pattern lever: pulling out of gear always works, but
                 // putting a gear in needs the clutch down or the engine
                 // already turning at the speed that gear would turn it.
-                let clutch_free = c.auto_clutch || c.clutch >= CLUTCH_FREE_PEDAL;
+                let clutch_free = c.auto_clutch || self.p.clutch.engagement(c.clutch) <= 0.0;
                 let [left, right] = self.driven;
                 let shaft =
                     0.5 * (ctx.wheel_omega[left] + ctx.wheel_omega[right]) * self.overall_ratio(g);
@@ -162,6 +186,7 @@ impl EngineManual {
                     self.gear = 0;
                     self.target_gear = 0;
                     self.grinding = true;
+                    self.grind_speed = (self.engine_omega - shaft).abs();
                 }
                 return;
             }
@@ -214,7 +239,8 @@ impl Drivetrain for EngineManual {
         } else {
             0.0
         };
-        let pedal = 1.0 - clamp(c.clutch, 0.0, 1.0);
+        // The pedal acts through free travel and a bite zone, not linearly.
+        let pedal = self.p.clutch.engagement(clamp(c.clutch, 0.0, 1.0));
         let engagement = if !in_gear {
             0.0
         } else if c.auto_clutch {
@@ -235,9 +261,12 @@ impl Drivetrain for EngineManual {
         let idle_omega = e.idle_rpm / RAD_S_TO_RPM;
         // The starter needs the clutch down or the box in neutral; the
         // automatic clutch restarts a stalled engine by itself.
-        let starter_engaged =
-            c.auto_clutch || (c.starter && (c.clutch >= CLUTCH_FREE_PEDAL || self.gear == 0));
-        if self.stalled {
+        let starter_engaged = !self.failed()
+            && (c.auto_clutch
+                || (c.starter && (c.clutch >= STARTER_INTERLOCK_TRAVEL || self.gear == 0)));
+        if self.failed() {
+            self.stalled = true;
+        } else if self.stalled {
             let fire = if starter_engaged {
                 FIRE_IDLE_FRACTION
             } else {
@@ -270,7 +299,7 @@ impl Drivetrain for EngineManual {
         } else {
             clamp(c.throttle, 0.0, 1.0)
         };
-        let full = self.full_throttle_torque(rpm);
+        let full = self.full_throttle_torque(rpm) * (1.0 - DAMAGE_TORQUE_LOSS * self.damage);
         let mut engine_torque = if self.stalled { 0.0 } else { throttle * full };
         if self.engine_omega > 0.0 {
             engine_torque -= e.friction_torque_nm + e.friction_nm_per_rad_s * self.engine_omega;
@@ -343,6 +372,21 @@ impl Drivetrain for EngineManual {
         }
         self.engine_omega = solver.omega(ENGINE).max(0.0);
 
+        // Over-rev: the limiter only cuts fuel, so a wheel-driven engine
+        // (a missed downshift) can be spun far past it.
+        self.peak_omega = self.peak_omega.max(self.engine_omega);
+        let rpm_now = self.engine_omega * RAD_S_TO_RPM;
+        let overrev = rpm_now > e.overrev_damage_rpm;
+        if c.engine_damage && overrev && !self.failed() {
+            let x =
+                (rpm_now - e.overrev_damage_rpm) / (e.overrev_failure_rpm - e.overrev_damage_rpm);
+            self.damage = if x >= 1.0 {
+                1.0
+            } else {
+                (self.damage + OVERREV_DAMAGE_RATE_PER_S * x * x * dt).min(1.0)
+            };
+        }
+
         // Positive clutch torque drives the gearbox.
         let clutch_torque = clutch.map_or(0.0, |idx| -solver.constraint_torque(idx));
         let axle_torque = clutch_torque * ratio;
@@ -351,6 +395,11 @@ impl Drivetrain for EngineManual {
         result.shaft_torque[right] = 0.5 * axle_torque;
 
         let carrier = 0.5 * (result.wheel_omega[left] + result.wheel_omega[right]);
+        let clutch_slip = if clutch.is_some() {
+            self.engine_omega - carrier * ratio
+        } else {
+            0.0
+        };
         result.telemetry = DriveTelemetry {
             engine_rpm: self.engine_omega * RAD_S_TO_RPM,
             engine_torque_nm: engine_torque,
@@ -369,6 +418,12 @@ impl Drivetrain for EngineManual {
             battery_soc: 0.0,
             stalled: self.stalled,
             grinding: self.grinding,
+            grind_speed_rad_s: self.grind_speed,
+            clutch_slip_rad_s: clutch_slip,
+            clutch_capacity_nm: self.p.clutch.max_torque_nm,
+            peak_rpm: self.peak_omega * RAD_S_TO_RPM,
+            overrev,
+            engine_damage: self.damage,
         };
         result
     }
@@ -401,6 +456,9 @@ impl Snapshot for EngineManual {
         w.write_f64(self.auto_shift_cooldown);
         w.write_bool(self.stalled);
         w.write_bool(self.grinding);
+        w.write_f64(self.grind_speed);
+        w.write_f64(self.peak_omega);
+        w.write_f64(self.damage);
     }
 
     fn load(&mut self, r: &mut StateReader<'_>) -> Result<(), SnapshotError> {
@@ -413,6 +471,12 @@ impl Snapshot for EngineManual {
         self.auto_shift_cooldown = r.read_f64()?;
         self.stalled = r.read_bool()?;
         self.grinding = r.read_bool()?;
+        self.grind_speed = r.read_f64()?;
+        self.peak_omega = r.read_f64()?;
+        self.damage = r.read_f64()?;
+        if !(0.0..=1.0).contains(&self.damage) {
+            return Err(SnapshotError::Invalid("engine damage out of range"));
+        }
         let top = self.p.gearbox.ratios.len() as i8;
         if !(-1..=top).contains(&self.gear) || !(-1..=top).contains(&self.target_gear) {
             return Err(SnapshotError::Invalid("gear out of range"));

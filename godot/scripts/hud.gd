@@ -15,6 +15,9 @@ var delta_label: Label
 var limits_label: Label
 var invalid_seen := -1
 var invalid_shown_until := 0
+# Over-rev warning: held a few seconds after the engine comes back down.
+var overrev_until := 0
+var overrev_peak := 0.0
 var flash_text := ""
 var flash_until := 0
 var input_bars := {}
@@ -191,6 +194,8 @@ func update(hud: Dictionary, status: Dictionary, input: Dictionary, telemetry_on
 		return
 	var speed: float = hud.speed
 	var rpm_text := "%.0f rpm" % hud.engine_rpm
+	if not electric and hud.get("peak_rpm", 0.0) > 0.0:
+		rpm_text += "   peak %.0f" % hud.peak_rpm
 	if electric:
 		rpm_text = "battery %.0f%%" % (hud.battery_soc * 100.0)
 	main_label.text = "%3.0f km/h   %3.0f mph\ngear %s   %s" % [speed * 3.6, speed * 2.23694, _gear_text(hud.gear), rpm_text]
@@ -229,7 +234,19 @@ func update(hud: Dictionary, status: Dictionary, input: Dictionary, telemetry_on
 	limits_label.text = "TRACK LIMITS: this lap will not count" if hud.get("limits_broken", false) else ""
 	if Time.get_ticks_msec() < invalid_shown_until and not hud.get("limits_broken", false):
 		notices.append("LAP NOT COUNTED: off the track or part of the course was missed")
-	if hud.get("stalled", false):
+	var damage: float = hud.get("engine_damage", 0.0)
+	if hud.get("overrev", false):
+		overrev_until = Time.get_ticks_msec() + 4000
+		overrev_peak = maxf(overrev_peak, hud.engine_rpm)
+	if Time.get_ticks_msec() < overrev_until:
+		notices.append("OVER-REV: %.0f rpm, past the limiter (missed downshift)" % overrev_peak)
+	else:
+		overrev_peak = 0.0
+	if damage >= 1.0:
+		notices.append("ENGINE FAILED from over-revving: reset the car (R) to repair")
+	elif damage > 0.0:
+		notices.append("engine damage %.0f%%: power down %.0f%%" % [damage * 100.0, damage * 60.0])
+	if hud.get("stalled", false) and damage < 1.0:
 		notices.append("ENGINE STALLED: clutch down and the starter (I) to restart")
 	if hud.get("grinding", false):
 		notices.append("GRINDING: clutch down or match the revs to engage")

@@ -298,12 +298,19 @@ pub struct EngineParams {
     pub inertia_kg_m2: f64,
     /// Idle speed, rpm.
     pub idle_rpm: f64,
-    /// Rev-limiter speed, rpm.
+    /// Rev-limiter speed, rpm. The limiter cuts fuel here, so the engine
+    /// cannot drive itself past it; the wheels can, through the clutch.
     pub redline_rpm: f64,
     /// Constant friction torque, N·m.
     pub friction_torque_nm: f64,
     /// Speed-proportional friction, N·m per rad/s.
     pub friction_nm_per_rad_s: f64,
+    /// Speed above which an over-rev starts to harm the engine (valves
+    /// touching pistons, bearing loads), rpm. Only counts when engine
+    /// damage is switched on.
+    pub overrev_damage_rpm: f64,
+    /// Speed at which an over-rev destroys the engine at once, rpm.
+    pub overrev_failure_rpm: f64,
 }
 
 /// Friction clutch.
@@ -318,6 +325,52 @@ pub struct ClutchParams {
     /// Engine speed at which the automatic clutch assist is fully
     /// engaged, rpm.
     pub auto_engage_full_rpm: f64,
+    /// Pedal travel from the top, 0 to 1, over which nothing happens: the
+    /// play before the release bearing meets the diaphragm spring.
+    pub free_travel: f64,
+    /// Pedal travel at the middle of the bite zone, 0 to 1.
+    pub bite_point: f64,
+    /// Width of the bite zone in pedal travel, 0 to 1. Across it the
+    /// clutch goes from free to [`BITE_TOP_ENGAGEMENT`] of its capacity;
+    /// beyond its lower edge, down to the floor, the clutch is free.
+    pub bite_width: f64,
+}
+
+/// Share of full clutch capacity at the released end of the bite zone.
+/// Above the zone the capacity rises on to full at the end of the free
+/// travel; at 1.5 times engine torque it already holds the engine at the
+/// top of the zone, so the zone is where the car is driven on the clutch.
+pub const BITE_TOP_ENGAGEMENT: f64 = 0.5;
+
+impl ClutchParams {
+    /// Pedal travel beyond which the clutch transmits nothing, 0 to 1.
+    pub fn release_travel(&self) -> f64 {
+        self.bite_point + 0.5 * self.bite_width
+    }
+
+    /// Clutch engagement, 0 (free) to 1 (fully clamped), for a pedal
+    /// travel from 0 (released) to 1 (floored).
+    ///
+    /// Full engagement through the free travel; then a linear fall to
+    /// [`BITE_TOP_ENGAGEMENT`] at the top of the bite zone; then a
+    /// quadratic fall across the zone that reaches zero with zero slope,
+    /// so the first touch of the plates is gentle; then free to the floor.
+    pub fn engagement(&self, travel: f64) -> f64 {
+        let t = travel.clamp(0.0, 1.0);
+        let bite_top = self.bite_point - 0.5 * self.bite_width;
+        let release = self.release_travel();
+        if t <= self.free_travel {
+            1.0
+        } else if t < bite_top {
+            let s = (t - self.free_travel) / (bite_top - self.free_travel);
+            1.0 - (1.0 - BITE_TOP_ENGAGEMENT) * s
+        } else if t < release {
+            let s = (release - t) / self.bite_width;
+            BITE_TOP_ENGAGEMENT * s * s
+        } else {
+            0.0
+        }
+    }
 }
 
 /// Manual gearbox.
@@ -585,6 +638,14 @@ impl CarParams {
                 if e.redline_rpm <= e.idle_rpm {
                     return Err("drivetrain.engine.redline_rpm must exceed idle_rpm".into());
                 }
+                if !(e.overrev_damage_rpm > e.redline_rpm
+                    && e.overrev_failure_rpm > e.overrev_damage_rpm)
+                {
+                    return Err(
+                        "drivetrain.engine needs redline_rpm < overrev_damage_rpm < overrev_failure_rpm"
+                            .into(),
+                    );
+                }
                 non_negative("drivetrain.engine.friction_torque_nm", e.friction_torque_nm)?;
                 non_negative(
                     "drivetrain.engine.friction_nm_per_rad_s",
@@ -594,6 +655,18 @@ impl CarParams {
                 if d.clutch.auto_engage_full_rpm <= d.clutch.auto_engage_start_rpm {
                     return Err(
                         "drivetrain.clutch.auto_engage_full_rpm must exceed auto_engage_start_rpm"
+                            .into(),
+                    );
+                }
+                let cl = &d.clutch;
+                let ok = |v: f64| v.is_finite() && (0.0..=1.0).contains(&v);
+                if !(ok(cl.free_travel) && ok(cl.bite_point) && ok(cl.bite_width))
+                    || cl.bite_width < 0.02
+                    || cl.bite_point - 0.5 * cl.bite_width <= cl.free_travel
+                    || cl.release_travel() > 0.95
+                {
+                    return Err(
+                        "drivetrain.clutch needs free_travel < bite zone, a bite zone at least 0.02 wide, released by 0.95 of travel"
                             .into(),
                     );
                 }

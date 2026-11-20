@@ -909,3 +909,68 @@ the starter interlock, restarting, grinding without the clutch, a
 rev-matched shift back into second, refusal of a gear far too tall, and a
 bump start from rolling in second.
 
+
+## D-074 Clutch pedal curve, over-rev and drivetrain FFB cues
+
+**Pedal curve.** Clutch engagement is no longer linear in pedal travel
+(replacing the clutch paragraph of D-073). Each car's `[drivetrain.clutch]`
+gives `free_travel`, `bite_point` and `bite_width` as fractions of pedal
+travel. Through the free travel the clutch is fully clamped; from there it
+falls linearly to half of its capacity at the top of the bite zone, then
+quadratically across the zone to nothing, reaching zero with zero slope so
+the first touch is gentle; below the zone, down to the floor, it is free.
+Half capacity at the top of the zone is chosen because a clutch rated at
+1.5 times engine torque then already holds the engine there, so the zone
+is where the car is driven on the clutch. The curve is a function of the
+car parameters (`ClutchParams::engagement`), so the Controls screen draws
+it from the physics code through the bridge instead of copying it.
+
+The bite point (30 to 65 % of travel) and width (10 to 40 %) are garage
+adjustments, as a cable or master-cylinder pushrod adjustment would be;
+they travel with setups, replays and ghosts. Pedal calibration stays the
+axis calibration it was: released reads 0, floored reads 1.
+
+A gear now goes in cleanly when the clutch is free (below the bite zone),
+not at a fixed 85 % of travel; the starter interlock keeps a switch at
+85 %, near the floor, as on a road car.
+
+**Rev limiter and over-rev.** The fuel-cut limiter at `redline_rpm` was
+already there and stays. It cannot stop the wheels spinning the engine
+through the clutch, so a missed downshift drives the engine past it. Each
+engine has `overrev_damage_rpm` and `overrev_failure_rpm` (placeholders:
+7,500 and 9,000 rpm for the Tern GT). The highest engine speed since the
+last reset is kept and shown on the HUD; above the damage speed the HUD
+warns with the peak reached. With the new "Engine damage from
+over-revving" option (off by default; part of the assists, so in the
+snapshot and every replay), time above the damage speed accumulates
+damage at a rate rising with the square of how far into the band the
+engine is, up to failure at the failure speed. Damage costs up to 60 % of
+full-throttle torque; a failed engine makes no torque and cannot be
+restarted until the car is reset. These numbers are placeholders: real
+valvetrain failure is not a deterministic function of speed and time, and
+nothing here is measured.
+
+**FFB cues.** Two detail channels join road and kerb detail: clutch
+shudder (11 Hz, the order of a front-drive driveline's first torsional
+mode) and gear grind (37 and 53 Hz together). The drivetrain reports
+clutch slip, clutch torque against capacity, and the speed a refused gear
+failed to match; `host::drivetrain_cues` turns those into intensities, and
+the pipeline adds a vibration of that intensity times a per-preset
+amplitude (`clutch_shudder_nm`, `gear_grind_nm`; 0.3 and 0.4 N.m in the
+shipped presets, sliders on the Controls screen) inside the existing
+detail limit. They are cues, not column physics: a real car passes
+clutch judder mostly through the floor and pedal and gear clash through
+the lever, so they are kept light and can be set to zero. Shudder is
+strongest when the clutch carries a large share of its capacity while
+slipping slowly, and fades once it locks or slips fast; the shape is
+judgement, not measurement.
+
+Tests: the pedal curve's shape and continuity; nothing driven past the
+release point; slip in the bite zone; lock in the free travel; a moved
+bite point moving where the car pulls; the limiter holding a free-revving
+engine without damage; a missed downshift past the damage speed logged
+with damage off; failure with damage on, no restart, repair on reset; the
+cue channels' amplitudes and the detail limit; and a manual-clutch launch
+plus missed downshift replaying exactly with damage on and off. Replays
+that used the clutch pedal before this change no longer reproduce, since
+the pedal now acts through the curve.

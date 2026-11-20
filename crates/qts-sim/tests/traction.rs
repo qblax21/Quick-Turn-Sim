@@ -93,6 +93,7 @@ fn switching_traction_control_off_lets_the_wheels_spin() {
             auto_clutch: true,
             auto_shift: true,
             traction_control: false,
+            engine_damage: false,
         },
         ..Default::default()
     };

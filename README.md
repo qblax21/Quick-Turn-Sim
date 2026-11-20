@@ -100,7 +100,7 @@ wheel setup** first: assign and calibrate the axes, choose the wheel under
 | Handbrake | Space |
 | Shift up, down | E / Q |
 | Clutch | Shift |
-| Reset to the start | R |
+| Reset to the start (also repairs an over-revved engine) | R |
 | Pause menu | Esc |
 | Camera | C |
 | Track map: whole track, zoomed, heading up, off | N |

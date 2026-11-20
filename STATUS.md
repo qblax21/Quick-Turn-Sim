@@ -10,7 +10,7 @@ says so.
 | Area | State |
 | --- | --- |
 | Workspace builds with one command on Windows | Verified (`tools\build.ps1`, GNU toolchain) |
-| Test suite | 201 tests pass in release |
+| Test suite | 210 tests pass in release |
 | Headless sim runs and replays exactly | Verified |
 | All cars drivable on all four tracks | Verified with scripted drivers and the front-end smoke test |
 | Front end renders, HUD and overlay work | Verified by screenshots |
@@ -128,6 +128,11 @@ plausible range. It is not evidence of realism.
   Controls screen; without the clutch a gear grinds and stays out unless
   the revs match; the engine stalls, starts on the starter with the clutch
   down, and bump-starts. Sequential shifting remains.
+- Clutch pedal with free travel, a bite zone (position and width set in
+  the garage) and a free floor, drawn on the Controls screen from the
+  physics (D-074). Peak engine speed and over-revs past the limiter are
+  shown on the HUD; optional engine damage from over-revving, down to
+  failure. Clutch shudder and gear grind reach the wheel as light FFB cues.
 - Standalone release package via `tools/package.ps1` (D-053): 129 MB on
   disk, 42 MB zipped. Verified to start and drive (`--self-test`) from a
   copy outside the repository with Rust and Godot off the path; not yet
@@ -183,10 +188,8 @@ plausible range. It is not evidence of realism.
 - **Power steering**: a fixed assist fraction per car, not a speed-sensitive
   model.
 - **Stability control**: none. Traction control is not per axle.
-- **Clutch pedal curve**: engagement is linear in pedal travel; a real
-  clutch has free travel at the top and a bite zone. Not modelled yet.
-- **Over-revving on a missed downshift**: the clutch slips at its torque
-  limit, but the engine takes no damage.
+- **Engine damage**: over-revving only; no overheating, oil or
+  mechanical wear. The damage and failure speeds are placeholders.
 - **Wheel gyroscopic effects, chassis flex, driveline compliance, gearbox
   efficiency, brake temperature and fade, tire wear, wet surfaces, wind**:
   not modelled.
@@ -248,8 +251,9 @@ Everything numeric. In particular:
    measured ones, and calibrate the tires and cars.
 4. **Cross-platform determinism check.** Run the same inputs on Windows and
    Linux in CI and compare hash sequences.
-5. **Clutch pedal curve and shifter feel.** Free travel and a bite zone for
-   the clutch; try the H-pattern and stall model on a real shifter.
+5. **Pedals and shifter on hardware.** Set the bite point by feel on real
+   pedals, try the H-pattern, stall and over-rev model on a real shifter,
+   and set the shudder and grind cue strengths on the wheel.
 
 After those: a Linux force-feedback backend, a speed-sensitive power
 steering model, and the first torque-vectoring strategy.

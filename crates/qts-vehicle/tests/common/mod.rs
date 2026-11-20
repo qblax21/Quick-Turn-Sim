@@ -27,12 +27,14 @@ pub const AUTO: Assists = Assists {
     auto_clutch: true,
     auto_shift: true,
     traction_control: true,
+    engine_damage: false,
 };
 
 pub const MANUAL: Assists = Assists {
     auto_clutch: false,
     auto_shift: false,
     traction_control: true,
+    engine_damage: false,
 };
 
 pub fn controls(steer: f64, throttle: f64, brake: f64) -> DriverControls {

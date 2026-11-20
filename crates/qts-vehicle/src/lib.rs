@@ -129,11 +129,16 @@ pub mod test_support {
                     redline_rpm: 6600.0,
                     friction_torque_nm: 12.0,
                     friction_nm_per_rad_s: 0.03,
+                    overrev_damage_rpm: 7300.0,
+                    overrev_failure_rpm: 8800.0,
                 },
                 clutch: ClutchParams {
                     max_torque_nm: 420.0,
                     auto_engage_start_rpm: 1100.0,
                     auto_engage_full_rpm: 2000.0,
+                    free_travel: 0.08,
+                    bite_point: 0.45,
+                    bite_width: 0.25,
                 },
                 gearbox: GearboxParams {
                     ratios: vec![3.3, 2.0, 1.4, 1.05, 0.85, 0.7],

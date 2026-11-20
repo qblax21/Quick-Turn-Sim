@@ -10,7 +10,7 @@
 //!   → low-pass filter
 //!   → slew-rate limiter
 //!   → + damping, friction, inertia   (from the physical wheel's motion)
-//!   → + road-detail and kerb channels (optional)
+//!   → + road-detail, kerb, clutch-shudder and gear-grind channels (optional)
 //!   → ÷ device peak torque
 //!   → soft clip
 //!   → minimum force                  (optional, for weak or belt-driven bases)
@@ -86,7 +86,24 @@ pub struct FfbConfig {
     /// sent to the device, never the simulation.
     #[serde(default)]
     pub min_force: f64,
+    /// Clutch-shudder channel: amplitude at full shudder, N·m. A light cue
+    /// of the clutch taking up drive; a real car passes it through the
+    /// chassis and pedal more than the steering column. Zero disables it.
+    #[serde(default)]
+    pub clutch_shudder_nm: f64,
+    /// Gear-grind channel: amplitude while a gear is refused, N·m. A cue
+    /// of what the gear lever would feel; zero disables it.
+    #[serde(default)]
+    pub gear_grind_nm: f64,
 }
+
+/// Frequency of the clutch-shudder cue, Hz: the order of the first
+/// torsional mode of a front-drive driveline, where clutch judder sits.
+pub const SHUDDER_HZ: f64 = 11.0;
+/// Frequencies of the gear-grind cue, Hz. Real tooth clash is far above
+/// what a wheel base reproduces; two incommensurate tones in its range
+/// give the rattle.
+pub const GRIND_HZ: [f64; 2] = [37.0, 53.0];
 
 impl FfbConfig {
     /// Checks that values are inside the ranges the pipeline assumes.
@@ -128,6 +145,8 @@ impl FfbConfig {
         non_negative("kerb_gain_nm_per_n", self.kerb_gain_nm_per_n)?;
         positive("detail_highpass_hz", self.detail_highpass_hz)?;
         non_negative("detail_limit_nm", self.detail_limit_nm)?;
+        non_negative("clutch_shudder_nm", self.clutch_shudder_nm)?;
+        non_negative("gear_grind_nm", self.gear_grind_nm)?;
         positive("device_update_rate_hz", self.device_update_rate_hz)?;
         if !(0.0..=MAX_MIN_FORCE).contains(&self.min_force) {
             return Err(format!(
@@ -151,6 +170,10 @@ pub struct FfbInput {
     pub front_load_difference_n: f64,
     /// Share of the front wheels on a kerb surface, 0, 0.5 or 1.
     pub kerb_contact: f64,
+    /// Clutch shudder intensity from the drivetrain, 0 to 1.
+    pub clutch_shudder: f64,
+    /// Gear grind intensity from the gearbox, 0 to 1.
+    pub gear_grind: f64,
 }
 
 /// Every stage of the pipeline for one tick.
@@ -164,7 +187,7 @@ pub struct FfbSample {
     pub filtered_nm: f64,
     /// Damping, friction and inertia effects, N·m.
     pub effects_nm: f64,
-    /// Road-detail and kerb channels, N·m.
+    /// Road-detail, kerb, clutch-shudder and gear-grind channels, N·m.
     pub detail_nm: f64,
     /// Total requested output as a fraction of device peak torque, before
     /// the soft clip. May exceed ±1.
@@ -253,6 +276,8 @@ pub struct FfbPipeline {
     accel: f64,
     detail_prev_in: f64,
     detail_hp: f64,
+    shudder_phase: f64,
+    grind_phase: [f64; 2],
 }
 
 impl FfbPipeline {
@@ -271,6 +296,8 @@ impl FfbPipeline {
             accel: 0.0,
             detail_prev_in: 0.0,
             detail_hp: 0.0,
+            shudder_phase: 0.0,
+            grind_phase: [0.0; 2],
         })
     }
 
@@ -297,6 +324,8 @@ impl FfbPipeline {
         self.accel = 0.0;
         self.detail_prev_in = 0.0;
         self.detail_hp = 0.0;
+        self.shudder_phase = 0.0;
+        self.grind_phase = [0.0; 2];
     }
 
     /// Processes one physics tick.
@@ -359,7 +388,27 @@ impl FfbPipeline {
         self.detail_prev_in = load;
         let detail_gain =
             c.road_detail_gain_nm_per_n + c.kerb_gain_nm_per_n * input.kerb_contact.clamp(0.0, 1.0);
-        let detail = (self.detail_hp * detail_gain).clamp(-c.detail_limit_nm, c.detail_limit_nm);
+        // Vibration cues from the drivetrain, at fixed frequencies.
+        let tau = std::f64::consts::TAU;
+        self.shudder_phase = (self.shudder_phase + SHUDDER_HZ * dt).fract();
+        for (phase, hz) in self.grind_phase.iter_mut().zip(GRIND_HZ) {
+            *phase = (*phase + hz * dt).fract();
+        }
+        let finite01 = |v: f64| {
+            if v.is_finite() {
+                v.clamp(0.0, 1.0)
+            } else {
+                0.0
+            }
+        };
+        let shudder =
+            c.clutch_shudder_nm * finite01(input.clutch_shudder) * (tau * self.shudder_phase).sin();
+        let grind = c.gear_grind_nm
+            * finite01(input.gear_grind)
+            * 0.5
+            * ((tau * self.grind_phase[0]).sin() + (tau * self.grind_phase[1]).sin());
+        let detail = (self.detail_hp * detail_gain + shudder + grind)
+            .clamp(-c.detail_limit_nm, c.detail_limit_nm);
 
         let requested = (filtered + effects + detail) / c.device_max_torque_nm;
         let clipped_level = soft_clip(requested, c.soft_clip_knee);
@@ -404,6 +453,8 @@ pub fn test_config() -> FfbConfig {
         detail_limit_nm: 2.0,
         device_update_rate_hz: 500.0,
         min_force: 0.0,
+        clutch_shudder_nm: 0.0,
+        gear_grind_nm: 0.0,
     }
 }
 
@@ -652,6 +703,59 @@ mod tests {
     }
 
     #[test]
+    fn drivetrain_cues_vibrate_at_their_gain_and_stay_inside_the_detail_limit() {
+        // Off by default: the intensities change nothing.
+        let mut plain = FfbPipeline::new(test_config(), 1000).unwrap();
+        let quiet = FfbInput {
+            steering_torque_nm: 2.0,
+            clutch_shudder: 1.0,
+            gear_grind: 1.0,
+            ..FfbInput::default()
+        };
+        for _ in 0..200 {
+            assert_eq!(plain.step(&quiet).detail_nm, 0.0);
+        }
+        let mut cfg = test_config();
+        cfg.clutch_shudder_nm = 0.5;
+        cfg.gear_grind_nm = 0.4;
+        cfg.detail_limit_nm = 2.0;
+        let peak = |input: FfbInput, cfg: &FfbConfig| {
+            let mut p = FfbPipeline::new(cfg.clone(), 1000).unwrap();
+            let (mut lo, mut hi) = (0.0_f64, 0.0_f64);
+            for _ in 0..1000 {
+                let d = p.step(&input).detail_nm;
+                lo = lo.min(d);
+                hi = hi.max(d);
+            }
+            (lo, hi)
+        };
+        let shudder = FfbInput {
+            clutch_shudder: 1.0,
+            ..FfbInput::default()
+        };
+        let (lo, hi) = peak(shudder, &cfg);
+        assert!(
+            (hi - 0.5).abs() < 0.01 && (lo + 0.5).abs() < 0.01,
+            "{lo} {hi}"
+        );
+        let half = FfbInput {
+            clutch_shudder: 0.5,
+            ..FfbInput::default()
+        };
+        assert!((peak(half, &cfg).1 - 0.25).abs() < 0.01);
+        let grind = FfbInput {
+            gear_grind: 1.0,
+            ..FfbInput::default()
+        };
+        let (lo, hi) = peak(grind, &cfg);
+        assert!(hi > 0.3 && hi <= 0.4 + 1e-9 && lo < -0.3, "{lo} {hi}");
+        // The detail ceiling still holds.
+        cfg.detail_limit_nm = 0.1;
+        let (lo, hi) = peak(shudder, &cfg);
+        assert!(hi <= 0.1 + 1e-12 && lo >= -0.1 - 1e-12);
+    }
+
+    #[test]
     fn bad_inputs_and_bad_configs_are_contained() {
         let mut p = FfbPipeline::new(test_config(), 1000).unwrap();
         let s = p.step(&FfbInput {
@@ -659,6 +763,8 @@ mod tests {
             device_angle_rad: Some(f64::INFINITY),
             front_load_difference_n: f64::NAN,
             kerb_contact: 7.0,
+            clutch_shudder: f64::NAN,
+            gear_grind: f64::INFINITY,
         });
         assert!(s.output.is_finite() && s.output == 0.0);
         let mut cfg = test_config();

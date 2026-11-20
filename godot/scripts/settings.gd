@@ -26,6 +26,7 @@ const DEFAULTS := {
 	"menu/auto_clutch": true,
 	"menu/auto_shift": true,
 	"menu/traction_control": true,
+	"menu/engine_damage": false,
 	"menu/ffb_preset": "",
 }
 

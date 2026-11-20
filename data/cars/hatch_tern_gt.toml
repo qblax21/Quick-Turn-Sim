@@ -107,11 +107,16 @@ idle_rpm = { value = 850.0, source = "typical idle speed", confidence = "placeho
 redline_rpm = { value = 6800.0, source = "typical rev limit for the class", confidence = "placeholder" }
 friction_torque_nm = { value = 14.0, source = "order of magnitude", confidence = "placeholder" }
 friction_nm_per_rad_s = { value = 0.025, source = "order of magnitude", confidence = "placeholder" }
+overrev_damage_rpm = { value = 7500.0, source = "about 700 rpm past the limiter, where valve-to-piston clearance is commonly said to run out on production engines; no measurement", confidence = "placeholder" }
+overrev_failure_rpm = { value = 9000.0, source = "guess at where a production valvetrain fails outright; no measurement", confidence = "placeholder" }
 
 [drivetrain.clutch]
 max_torque_nm = { value = 480.0, source = "1.5 times peak engine torque", confidence = "placeholder" }
 auto_engage_start_rpm = { value = 1100.0, source = "assist tuning guess", confidence = "placeholder" }
 auto_engage_full_rpm = { value = 2200.0, source = "assist tuning guess", confidence = "placeholder" }
+free_travel = { value = 0.08, source = "pedal play of about 10 mm in roughly 140 mm of travel, typical of a hydraulic clutch; not measured", confidence = "placeholder" }
+bite_point = { value = 0.45, source = "middle of the bite zone a little above mid-travel, typical of a road car; not measured", confidence = "placeholder" }
+bite_width = { value = 0.25, source = "bite zone about 35 mm of pedal; not measured", confidence = "placeholder" }
 
 [drivetrain.gearbox]
 ratios = { value = [3.31, 1.92, 1.36, 1.03, 0.84, 0.69], source = "invented six-speed spread typical of the class", confidence = "placeholder" }

@@ -98,6 +98,11 @@ func _ready() -> void:
 	traction.button_pressed = settings.get_value("menu/traction_control")
 	traction.toggled.connect(func(on: bool) -> void: settings.set_value("menu/traction_control", on))
 	box.add_child(traction)
+	var damage := CheckBox.new()
+	damage.text = "Engine damage from over-revving"
+	damage.button_pressed = settings.get_value("menu/engine_damage")
+	damage.toggled.connect(func(on: bool) -> void: settings.set_value("menu/engine_damage", on))
+	box.add_child(damage)
 
 	box.add_child(HSeparator.new())
 	preset_ids = sim.list_ids("ffb")

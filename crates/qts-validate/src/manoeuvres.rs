@@ -39,6 +39,7 @@ const BOTH_ASSISTS: Assists = Assists {
     auto_clutch: true,
     auto_shift: true,
     traction_control: true,
+    engine_damage: false,
 };
 
 fn new_session(root: &DataRoot, set: &TargetSet, assists: Assists) -> Result<Session, String> {
@@ -277,6 +278,7 @@ fn standing_start(
         auto_clutch: !manual_clutch,
         auto_shift: true,
         traction_control: true,
+        engine_damage: false,
     };
     let mut session = new_session(root, set, assists)?;
     let (x, y, heading) = session.track().spawn();

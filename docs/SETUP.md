@@ -22,6 +22,8 @@ from.
 | Brake bias to the front | 50 % to 85 % (or 5 % above the car's own, if higher) | Bias valve or balance bar adjustment; front-drive road cars run 75 to 80 % |
 | Differential preload | 0 to 200 N.m | Clutch-type limited-slip units; cars with an open differential have no adjustment |
 | Differential locking on and off power | 0 to 80 % | Ramp angles of a clutch-type unit |
+| Clutch bite point | 30 % to 65 % of pedal travel | Cable or master-cylinder pushrod adjustment; road cars bite from just above to a little below mid-travel |
+| Clutch bite zone width | 10 % to 40 % of pedal travel | A sharp competition clutch to a soft road clutch |
 | Final drive | 0.85 to 1.15 times the car's | Alternative final-drive sets |
 | Each gear ratio | 0.9 to 1.1 times the car's, each gear taller than the one below | Alternative gear sets |
 

@@ -230,6 +230,27 @@ pub fn setup_items(
                 100.0 * d.lock_fraction_coast,
             );
         }
+        let cl = &m.clutch;
+        push(
+            "clutch.bite_point_pct",
+            "Clutch",
+            "Bite point (pedal travel from the top)",
+            "%",
+            30.0,
+            65.0,
+            1.0,
+            100.0 * cl.bite_point,
+        );
+        push(
+            "clutch.bite_width_pct",
+            "Clutch",
+            "Bite zone width",
+            "%",
+            10.0,
+            40.0,
+            1.0,
+            100.0 * cl.bite_width,
+        );
         let g = &m.gearbox;
         push(
             "final_drive",
@@ -386,6 +407,12 @@ impl Setup {
             }
             if let Some(v) = get("diff.lock_coast_pct") {
                 m.differential.lock_fraction_coast = v / 100.0;
+            }
+            if let Some(v) = get("clutch.bite_point_pct") {
+                m.clutch.bite_point = v / 100.0;
+            }
+            if let Some(v) = get("clutch.bite_width_pct") {
+                m.clutch.bite_width = v / 100.0;
             }
             if let Some(v) = get("final_drive") {
                 m.gearbox.final_drive = v;

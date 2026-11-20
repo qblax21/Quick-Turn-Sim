@@ -209,6 +209,7 @@ fn cmd_run(args: &Args) -> Result<(), String> {
             auto_clutch: true,
             auto_shift: true,
             traction_control: true,
+            engine_damage: false,
         },
         tire_start_temp_c: match args.text("tire-temp") {
             Some(_) => Some(args.number("tire-temp", 0.0)?),
@@ -702,6 +703,7 @@ fn cmd_kerb_ffb(args: &Args) -> Result<(), String> {
             auto_clutch: true,
             auto_shift: true,
             traction_control: true,
+            engine_damage: false,
         },
         ..SessionConfig::default()
     };

@@ -34,6 +34,8 @@ pub struct DriveControls {
     pub auto_shift: bool,
     /// Starter motor held.
     pub starter: bool,
+    /// Over-revving harms the engine.
+    pub engine_damage: bool,
 }
 
 /// Everything a drivetrain needs for one tick.
@@ -93,6 +95,20 @@ pub struct DriveTelemetry {
     /// True while a gear is being forced in without the clutch: the box
     /// stays in neutral and grinds.
     pub grinding: bool,
+    /// Difference between engine speed and the speed the requested gear
+    /// would turn it at while grinding, rad/s.
+    pub grind_speed_rad_s: f64,
+    /// Engine speed minus gearbox input speed while the clutch carries
+    /// torque, rad/s (zero when locked or open).
+    pub clutch_slip_rad_s: f64,
+    /// Clutch torque capacity at full engagement, N·m.
+    pub clutch_capacity_nm: f64,
+    /// Highest engine speed since the car was last reset, rpm.
+    pub peak_rpm: f64,
+    /// True while the engine is above its over-rev damage speed.
+    pub overrev: bool,
+    /// Engine damage, 0 (healthy) to 1 (failed).
+    pub engine_damage: f64,
 }
 
 /// Result of one drivetrain tick.

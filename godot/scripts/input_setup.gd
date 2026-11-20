@@ -38,6 +38,8 @@ const FFB_SLIDERS := [
 	["inertia_nm_s2_per_rad", "Inertia", 0.0, 0.05, 0.001],
 	["road_detail_gain_nm_per_n", "Road detail", 0.0, 0.003, 0.0001],
 	["kerb_gain_nm_per_n", "Kerb detail", 0.0, 0.01, 0.0001],
+	["clutch_shudder_nm", "Clutch shudder (N·m)", 0.0, 1.0, 0.05],
+	["gear_grind_nm", "Gear grind (N·m)", 0.0, 1.0, 0.05],
 ]
 
 var sim
@@ -50,6 +52,10 @@ var listening := ""      # action waiting for an axis or button
 var listen_is_axis := true
 var baseline := {}       # device -> [axis values] when listening started
 var calibrating := ""    # axis action being calibrated
+var clutch_curve := {}
+var clutch_label: Label
+var clutch_strip: Control
+var clutch_travel := 0.0
 var cal_min := 0.0
 var cal_max := 0.0
 # Devices read directly by the core: id -> {"name", "axes", "buttons"}.
@@ -124,6 +130,8 @@ func _ready() -> void:
 	_refresh_scan()
 	for action in reader.AXIS_ACTIONS:
 		_axis_row(left, action)
+		if action == "clutch":
+			_clutch_panel(left)
 	left.add_child(HSeparator.new())
 	for action in reader.BUTTON_ACTIONS:
 		_button_row(left, action)
@@ -231,6 +239,67 @@ func _axis_row(parent: Control, action: String) -> void:
 	row.add_child(clear)
 	parent.add_child(row)
 	rows[action] = {"value": value, "bar": bar}
+
+
+# The clutch pedal against the selected car's bite zone, from the physics.
+func _clutch_panel(parent: Control) -> void:
+	var car_id: String = settings.get_value("menu/car")
+	clutch_curve = sim.clutch_curve(car_id) if car_id != "" else {}
+	clutch_label = Label.new()
+	clutch_label.add_theme_font_size_override("font_size", 13)
+	clutch_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	parent.add_child(clutch_label)
+	if clutch_curve.is_empty():
+		clutch_label.text = "Clutch bite zone: pick a car with a clutch on the main menu to see it here."
+		return
+	clutch_strip = Control.new()
+	clutch_strip.custom_minimum_size = Vector2(0, 34)
+	clutch_strip.draw.connect(_draw_clutch_strip)
+	parent.add_child(clutch_strip)
+
+
+func _draw_clutch_strip() -> void:
+	var w: float = clutch_strip.size.x
+	var h: float = clutch_strip.size.y
+	var curve: PackedFloat32Array = clutch_curve.curve
+	var n := curve.size() - 1
+	# Each column coloured by engagement: green clamped, amber biting, grey free.
+	for i in n:
+		var e: float = curve[i]
+		var color := Color(0.25, 0.25, 0.28)
+		if e >= 0.999:
+			color = Color(0.2, 0.55, 0.3)
+		elif e > 0.0:
+			color = Color(0.25, 0.25, 0.28).lerp(Color(0.95, 0.65, 0.15), clampf(e / 0.5, 0.0, 1.0))
+		clutch_strip.draw_rect(Rect2(w * i / n, 0, w / n + 1.0, h - 12), color)
+	# Engagement curve on top.
+	var points := PackedVector2Array()
+	for i in curve.size():
+		points.append(Vector2(w * i / n, (h - 12) * (1.0 - curve[i])))
+	clutch_strip.draw_polyline(points, Color(1, 1, 1, 0.9), 1.5)
+	# The pedal now.
+	var x := w * clutch_travel
+	clutch_strip.draw_line(Vector2(x, 0), Vector2(x, h), Color(0.3, 0.8, 1.0), 3.0)
+	var font := ThemeDB.fallback_font
+	clutch_strip.draw_string(font, Vector2(0, h), "released", HORIZONTAL_ALIGNMENT_LEFT, -1, 11)
+	clutch_strip.draw_string(font, Vector2(w - 40, h), "floor", HORIZONTAL_ALIGNMENT_LEFT, -1, 11)
+
+
+func _update_clutch_panel() -> void:
+	if clutch_strip == null:
+		return
+	var travel := 0.0
+	if reader.has_direct("clutch"):
+		travel = reader.direct_calibrated("clutch", _direct_raw("clutch"))
+	elif reader.axes["clutch"].device >= 0:
+		travel = reader._calibrated_pedal("clutch")
+	clutch_travel = clampf(travel, 0.0, 1.0)
+	var curve: PackedFloat32Array = clutch_curve.curve
+	var engagement: float = curve[int(round(clutch_travel * (curve.size() - 1)))]
+	clutch_label.text = "Clutch pedal %.0f%%: clutch %.0f%% engaged. Free travel to %.0f%%, bite zone %.0f%% to %.0f%%, free from %.0f%% to the floor (car on the main menu, with its garage setup; bite point and width are set in the garage). Calibrate the pedal so released reads 0%% and the floor 100%%." % [
+		clutch_travel * 100.0, engagement * 100.0, clutch_curve.free_travel * 100.0,
+		(clutch_curve.bite_point - 0.5 * clutch_curve.bite_width) * 100.0, clutch_curve.release * 100.0, clutch_curve.release * 100.0]
+	clutch_strip.queue_redraw()
 
 
 func _button_row(parent: Control, action: String) -> void:
@@ -387,6 +456,7 @@ func _process(_delta: float) -> void:
 		else:
 			row.value.text = "device %d axis %d  raw %+.2f" % [m.device, m.axis, reader.raw_axis(action)]
 			row.bar.value = reader._calibrated_centered(action) if action == "steer" else reader._calibrated_pedal(action)
+	_update_clutch_panel()
 	for action in reader.BUTTON_ACTIONS:
 		var b: Dictionary = reader.buttons[action]
 		if reader.has_direct(action):

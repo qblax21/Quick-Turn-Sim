@@ -19,6 +19,7 @@ fn config() -> SessionConfig {
             auto_clutch: true,
             auto_shift: true,
             traction_control: false,
+            engine_damage: false,
         },
         ..SessionConfig::default()
     }
@@ -137,6 +138,29 @@ fn every_adjustment_changes_the_physics() {
         for item in &list {
             let value = far_end(item);
             let mut s = build(car, &one(&item.key, value));
+            if item.key.starts_with("clutch.") {
+                // The pedal curve only matters with the pedal in use: a
+                // launch with the pedal held part-way.
+                let launch = |s: &mut Session| {
+                    for t in 0..3000 {
+                        let clutch = if t < 500 { 1.0 } else { 0.45 };
+                        let frame =
+                            InputFrame::from_analog(0.0, 0.3, 0.0, clutch, 0.0).with_gear(1);
+                        s.step(&frame);
+                    }
+                };
+                let mut base = manual(car, &Setup::default());
+                let mut s = manual(car, &one(&item.key, value));
+                launch(&mut base);
+                launch(&mut s);
+                assert_ne!(
+                    state_hash(&s),
+                    state_hash(&base),
+                    "{car}: {} at {value} changed nothing",
+                    item.key
+                );
+                continue;
+            }
             if let Some(gear) = item.key.strip_prefix("gear_") {
                 let gear: i8 = gear.parse().unwrap();
                 let mut base = manual(car, &Setup::default());

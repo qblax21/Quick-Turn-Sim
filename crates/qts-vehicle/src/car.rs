@@ -94,6 +94,9 @@ pub struct Assists {
     pub auto_shift: bool,
     /// Traction control is switched on, on a car that has it.
     pub traction_control: bool,
+    /// Over-revving the engine harms it, down to failure. Off, an over-rev
+    /// is reported but costs nothing.
+    pub engine_damage: bool,
 }
 
 impl Default for Assists {
@@ -102,6 +105,7 @@ impl Default for Assists {
             auto_clutch: false,
             auto_shift: false,
             traction_control: true,
+            engine_damage: false,
         }
     }
 }
@@ -859,6 +863,7 @@ impl Car {
                     auto_clutch: assists.auto_clutch,
                     auto_shift: assists.auto_shift,
                     starter: controls.starter,
+                    engine_damage: assists.engine_damage,
                 },
                 wheel_omega: self.state.wheel_omega,
                 wheel_inertia,

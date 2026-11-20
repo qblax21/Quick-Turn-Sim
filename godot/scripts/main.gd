@@ -415,6 +415,8 @@ func _start_driving(car_id: String, track_id: String, auto_clutch: bool, auto_sh
 		settings.apply_ffb(sim)
 	if sim.has_method("set_traction_control"):
 		sim.set_traction_control(settings.get_value("menu/traction_control"))
+	if sim.has_method("set_engine_damage"):
+		sim.set_engine_damage(settings.get_value("menu/engine_damage"))
 	_hide_scenery()
 	if not sim.start_session(car_id, track_id, auto_clutch, auto_shift, ffb_preset):
 		if menu:

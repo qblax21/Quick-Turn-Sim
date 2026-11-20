@@ -94,6 +94,7 @@ pub struct SimBridge {
     /// Set when the player switched traction control off. Stored this way
     /// round so a fresh bridge has it on.
     traction_control_off: bool,
+    engine_damage: bool,
     /// A replay open for watching.
     playback: Option<Playback>,
     /// Devices open for the Controls screen to watch.
@@ -337,6 +338,7 @@ impl SimBridge {
                     auto_clutch,
                     auto_shift,
                     traction_control: !self.traction_control_off,
+                    engine_damage: self.engine_damage,
                 },
                 ..SessionConfig::default()
             };
@@ -617,6 +619,13 @@ impl SimBridge {
         PackedFloat32Array::from(out)
     }
 
+    /// Over-revving harms the engine, down to failure. Takes effect at the
+    /// next session start.
+    #[func]
+    fn set_engine_damage(&mut self, on: bool) {
+        self.engine_damage = on;
+    }
+
     /// Switches traction control on or off for cars that have it. Takes
     /// effect at the next session start.
     #[func]
@@ -698,6 +707,9 @@ impl SimBridge {
             "shifting" => h.drive.shifting,
             "stalled" => h.drive.stalled,
             "grinding" => h.drive.grinding,
+            "peak_rpm" => h.drive.peak_rpm,
+            "overrev" => h.drive.overrev,
+            "engine_damage" => h.drive.engine_damage,
             "engine_rpm" => h.drive.engine_rpm,
             "clutch_engagement" => h.drive.clutch_engagement,
             "battery_soc" => h.drive.battery_soc,
@@ -1156,6 +1168,8 @@ impl SimBridge {
             "road_detail_gain_nm_per_n" => c.road_detail_gain_nm_per_n,
             "kerb_gain_nm_per_n" => c.kerb_gain_nm_per_n,
             "min_force" => c.min_force,
+            "clutch_shudder_nm" => c.clutch_shudder_nm,
+            "gear_grind_nm" => c.gear_grind_nm,
         }
     }
 
@@ -1181,6 +1195,8 @@ impl SimBridge {
             "road_detail_gain_nm_per_n" => c.road_detail_gain_nm_per_n = value,
             "kerb_gain_nm_per_n" => c.kerb_gain_nm_per_n = value,
             "min_force" => c.min_force = value,
+            "clutch_shudder_nm" => c.clutch_shudder_nm = value,
+            "gear_grind_nm" => c.gear_grind_nm = value,
             other => {
                 self.last_error = format!("unknown force-feedback setting `{other}`");
                 return false;
@@ -1300,6 +1316,53 @@ impl SimBridge {
             });
         }
         out
+    }
+
+    /// The clutch pedal curve of a car with the setup chosen for the next
+    /// session: `free_travel`, `bite_point`, `bite_width`, `release` (pedal
+    /// travel, 0 to 1) and `curve`, the engagement at 101 even steps of
+    /// travel. Empty for a car without a clutch.
+    #[func]
+    fn clutch_curve(&mut self, car_id: GString) -> VarDictionary {
+        let Some(root) = self.root() else {
+            return VarDictionary::new();
+        };
+        let loaded = root.load_car(&car_id.to_string()).and_then(|c| {
+            let front = root.load_tire(&c.value.tire_front)?.value;
+            let rear = root.load_tire(&c.value.tire_rear)?.value;
+            Ok((c.value, front, rear))
+        });
+        let (mut car, mut front, mut rear) = match loaded {
+            Ok(t) => t,
+            Err(e) => {
+                self.last_error = e.to_string();
+                return VarDictionary::new();
+            }
+        };
+        // The garage setup may move the bite point; fall back to the car
+        // as delivered if it does not fit this car.
+        let plain = car.clone();
+        if self
+            .next_setup
+            .apply(&mut car, &mut front, &mut rear)
+            .is_err()
+        {
+            car = plain;
+        }
+        let DrivetrainParams::EngineManual(m) = &car.drivetrain else {
+            return VarDictionary::new();
+        };
+        let cl = &m.clutch;
+        let curve: PackedFloat32Array = (0..=100)
+            .map(|i| cl.engagement(f64::from(i) / 100.0) as f32)
+            .collect();
+        vd! {
+            "free_travel" => cl.free_travel,
+            "bite_point" => cl.bite_point,
+            "bite_width" => cl.bite_width,
+            "release" => cl.release_travel(),
+            "curve" => curve,
+        }
     }
 
     /// Names of the setups saved for a car and track.

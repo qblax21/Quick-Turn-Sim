@@ -445,13 +445,43 @@ pub fn ffb_input(session: &Session, device_angle_rad: Option<f64>) -> FfbInput {
             .is_some_and(|s| s.id == "kerb")
     };
     let kerb_contact = 0.5 * (f64::from(u8::from(on_kerb(0))) + f64::from(u8::from(on_kerb(1))));
+    let (clutch_shudder, gear_grind) = drivetrain_cues(&out.drive);
     FfbInput {
         // A hit on a tree or barrier adds a short kick to the column torque.
         steering_torque_nm: out.steering_torque_nm + session.impact_kick_nm(),
         device_angle_rad,
         front_load_difference_n: out.wheels[0].load - out.wheels[1].load,
         kerb_contact,
+        clutch_shudder,
+        gear_grind,
     }
+}
+
+/// Clutch-shudder and gear-grind intensities, 0 to 1, from the drivetrain.
+///
+/// Shudder grows with the share of the clutch's capacity it is carrying
+/// while slipping at low speed, where judder lives, and fades once the
+/// plates lock or slip fast. Grind grows with the speed the synchroniser
+/// is failing to match. Both are cues chosen by judgement, not measured.
+pub fn drivetrain_cues(d: &DriveTelemetry) -> (f64, f64) {
+    let smooth = |x: f64| {
+        let x = x.clamp(0.0, 1.0);
+        x * x * (3.0 - 2.0 * x)
+    };
+    let slip = d.clutch_slip_rad_s.abs();
+    let shudder = if d.clutch_capacity_nm > 0.0 && d.clutch_engagement > 0.0 {
+        let load = (d.clutch_torque_nm.abs() / d.clutch_capacity_nm).min(1.0);
+        let window = smooth((slip - 2.0) / 10.0) * (1.0 - smooth((slip - 60.0) / 120.0));
+        (2.0 * load).min(1.0) * window
+    } else {
+        0.0
+    };
+    let grind = if d.grinding {
+        0.3 + 0.7 * (d.grind_speed_rad_s / 150.0).min(1.0)
+    } else {
+        0.0
+    };
+    (shudder, grind)
 }
 
 /// A session running in real time on its own thread.
