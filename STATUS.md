@@ -89,24 +89,24 @@ sees in the demo is described in `DEMO.md`.
   pushed and read.
 
 ### Telemetry, import, validation
-- Telemetry CSV with 108 documented channels; a test keeps the document and
+- Telemetry CSV with 116 documented channels; a test keeps the document and
   the code in step.
 - Logger CSV importer with column-mapping profiles and run summaries,
   tested against synthetic runs with known answers.
-- Validation harness with five metrics per car. Current numbers against the
-  placeholder targets:
+- Validation harness, five metrics per car, against published road-test
+  figures of the closest real cars (D-077, `docs/VALIDATION_SOURCES.md`):
 
-| Metric | Tern GT (hatch) | error | Halden E4 (sedan) | error | tolerance |
+| Metric | Tern GT vs Golf GTI Mk7 | error | Halden E4 vs Model 3 Performance | error | tolerance |
 | --- | --- | --- | --- | --- | --- |
-| Skidpad lateral | 0.910 g vs 0.930 | -2.2% | 0.956 g vs 0.950 | +0.7% | 10% |
-| 60-0 mph distance | 36.1 m vs 35.0 | +3.0% | 34.5 m vs 33.5 | +3.0% | 10% |
-| 0-60 mph | 6.57 s vs 6.30 | +4.3% | 3.00 s vs 2.95 | +1.6% | 10% |
-| Top speed | 69.7 m/s vs 69.4 | +0.4% | 71.8 m/s vs 72.2 | -0.6% | 6% |
-| Understeer gradient | 2.09 deg/g vs 2.50 | -16.3% | 1.68 deg/g vs 2.00 | -16.0% | 40% |
+| Skidpad lateral | 0.910 g vs 0.94 | -3.2% | 0.956 g vs 0.96 | -0.4% | 10% |
+| 70-0 mph distance | 48.4 m vs 46.9 | +3.2% | 46.6 m vs 44.8 | +3.9% | 10% |
+| 0-60 mph, 1 ft rollout | 6.21 s vs 5.9 | +5.2% | 2.72 s vs 3.1 | **-12.1%** (known gap) | 10% |
+| Top speed | 69.7 m/s vs 69.4 | +0.3% | 71.8 m/s vs 72.4 | -0.9% | 6% |
+| Understeer gradient | 2.20 deg/g vs 2.5 (guess) | -12.2% | 1.83 deg/g vs 2.0 (guess) | -8.4% | 40% |
 
-These targets are approximate class-typical figures, not measurements.
-Passing them shows the harness works and the placeholder cars are in a
-plausible range. It is not evidence of realism.
+These figures measure the comparable real cars, not ours, so they are
+labelled estimated. The Halden E4 is too quick off the line; the fix
+(less motor power) waits for approval. No understeer data was found.
 
 ### Front end
 - Title screen with the circuit flown over behind it; car and track
@@ -256,9 +256,10 @@ Everything numeric. In particular:
 2. **Measure the input delay on the wheel.** With steering assigned both
    ways, the F1 overlay and `recordings/input_delay.log` give the real lag
    of the per-frame path; confirm the physics-thread path on hardware.
-3. **Bring in real data.** Import skidpad, launch and braking runs
-   (`docs/TELEMETRY_IMPORT.md`), replace the placeholder targets with
-   measured ones, and calibrate the tires and cars.
+3. **Close the validation gaps.** Once approved, the parameter changes in
+   `docs/VALIDATION_SOURCES.md`: Halden E4 motor power first, then the Tern
+   GT's torque curve, mass and tire; then measured runs of our own
+   (`docs/TELEMETRY_IMPORT.md`) for the understeer gradient.
 4. **Cross-platform determinism check.** Run the same inputs on Windows and
    Linux in CI and compare hash sequences.
 5. **Pedals and shifter on hardware.** Set the bite point by feel on real

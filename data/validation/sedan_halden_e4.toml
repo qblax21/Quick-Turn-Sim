@@ -1,55 +1,61 @@
 # SPDX-License-Identifier: CC-BY-4.0
 # Validation targets for the Halden E4 (fictional dual-motor electric sedan).
 #
-# EVERY TARGET HERE IS A PLACEHOLDER. They are round, approximate figures
-# typical of the class as widely published for such cars, not measurements
-# of any vehicle. Replace them with measured values (see
-# docs/TELEMETRY_IMPORT.md) and set confidence = "measured".
+# The Halden E4 is fictional. These targets are published road-test
+# figures of a REAL comparable car, chosen as the closest match in layout,
+# mass, power, battery and tires: the Tesla Model 3 Dual Motor Performance
+# of 2018 to 2020 (about 1,850 kg, two motors, all-wheel drive, 20-inch
+# wheels on Michelin Pilot Sport 4S tires). Sources and differences are
+# listed in docs/VALIDATION_SOURCES.md. The real name appears only here and
+# there, never in the game or the car data.
 #
-# tolerance_percent is the largest acceptable error. The harness reports the
-# error for every target and fails beyond the tolerance.
+# confidence = "estimated": each value is a measurement of the comparable
+# car, used as an estimate of what the Halden E4 should do. None is a
+# measurement of the Halden E4. The understeer target has no published
+# number and stays a placeholder.
 
 car = "sedan_halden_e4"
 track = "test_track"
 tire_temp_c = 60.0
-note = "Placeholder class-typical targets. Not measured."
+note = "Targets are published road-test figures of a comparable real car (see docs/VALIDATION_SOURCES.md), not measurements of this car."
 
 [[target]]
 metric = "skidpad_lateral_g"
-value = 0.95
+value = 0.96
 unit = "g"
 tolerance_percent = 10.0
-source = "approximate class-typical skidpad figure for a performance sedan on summer road tires"
-confidence = "placeholder"
+source = "Car and Driver, 2019 Tesla Model 3 Performance, test by Connor Hoffman, 4 May 2021: skidpad 0.96 g, diameter not stated (the 2018 car: 0.95 g)"
+confidence = "estimated"
 
 [[target]]
-metric = "braking_distance_60_0"
-value = 33.5
+metric = "braking_distance_70_0"
+value = 44.81
 unit = "m"
 tolerance_percent = 10.0
-source = "approximate class-typical 60-0 mph stopping distance (about 110 ft)"
-confidence = "placeholder"
+source = "Car and Driver, 2019 Tesla Model 3 Performance, 4 May 2021: 70-0 mph in 147 ft (the 2018 car: also 147 ft). The car regenerates when the accelerator is lifted; the stop is with the brake pedal"
+confidence = "estimated"
 
 [[target]]
-metric = "accel_0_60"
-value = 2.95
+metric = "accel_0_60_rollout"
+value = 3.1
 unit = "s"
 tolerance_percent = 10.0
-source = "driver expectation for the fastest cars of this class: just under 3 s without rollout; not a measurement"
-confidence = "placeholder"
+source = "Car and Driver, 2019 Tesla Model 3 Performance, 4 May 2021: 0-60 mph in 3.1 s, after an over-the-air power increase (the 2018 car: 3.5 s). One-foot rollout subtracted per Car and Driver's published method (not restated on the page); the harness measures this metric the same way"
+confidence = "estimated"
+known_gap = "the car is about 0.4 s too quick: its motor torque and power were raised from driving feedback to reach 60 mph in just under 3 s timed without rollout, which with rollout subtracted is 2.7 s against the comparable car's 3.1 s. Lowering front and rear motor peak torque and power is the change; not made, as physics changes for validation wait for approval (D-077)"
 
 [[target]]
 metric = "top_speed"
-value = 72.2
+value = 72.42
 unit = "m/s"
 tolerance_percent = 6.0
-source = "approximate class-typical top speed of about 260 km/h"
-confidence = "placeholder"
+source = "Car and Driver, 2019 Tesla Model 3 Performance, 4 May 2021: claimed top speed 162 mph, a manufacturer figure and an electronic limit, not a drag-limited speed (the 2018 car was governed to 153 mph)"
+confidence = "estimated"
 
 [[target]]
 metric = "understeer_gradient"
 value = 2.0
 unit = "deg/g"
 tolerance_percent = 40.0
-source = "rough expectation for a near-evenly balanced road sedan; wide tolerance because the figure itself is a guess"
+source = "no published understeer gradient found; Car and Driver's 2018 test (Kevin A. Wilson, 25 October 2018) reports only that the car showed moderate understeer on the skidpad. Rough expectation, a guess"
 confidence = "placeholder"

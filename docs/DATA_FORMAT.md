@@ -237,11 +237,18 @@ confidence = "placeholder"
 | --- | --- |
 | `skidpad_lateral_g` | `g` |
 | `braking_distance_60_0` | `m` |
+| `braking_distance_70_0` | `m` |
 | `accel_0_60` | `s` |
+| `accel_0_60_rollout` | `s` |
 | `top_speed` | `m/s` |
 | `understeer_gradient` | `deg/g` |
 
 How each is measured is defined in `DECISIONS.md` (D-035).
+
+A target may carry `known_gap = "..."`: the simulation is known to miss it
+and the change that would close the gap awaits a decision. It is still
+compared and printed as `FAIL*` with the reason, but does not fail the run;
+if it passes, the run fails until the mark is removed (D-077).
 
 ## Force-feedback presets and import profiles
 

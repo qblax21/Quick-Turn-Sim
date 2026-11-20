@@ -1099,3 +1099,35 @@ with a duct; a duct setting reaches the physics; wear equals the sliding
 energy times the rate; a worn tire has the configured peak-grip loss,
 higher stiffness, and stores exactly the heat put in with its thinner
 tread while warming faster.
+
+## D-077 Validation against published figures of comparable real cars
+
+At the project owner's request the placeholder targets are replaced by
+published instrumented road-test figures of the closest real cars: the
+seventh-generation Volkswagen Golf GTI (manual, Performance Pack) for the
+Tern GT, and the 2018 to 2020 Tesla Model 3 Performance for the Halden E4.
+This is the one place real names enter the project: `data/validation` and
+`docs/VALIDATION_SOURCES.md`. The cars, their data files and the game stay
+fictional, as before. Targets are labelled `estimated`, not `measured`:
+they measure the comparable car, not ours.
+
+Sources are Car and Driver test data (read as syndicated on Yahoo Autos;
+Car and Driver's own site and Edmunds could not be read from here) and
+Volkswagen's press figures for top speed, since the US test cars were
+governed. Every value cites its article, author and date.
+
+To compare like with like, two metrics were added to the harness instead
+of converting the published figures: `braking_distance_70_0` (Car and
+Driver brakes from 70 mph) and `accel_0_60_rollout` (Car and Driver
+subtracts a one-foot rollout). The skidpad radius differs (30 m here, a
+300-ft circle there) and is not corrected; neither source gives an
+understeer gradient, so those two targets stay placeholders.
+
+Result, with no physics change: everything within tolerance except the
+Halden E4's 0-60, 12 % quick (2.72 s against 3.1 s), a consequence of motor
+power raised earlier from driving feedback. Physics changes to close gaps
+wait for the owner's approval, so the target carries a new `known_gap`
+note: the harness still compares it and prints `FAIL*` with the reason,
+but the run (and CI) does not fail on it; if the gap ever closes, the
+stale mark fails the run until it is removed. The proposed parameter
+changes are listed in `docs/VALIDATION_SOURCES.md`.

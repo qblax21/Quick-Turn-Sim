@@ -28,9 +28,17 @@ pub enum Metric {
     /// Distance to stop from 60 mph with full brake applied at 60 mph, m.
     #[serde(rename = "braking_distance_60_0")]
     BrakingDistance60To0,
+    /// Distance to stop from 70 mph with full brake applied at 70 mph, m.
+    /// The figure Car and Driver publishes.
+    #[serde(rename = "braking_distance_70_0")]
+    BrakingDistance70To0,
     /// Time from a standing start to 60 mph, s.
     #[serde(rename = "accel_0_60")]
     Accel0To60,
+    /// Time to 60 mph counted from when the car has moved one foot, s:
+    /// the one-foot rollout US magazines subtract.
+    #[serde(rename = "accel_0_60_rollout")]
+    Accel0To60Rollout,
     /// Highest speed reached at full throttle on the level, m/s.
     TopSpeed,
     /// Road-wheel steer angle per unit lateral acceleration on a
@@ -44,7 +52,9 @@ impl Metric {
         match self {
             Metric::SkidpadLateralG => "skidpad_lateral_g",
             Metric::BrakingDistance60To0 => "braking_distance_60_0",
+            Metric::BrakingDistance70To0 => "braking_distance_70_0",
             Metric::Accel0To60 => "accel_0_60",
+            Metric::Accel0To60Rollout => "accel_0_60_rollout",
             Metric::TopSpeed => "top_speed",
             Metric::UndersteerGradient => "understeer_gradient",
         }
@@ -54,8 +64,8 @@ impl Metric {
     pub fn unit(self) -> &'static str {
         match self {
             Metric::SkidpadLateralG => "g",
-            Metric::BrakingDistance60To0 => "m",
-            Metric::Accel0To60 => "s",
+            Metric::BrakingDistance60To0 | Metric::BrakingDistance70To0 => "m",
+            Metric::Accel0To60 | Metric::Accel0To60Rollout => "s",
             Metric::TopSpeed => "m/s",
             Metric::UndersteerGradient => "deg/g",
         }
@@ -78,6 +88,13 @@ pub struct Target {
     pub source: String,
     /// `placeholder`, `estimated` or `measured`.
     pub confidence: String,
+    /// Non-empty when the simulation is known to miss this target and the
+    /// change that would close the gap is waiting for a decision: why, and
+    /// what would close it. The target is still compared and reported as a
+    /// failure, but does not fail the run. A known gap that passes is an
+    /// error, so the mark cannot outlive the gap.
+    #[serde(default)]
+    pub known_gap: String,
 }
 
 impl Target {
@@ -213,9 +230,30 @@ pub struct Report {
 }
 
 impl Report {
-    /// True when every target was measured and is within tolerance.
+    /// True when every target was measured and is within tolerance, or is
+    /// outside it as a recorded known gap; and no known gap has closed.
     pub fn passed(&self) -> bool {
-        self.failures.is_empty() && self.comparisons.iter().all(|c| c.pass)
+        self.failures.is_empty()
+            && self
+                .comparisons
+                .iter()
+                .all(|c| c.pass != !c.target.known_gap.trim().is_empty())
+    }
+
+    /// Targets outside tolerance that are recorded as known gaps.
+    pub fn known_gaps(&self) -> Vec<&Comparison> {
+        self.comparisons
+            .iter()
+            .filter(|c| !c.pass && !c.target.known_gap.trim().is_empty())
+            .collect()
+    }
+
+    /// Targets marked as known gaps that now pass: the mark is stale.
+    pub fn closed_gaps(&self) -> Vec<&Comparison> {
+        self.comparisons
+            .iter()
+            .filter(|c| c.pass && !c.target.known_gap.trim().is_empty())
+            .collect()
     }
 
     /// True when at least one target is not a measurement.
@@ -257,22 +295,50 @@ impl fmt::Display for Report {
                 format!("{:.3} {unit}", c.target.value),
                 c.error_percent,
                 c.target.tolerance_percent,
-                if c.pass { "PASS" } else { "FAIL" },
+                match (c.pass, c.target.known_gap.trim().is_empty()) {
+                    (true, true) => "PASS",
+                    (true, false) => "PASS!",
+                    (false, true) => "FAIL",
+                    (false, false) => "FAIL*",
+                },
                 c.target.confidence,
             )?;
         }
         for (metric, reason) in &self.failures {
             writeln!(f, "{metric:<24} could not be measured: {reason}")?;
         }
+        for c in self.known_gaps() {
+            writeln!(
+                f,
+                "* {} is a known gap: {}",
+                c.target.metric.name(),
+                c.target.known_gap.trim()
+            )?;
+        }
+        for c in self.closed_gaps() {
+            writeln!(
+                f,
+                "! {} is marked as a known gap but now passes: remove the mark",
+                c.target.metric.name()
+            )?;
+        }
         writeln!(f, "How each value was obtained:")?;
         for c in &self.comparisons {
             writeln!(f, "  {:<24} {}", c.target.metric.name(), c.method)?;
             writeln!(f, "  {:<24} target source: {}", "", c.target.source)?;
         }
+        let gaps = self.known_gaps().len();
         write!(
             f,
             "Overall: {}",
-            if self.passed() { "PASS" } else { "FAIL" }
+            match (self.passed(), gaps) {
+                (true, 0) => "PASS".to_string(),
+                (true, n) => format!(
+                    "PASS apart from {n} known gap{}",
+                    if n == 1 { "" } else { "s" }
+                ),
+                (false, _) => "FAIL".to_string(),
+            }
         )
     }
 }
@@ -317,6 +383,7 @@ mod tests {
             tolerance_percent: tolerance,
             source: "test".into(),
             confidence: "placeholder".into(),
+            known_gap: String::new(),
         }
     }
 

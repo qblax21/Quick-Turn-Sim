@@ -15,8 +15,8 @@ fn data() -> DataRoot {
 
 const ALL_METRICS: [Metric; 5] = [
     Metric::SkidpadLateralG,
-    Metric::BrakingDistance60To0,
-    Metric::Accel0To60,
+    Metric::BrakingDistance70To0,
+    Metric::Accel0To60Rollout,
     Metric::TopSpeed,
     Metric::UndersteerGradient,
 ];
@@ -45,7 +45,7 @@ fn run(id: &str) {
     let out_of_tolerance: Vec<String> = report
         .comparisons
         .iter()
-        .filter(|c| !c.pass)
+        .filter(|c| !c.pass && c.target.known_gap.trim().is_empty())
         .map(|c| {
             format!(
                 "{}: simulated {:.3}, target {:.3}, error {:+.1}% (tolerance {:.1}%)",
@@ -62,8 +62,16 @@ fn run(id: &str) {
         "{id} is outside tolerance:\n{}\n\n{report}",
         out_of_tolerance.join("\n")
     );
+    assert!(
+        report.closed_gaps().is_empty(),
+        "{id}: a known gap has closed"
+    );
+    assert!(report.passed());
     let text = report.to_string();
     assert!(text.contains("Overall: PASS"));
+    for c in report.known_gaps() {
+        assert!(text.contains(&format!("{} is a known gap", c.target.metric.name())));
+    }
     assert!(
         text.contains("NOT measurements"),
         "a report on placeholder targets must say so"
@@ -103,7 +111,7 @@ fn a_target_beyond_tolerance_fails_and_reports_its_error() {
     let mut set = TargetSet::load(&root, "sedan_halden_e4").unwrap();
     // Keep only the quick braking manoeuvre and demand an impossible stop.
     set.targets
-        .retain(|t| t.metric == Metric::BrakingDistance60To0);
+        .retain(|t| t.metric == Metric::BrakingDistance70To0);
     set.targets[0].value = 20.0;
     set.targets[0].tolerance_percent = 5.0;
     let report = validate(&root, &set).unwrap();
@@ -120,6 +128,20 @@ fn a_target_beyond_tolerance_fails_and_reports_its_error() {
     // data, not code.
     set.targets[0].tolerance_percent = 200.0;
     assert!(validate(&root, &set).unwrap().passed());
+
+    // A recorded known gap is still reported as a failure, but does not
+    // fail the run; once it closes, the stale mark fails the run.
+    set.targets[0].tolerance_percent = 5.0;
+    set.targets[0].known_gap = "test: waiting for a decision".into();
+    let report = validate(&root, &set).unwrap();
+    assert!(report.passed() && !report.comparisons[0].pass);
+    let text = report.to_string();
+    assert!(text.contains("FAIL*") && text.contains("is a known gap: test"));
+    assert!(text.ends_with("Overall: PASS apart from 1 known gap"));
+    set.targets[0].tolerance_percent = 200.0;
+    let report = validate(&root, &set).unwrap();
+    assert!(!report.passed());
+    assert!(report.to_string().contains("now passes: remove the mark"));
 }
 
 #[test]

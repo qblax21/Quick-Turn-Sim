@@ -17,6 +17,8 @@ use qts_sim::track::MarkerDef;
 use qts_sim::DataRoot;
 /// 60 mph in m/s.
 const SIXTY_MPH: f64 = 26.8224;
+/// 70 mph in m/s.
+const SEVENTY_MPH: f64 = 31.2928;
 use qts_vehicle::params::DrivetrainParams;
 use qts_vehicle::Assists;
 
@@ -221,14 +223,19 @@ fn circle_run(root: &DataRoot, set: &TargetSet) -> Result<CircleRun, String> {
     })
 }
 
-fn braking_distance(root: &DataRoot, set: &TargetSet) -> Result<Measurement, String> {
+fn braking_distance(
+    root: &DataRoot,
+    set: &TargetSet,
+    from_speed: f64,
+    metric: Metric,
+) -> Result<Measurement, String> {
     let mut session = new_session(root, set, BOTH_ASSISTS)?;
     let (x, y, heading) = session.track().spawn();
     let origin = [x, y];
-    session.car_mut().set_forward_speed(SIXTY_MPH + 0.8);
+    session.car_mut().set_forward_speed(from_speed + 0.8);
     let rate = session.tick_rate_hz();
     let mut braking_from: Option<f64> = None;
-    let mut previous_speed = session.car().output().speed.max(SIXTY_MPH + 0.8);
+    let mut previous_speed = session.car().output().speed.max(from_speed + 0.8);
     let mut previous_distance = 0.0;
     for _ in 0..(60 * u64::from(rate)) {
         let steer = hold_straight(&session, origin, heading);
@@ -238,11 +245,11 @@ fn braking_distance(root: &DataRoot, set: &TargetSet) -> Result<Measurement, Str
         let distance = distance_along(&session, origin, heading);
         match braking_from {
             None => {
-                if speed <= SIXTY_MPH {
-                    // Interpolate where 60 mph was crossed during this tick.
+                if speed <= from_speed {
+                    // Interpolate where the speed was crossed during this tick.
                     let span = previous_speed - speed;
                     let frac = if span > 0.0 {
-                        (previous_speed - SIXTY_MPH) / span
+                        (previous_speed - from_speed) / span
                     } else {
                         1.0
                     };
@@ -252,9 +259,9 @@ fn braking_distance(root: &DataRoot, set: &TargetSet) -> Result<Measurement, Str
             Some(from) => {
                 if speed < 0.05 {
                     return Ok(Measurement {
-                        metric: Metric::BrakingDistance60To0,
+                        metric,
                         value: distance - from,
-                        method: "coast down to 60 mph in a straight line, then full brake pedal in one step; anti-lock system as fitted; distance from the pedal application to rest".into(),
+                        method: format!("coast down to {:.0} mph in a straight line, then full brake pedal in one step; anti-lock system as fitted; distance from the pedal application to rest", from_speed / 0.44704),
                     });
                 }
             }
@@ -265,14 +272,18 @@ fn braking_distance(root: &DataRoot, set: &TargetSet) -> Result<Measurement, Str
     Err("the car did not stop within 60 s".into())
 }
 
-/// One standing start. Returns the time to 60 mph, or `None` if it was not
-/// reached in 30 s.
+/// One foot, m: the rollout US road tests subtract from a standing start.
+const ONE_FOOT_M: f64 = 0.3048;
+
+/// One standing start. Returns the time to 60 mph and the time to 60 mph
+/// counted from when the car had moved one foot, or `None` if 60 mph was
+/// not reached in 30 s.
 fn standing_start(
     root: &DataRoot,
     set: &TargetSet,
     launch_rpm: Option<f64>,
     release_s: f64,
-) -> Result<Option<f64>, String> {
+) -> Result<Option<(f64, f64)>, String> {
     let manual_clutch = launch_rpm.is_some();
     let assists = Assists {
         auto_clutch: !manual_clutch,
@@ -296,6 +307,8 @@ fn standing_start(
     }
     let launch_tick = session.tick();
     let mut previous_speed = 0.0;
+    let mut previous_distance = 0.0;
+    let mut rollout_at: Option<f64> = None;
     for _ in 0..(30.0 * rate) as u64 {
         let elapsed = (session.tick() - launch_tick) as f64 / rate;
         let clutch = if manual_clutch {
@@ -313,6 +326,17 @@ fn standing_start(
         let steer = hold_straight(&session, origin, heading);
         session.step(&InputFrame::from_analog(steer, throttle, 0.0, clutch, 0.0));
         let speed = session.car().output().vel_body[0];
+        let distance = distance_along(&session, origin, heading);
+        let ticks_now = (session.tick() - launch_tick) as f64;
+        if rollout_at.is_none() && distance >= ONE_FOOT_M {
+            let span = distance - previous_distance;
+            let frac = if span > 0.0 {
+                (ONE_FOOT_M - previous_distance) / span
+            } else {
+                1.0
+            };
+            rollout_at = Some((ticks_now - 1.0 + frac) / rate);
+        }
         if speed >= SIXTY_MPH {
             let span = speed - previous_speed;
             let frac = if span > 0.0 {
@@ -320,15 +344,18 @@ fn standing_start(
             } else {
                 1.0
             };
-            let ticks = (session.tick() - launch_tick) as f64 - 1.0 + frac;
-            return Ok(Some(ticks / rate));
+            let time = (ticks_now - 1.0 + frac) / rate;
+            return Ok(Some((time, time - rollout_at.unwrap_or(0.0))));
         }
         previous_speed = speed;
+        previous_distance = distance;
     }
     Ok(None)
 }
 
-fn accel_0_60(root: &DataRoot, set: &TargetSet) -> Result<Measurement, String> {
+fn accel_0_60(root: &DataRoot, set: &TargetSet, metric: Metric) -> Result<Measurement, String> {
+    let rollout = metric == Metric::Accel0To60Rollout;
+    let pick = |t: (f64, f64)| if rollout { t.1 } else { t.0 };
     let car = root.load_car(&set.car).map_err(|e| e.to_string())?.value;
     match car.drivetrain {
         DrivetrainParams::EngineManual(_) => {
@@ -336,7 +363,7 @@ fn accel_0_60(root: &DataRoot, set: &TargetSet) -> Result<Measurement, String> {
             let mut best: Option<(f64, f64, f64)> = None;
             for rpm in [3500.0, 4500.0, 5500.0] {
                 for release in [0.3, 0.6, 1.0] {
-                    if let Some(t) = standing_start(root, set, Some(rpm), release)? {
+                    if let Some(t) = standing_start(root, set, Some(rpm), release)?.map(pick) {
                         if best.is_none_or(|b| t < b.0) {
                             best = Some((t, rpm, release));
                         }
@@ -350,23 +377,34 @@ fn accel_0_60(root: &DataRoot, set: &TargetSet) -> Result<Measurement, String> {
                 "throttle backed off when driven-wheel slip exceeds 0.11"
             };
             Ok(Measurement {
-                metric: Metric::Accel0To60,
+                metric,
                 value: time,
                 method: format!(
-                    "best of nine launches: clutch released over {release:.1} s from {rpm:.0} rpm, {slip_note}, automatic upshifts near the limiter; timed from the start of clutch release, no rollout"
+                    "best of nine launches: clutch released over {release:.1} s from {rpm:.0} rpm, {slip_note}, automatic upshifts near the limiter; {}",
+                    if rollout {
+                        "timed from when the car has moved one foot (rollout subtracted)"
+                    } else {
+                        "timed from the start of clutch release, no rollout"
+                    }
                 ),
             })
         }
         DrivetrainParams::DualMotorElectric(_) => {
             let time = standing_start(root, set, None, 0.0)?
+                .map(pick)
                 .ok_or("60 mph was not reached within 30 s")?;
+            let timing = if rollout {
+                "timed from when the car has moved one foot (rollout subtracted)"
+            } else {
+                "timed from the pedal application, no rollout"
+            };
             Ok(Measurement {
-                metric: Metric::Accel0To60,
+                metric,
                 value: time,
                 method: if car.traction_control.enabled {
-                    "accelerator floored from rest, slip managed by the car's traction control; timed from the pedal application, no rollout".into()
+                    format!("accelerator floored from rest, slip managed by the car's traction control; {timing}")
                 } else {
-                    "full accelerator from rest, backed off when wheel slip exceeds 0.11; timed from the pedal application, no rollout".into()
+                    format!("full accelerator from rest, backed off when wheel slip exceeds 0.11; {timing}")
                 },
             })
         }
@@ -442,8 +480,9 @@ pub fn measure(
                 })
             }
         }
-        Metric::BrakingDistance60To0 => braking_distance(root, set),
-        Metric::Accel0To60 => accel_0_60(root, set),
+        Metric::BrakingDistance60To0 => braking_distance(root, set, SIXTY_MPH, metric),
+        Metric::BrakingDistance70To0 => braking_distance(root, set, SEVENTY_MPH, metric),
+        Metric::Accel0To60 | Metric::Accel0To60Rollout => accel_0_60(root, set, metric),
         Metric::TopSpeed => top_speed(root, set),
     }
 }
