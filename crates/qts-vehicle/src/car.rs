@@ -60,6 +60,13 @@ const TC_MIN_FACTOR: f64 = 0.02;
 const TC_PEDAL_FLOOR: f64 = 0.12;
 /// Time constant of the steering compliance response, s.
 const STEER_COMPLIANCE_LAG_S: f64 = 0.02;
+/// Cutoff of the filters on steering-column rate and acceleration, Hz.
+/// The column angle comes from the driver's input at the physics rate,
+/// quantised; the filters keep its derivatives usable.
+const COLUMN_FILTER_HZ: f64 = 20.0;
+/// Column rate at which rack friction reaches about three quarters of its
+/// full value, rad/s: a smooth stand-in for the stick-slip step.
+const RACK_FRICTION_SMOOTHING_RAD_S: f64 = 0.15;
 
 /// What the driver is asking for this tick, already decoded from the input
 /// frame.
@@ -160,6 +167,38 @@ pub struct CarState {
     /// Steer angle lost at the front wheels to steering-system compliance,
     /// rad. Negative values reduce a left steer.
     pub steer_compliance: f64,
+    /// Steering-wheel angle of the last tick, rad.
+    pub column_angle: f64,
+    /// Filtered steering-wheel rate, rad/s.
+    pub column_rate: f64,
+    /// Filtered steering-wheel acceleration, rad/s².
+    pub column_accel: f64,
+    /// False until the column angle has been seen once since the car was
+    /// placed, so a turned wheel at the start is not read as a fast turn.
+    pub column_primed: bool,
+}
+
+/// The parts of the steering torque at the column, N·m, positive turning
+/// the steering wheel to the left. `total` is what reaches the driver.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct SteeringOutput {
+    /// Rack load from the tires and geometry, referred to the column,
+    /// before the assist.
+    pub load_nm: f64,
+    /// Part of `load_nm` from the vertical loads through caster and
+    /// kingpin inclination.
+    pub weight_nm: f64,
+    /// Part of `load_nm` from the gyroscopic moment of the spinning front
+    /// wheels.
+    pub gyro_nm: f64,
+    /// What the power assist carries (opposite sign to the load).
+    pub assist_nm: f64,
+    /// Rack and column friction.
+    pub friction_nm: f64,
+    /// Rack and road-wheel inertia.
+    pub inertia_nm: f64,
+    /// Assist gain in use.
+    pub assist_gain: f64,
 }
 
 /// Per-wheel values from the last tick, for telemetry and display.
@@ -218,6 +257,8 @@ pub struct CarOutput {
     pub steering_torque_nm: f64,
     /// Steering-wheel angle, rad, positive left.
     pub steering_wheel_angle: f64,
+    /// The parts of `steering_torque_nm`.
+    pub steering: SteeringOutput,
     /// Acceleration of the sprung centre of gravity in body axes, m/s².
     pub accel_body: [f64; 3],
     /// Velocity in body axes, m/s.
@@ -266,6 +307,7 @@ pub struct Car {
     drivetrain: Box<dyn Drivetrain>,
     output: CarOutput,
     initial_tire_temp_c: f64,
+    legacy_steering: Option<f64>,
 }
 
 impl std::fmt::Debug for Car {
@@ -393,6 +435,10 @@ impl Car {
             abs_factor: [1.0; 4],
             tc_factor: 1.0,
             steer_compliance: 0.0,
+            column_angle: 0.0,
+            column_rate: 0.0,
+            column_accel: 0.0,
+            column_primed: false,
         };
         let mut car = Self {
             params,
@@ -404,6 +450,7 @@ impl Car {
             drivetrain,
             output: CarOutput::default(),
             initial_tire_temp_c: tire_temp_c,
+            legacy_steering: None,
         };
         car.refresh_static_output();
         Ok(car)
@@ -429,6 +476,16 @@ impl Car {
         self.drivetrain.as_ref()
     }
 
+    /// Switches to the steering-torque model from before D-075 (a fixed
+    /// assist fraction, no friction, inertia or gyroscopic moment), with
+    /// the given assist fraction, or back to the current model with
+    /// `None`. For before-and-after comparisons only: not part of the
+    /// state and never set in a session.
+    #[doc(hidden)]
+    pub fn set_legacy_steering(&mut self, assist_fraction: Option<f64>) {
+        self.legacy_steering = assist_fraction;
+    }
+
     /// Puts the car at rest at `(x, y)` with the given heading on ground of
     /// height `ground_height`, with every subsystem back in its initial
     /// state.
@@ -446,6 +503,10 @@ impl Car {
             abs_factor: [1.0; 4],
             tc_factor: 1.0,
             steer_compliance: 0.0,
+            column_angle: 0.0,
+            column_rate: 0.0,
+            column_accel: 0.0,
+            column_primed: false,
         };
         self.drivetrain.reset();
         self.refresh_static_output();
@@ -879,11 +940,30 @@ impl Car {
             dt,
         );
 
-        // Steering torque about the kingpin axes, referred to the column.
+        // Steering-column motion, from the driver's wheel.
         let st = &p.steering;
+        {
+            let s = &mut self.state;
+            if !s.column_primed {
+                s.column_angle = steering_wheel_angle;
+                s.column_primed = true;
+            }
+            let alpha = dt / (1.0 / (std::f64::consts::TAU * COLUMN_FILTER_HZ) + dt);
+            let raw_rate = (steering_wheel_angle - s.column_angle) / dt;
+            let prev_rate = s.column_rate;
+            s.column_rate += alpha * (raw_rate - s.column_rate);
+            s.column_accel += alpha * ((s.column_rate - prev_rate) / dt - s.column_accel);
+            s.column_angle = steering_wheel_angle;
+        }
+
+        // Moments about the kingpin axes (positive turning the wheels left).
+        let legacy = self.legacy_steering;
         let mut kingpin_moment = 0.0;
+        let mut weight_moment = 0.0;
+        let mut gyro_moment = 0.0;
         for i in [FL, FR] {
-            let side = self.corners[i].side;
+            let corner = &self.corners[i];
+            let side = corner.side;
             let d = wheels[i].steer_angle;
             let (sin_d, cos_d) = (fm::sin(d), fm::cos(d));
             let r0 = Vec3::new(-st.mechanical_trail_m, side * st.scrub_radius_m, 0.0);
@@ -898,11 +978,67 @@ impl Car {
                 1.0,
             )
             .normalized_or(Vec3::Z);
-            kingpin_moment += axis.dot(r.cross(tire_force_body[i])) + axis.z * wheels[i].mz;
+            if legacy.is_some() {
+                // The model before D-075, kept for comparison only.
+                kingpin_moment += axis.dot(r.cross(tire_force_body[i])) + axis.z * wheels[i].mz;
+                continue;
+            }
+            // Tire forces in the ground plane through the trail and scrub
+            // lever, plus the tire's own aligning moment.
+            let f = tire_force_body[i];
+            let horizontal = Vec3::new(f.x, f.y, 0.0);
+            kingpin_moment += axis.dot(r.cross(horizontal)) + axis.z * wheels[i].mz;
+            // Vertical load through kingpin inclination (lifting the car,
+            // centring) and caster (weight transfer across the axle,
+            // centring in a turn): Gillespie, Fundamentals of Vehicle
+            // Dynamics (1992), chapter 8, with the lateral offset at the
+            // ground as the scrub radius.
+            let fz = wheels[i].load;
+            let weight = -fz * st.scrub_radius_m * fm::sin(st.kingpin_inclination_rad) * sin_d
+                + side * fz * st.scrub_radius_m * fm::sin(st.caster_rad) * cos_d;
+            weight_moment += weight;
+            // Gyroscopic moment: the spinning wheel's angular momentum
+            // turned by the body's rotation and by camber change from the
+            // suspension. The steering must supply (Ω × H) to the wheel;
+            // the wheel pushes back on it with the opposite moment.
+            let spin = corner.wheel_inertia * self.state.wheel_omega[i];
+            let h = Vec3::new(-sin_d, cos_d, 0.0) * spin;
+            let camber_rate =
+                -side * p.suspension.front.camber_gain_rad_per_m * self.state.susp_rate[i];
+            let carrier = omega + Vec3::new(cos_d, sin_d, 0.0) * camber_rate;
+            let gyro = -axis.dot(carrier.cross(h));
+            gyro_moment += gyro;
+            kingpin_moment += weight + gyro;
         }
-        // Power assist carries a fixed share of the load; the rest reaches
-        // the column.
-        let steering_torque_nm = kingpin_moment / st.ratio * (1.0 - st.assist_fraction);
+        let load_nm = kingpin_moment / st.ratio;
+        let speed_now = vel_body.x;
+        let (driver_nm, assist_gain, friction_nm, inertia_nm) = match legacy {
+            Some(fraction) => (load_nm * (1.0 - fraction), 0.0, 0.0, 0.0),
+            None => {
+                // Friction against the direction the driver turns, and the
+                // reflected inertia against the column's acceleration.
+                let s = &self.state;
+                let friction =
+                    -st.rack_friction_nm * fm::tanh(s.column_rate / RACK_FRICTION_SMOOTHING_RAD_S);
+                let inertia = -st.steering_inertia_kg_m2 * s.column_accel;
+                (
+                    st.driver_torque(load_nm, speed_now),
+                    st.assist_gain_at(speed_now),
+                    friction,
+                    inertia,
+                )
+            }
+        };
+        let steering_torque_nm = driver_nm + friction_nm + inertia_nm;
+        let steering = SteeringOutput {
+            load_nm,
+            weight_nm: weight_moment / st.ratio,
+            gyro_nm: gyro_moment / st.ratio,
+            assist_nm: driver_nm - load_nm,
+            friction_nm,
+            inertia_nm,
+            assist_gain,
+        };
         // The steering system twists under the kingpin moment, taking a
         // little steer angle off. A short lag keeps this out of the same
         // tick it was computed from.
@@ -936,6 +1072,7 @@ impl Car {
             wheels,
             steering_torque_nm,
             steering_wheel_angle,
+            steering,
             accel_body: accel_body.to_array(),
             vel_body: vel_body.to_array(),
             speed: ground_vel.length(),
@@ -1028,6 +1165,10 @@ impl Snapshot for Car {
         w.write_f64s(&s.abs_factor);
         w.write_f64(s.tc_factor);
         w.write_f64(s.steer_compliance);
+        w.write_f64(s.column_angle);
+        w.write_f64(s.column_rate);
+        w.write_f64(s.column_accel);
+        w.write_bool(s.column_primed);
         self.drivetrain.save(w);
     }
 
@@ -1047,6 +1188,10 @@ impl Snapshot for Car {
         r.read_f64s(&mut s.abs_factor)?;
         s.tc_factor = r.read_f64()?;
         s.steer_compliance = r.read_f64()?;
+        s.column_angle = r.read_f64()?;
+        s.column_rate = r.read_f64()?;
+        s.column_accel = r.read_f64()?;
+        s.column_primed = r.read_bool()?;
         self.drivetrain.load(r)?;
         self.refresh_static_output();
         Ok(())

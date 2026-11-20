@@ -974,3 +974,75 @@ cue channels' amplitudes and the detail limit; and a manual-clutch launch
 plus missed downshift replaying exactly with damage on and off. Replays
 that used the clutch pedal before this change no longer reproduce, since
 the pedal now acts through the curve.
+
+## D-075 Steering system: speed-sensitive assist, rack friction and inertia, gyroscopic and weight moments
+
+The fixed `assist_fraction` of D-042 (the share of the steering load the
+power assist carried) is replaced by a model of the whole steering system,
+all in the physics; the force-feedback pipeline is unchanged, so any
+difference at the wheel comes from here.
+
+**Assist.** A boost curve, as electric power steering works: below
+`assist_threshold_nm` of driver torque the assist does nothing, so the
+centre feels the unassisted rack; above it the assist adds its gain times
+the driver's torque beyond the threshold, so the driver holds
+`(|load| + K·T0) / (1 + K)`. The gain K comes from a per-car table against
+speed (`assist_speed_kmh`, `assist_gain`), linear between points. The
+Tern GT runs from 6 when parking to 0.9 at 160 km/h, the Halden E4 from 7
+to 1.1; both are placeholders chosen to land near published orders of
+magnitude for EPAS cars (about 5 N.m at the rim when parking, 3 to 4 N.m
+in a half-g corner at 100 km/h), not measurements. Real boost curves are
+non-linear in driver torque; linear above a threshold is the simplest
+shape with an on-centre zone.
+
+**Friction and inertia.** The column's rate and acceleration come from the
+driver's steering angle, filtered at 20 Hz (it arrives quantised at the
+physics rate). Rack friction (`rack_friction_nm`) opposes the turning
+direction, smoothed through zero over about 0.15 rad/s; reflected inertia
+(`steering_inertia_kg_m2`: road wheels about their kingpins and the rack,
+over the ratio squared, not the steering wheel the driver holds) opposes
+the column's acceleration. Both are felt in full, not assisted. The angle
+is the driver's input, not a simulated rack position, so a scripted driver
+that steps the steering produces impossible accelerations; the
+comparison command limits its steering to 12 rad/s and 300 rad/s², as
+hands on a wheel would.
+
+**Gyroscopic moment.** Each front wheel's spin angular momentum is turned
+by the body's rotation and by camber change from suspension travel; the
+steering supplies Ω × H to the wheel and the wheel pushes back on the
+kingpin with the opposite moment. Turning the wheel about its own kingpin
+adds nothing about that axis. In a steady corner this is centring and
+proportional to caster, speed and yaw rate; over a kerb strike the camber
+rate gives a sharp kick. On a scripted Ridgeline lap it is 0.2 to 0.4 N.m
+at the column most of the time, with kerb-strike peaks of 4 N.m (Tern GT)
+and 11 N.m (Halden E4); those peaks are not validated.
+
+**Weight moments.** The vertical tire load is taken out of the
+trail-and-scrub lever arm (which, rotated about the vertical rather than
+the kingpin, gave a small decentring moment from caster that a real
+geometry does not), and put back as Gillespie's moments: kingpin
+inclination lifting the car (`-(Fzl + Fzr)·d·sin λ·sin δ`, centring) and
+caster with weight transfer (`(Fzl − Fzr)·d·sin ν·cos δ`, centring in a
+turn), d being the scrub radius. With the small scrub radii of these cars
+both are small; a geometry with the spindle offset would be the next step.
+
+The car exposes the parts (`CarOutput::steering`). `qts-sim
+steering-compare` runs a scripted Ridgeline lap and the validation
+skidpad on both cars with the old model (a hidden `set_legacy_steering`
+switch with the old assist shares) and the new one, and
+`docs/img/steering_torque.svg` shows the result. On the skidpad the column
+torque per g falls from about 27 to 31 N.m/g to about 10 to 13 N.m/g, and
+rises progressively with speed where it used to be linear in lateral
+acceleration. The force-feedback gain of the presets was set against the
+old, heavier torque and will need raising; that belongs to the CSL Elite
+retune from the lap logs.
+
+Tests: the boost curve (threshold, continuity, speed dependence, never
+more than the load); the assist sharing a cornering load; friction
+opposing both directions of turning; inertia equal to J·α under a steady
+acceleration; no gyroscopic moment at rest and the steady-corner value
+within 25 % of 2·I·ω·r·sin(caster); the kingpin-inclination moment
+centring a steered car. The gravel soak's random driver now runs seed 5:
+seed 1 pinned the car against a tree at 474 m with the new steering;
+over seeds 1 to 6 the distance ranged 452 to 2473 m before and 474 to
+1990 m after.

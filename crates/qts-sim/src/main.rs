@@ -44,6 +44,9 @@ Commands:
   kerb-ffb [--car ID] [--ffb PRESET] [--csv FILE]
                                          force feedback over a Ridgeline kerb,
                                          with and without kerb normals
+  steering-compare [--csv FILE]          column torque against speed on a
+                                         Ridgeline lap and the skidpad, with
+                                         the steering model before D-075 and now
   ffb-devices                            list steering devices
   input-read [--device ID] [--reads N]   read every axis and button of the
                                          attached controllers and time the reads
@@ -692,6 +695,243 @@ fn cmd_input_read(args: &Args) -> Result<(), String> {
 /// Drives the right wheels over Ridgeline's first kerb (the inside of T1)
 /// twice, with the kerb's slope tilting the contact normal and without, and
 /// compares the steering torque and force-feedback output.
+/// Assist fractions the cars had before D-075, from their data files then.
+const LEGACY_ASSIST: [(&str, f64); 2] = [("hatch_tern_gt", 0.0), ("sedan_halden_e4", 0.36)];
+
+/// One sample of the steering comparison.
+struct SteerRow {
+    speed_kmh: f64,
+    column_nm: f64,
+    lateral_g: f64,
+    gyro_nm: f64,
+    friction_nm: f64,
+}
+
+/// Limits a scripted driver's steering to what hands on a wheel can do:
+/// the path followers step the wheel instantly, which would read as an
+/// impossible column acceleration through the rack inertia.
+struct HandSteer {
+    angle: f64,
+    rate: f64,
+    max_wheel_angle: f64,
+}
+
+/// Fastest steering-wheel rate of the comparison driver, rad/s.
+const HAND_MAX_RATE: f64 = 12.0;
+/// Largest steering-wheel acceleration of the comparison driver, rad/s².
+const HAND_MAX_ACCEL: f64 = 300.0;
+
+impl HandSteer {
+    fn new(s: &Session) -> Self {
+        Self {
+            angle: 0.0,
+            rate: 0.0,
+            max_wheel_angle: s.car().params().steering.max_wheel_angle_rad,
+        }
+    }
+
+    /// Moves toward the steer fraction `target` and returns the fraction.
+    fn follow(&mut self, frame: &mut InputFrame, dt: f64) {
+        let target =
+            f64::from(frame.steer) / f64::from(qts_core::input::AXIS_MAX) * self.max_wheel_angle;
+        let wanted = ((target - self.angle) / 0.04).clamp(-HAND_MAX_RATE, HAND_MAX_RATE);
+        self.rate += (wanted - self.rate).clamp(-HAND_MAX_ACCEL * dt, HAND_MAX_ACCEL * dt);
+        self.angle += self.rate * dt;
+        let fraction = (self.angle / self.max_wheel_angle).clamp(-1.0, 1.0);
+        frame.steer = (fraction * f64::from(qts_core::input::AXIS_MAX)).round() as i16;
+    }
+}
+
+fn steering_session(
+    root: &DataRoot,
+    car: &str,
+    track: &str,
+    legacy: Option<f64>,
+) -> Result<Session, String> {
+    let config = SessionConfig {
+        assists: Assists {
+            auto_clutch: true,
+            auto_shift: true,
+            traction_control: true,
+            engine_damage: false,
+        },
+        tire_start_temp_c: Some(60.0),
+        ..SessionConfig::default()
+    };
+    let mut s = Session::from_data(root, car, track, config)?;
+    s.car_mut().set_legacy_steering(legacy);
+    Ok(s)
+}
+
+fn steer_row(s: &Session) -> SteerRow {
+    let out = s.car().output();
+    SteerRow {
+        speed_kmh: out.speed * 3.6,
+        column_nm: out.steering_torque_nm,
+        lateral_g: out.accel_body[1] / 9.80665,
+        gyro_nm: out.steering.gyro_nm,
+        friction_nm: out.steering.friction_nm,
+    }
+}
+
+/// A scripted lap of Ridgeline, sampled every 50 ms.
+fn steering_lap(root: &DataRoot, car: &str, legacy: Option<f64>) -> Result<Vec<SteerRow>, String> {
+    let mut s = steering_session(root, car, "ridgeline_circuit", legacy)?;
+    let path = s.track().path("circuit").ok_or("no circuit path")?.clone();
+    let mut driver = PathFollower::new(
+        &path,
+        PathFollowerConfig {
+            max_speed: 45.0,
+            lateral_accel: 7.0,
+            closed: true,
+            ..PathFollowerConfig::default()
+        },
+    );
+    let mut rows = Vec::new();
+    let mut halfway = false;
+    let mut hands = HandSteer::new(&s);
+    for tick in 0..400_000u64 {
+        let mut frame = driver.frame(&s);
+        hands.follow(&mut frame, s.tick_dt());
+        s.step(&frame);
+        let d = driver.progress();
+        halfway |= tick > 20_000 && d > 0.5 * path.length();
+        if halfway && d < 0.1 * path.length() {
+            break;
+        }
+        if tick % 50 == 0 {
+            rows.push(steer_row(&s));
+        }
+    }
+    Ok(rows)
+}
+
+/// The validation skidpad: a 30 m circle on the test track with the speed
+/// raised slowly, one-second means while the car holds the line.
+fn steering_skidpad(
+    root: &DataRoot,
+    car: &str,
+    legacy: Option<f64>,
+) -> Result<Vec<SteerRow>, String> {
+    use qts_sim::track::MarkerDef;
+    let mut s = steering_session(root, car, "test_track", legacy)?;
+    let (center, radius) = s
+        .track()
+        .def()
+        .markers
+        .iter()
+        .find_map(|m| match m {
+            MarkerDef::Circle {
+                center_x,
+                center_y,
+                radius_m,
+                ..
+            } => Some(([*center_x, *center_y], *radius_m)),
+            _ => None,
+        })
+        .ok_or("no skidpad circle")?;
+    let start = [center[0], center[1] - radius];
+    s.car_mut().place(start[0], start[1], 0.0, 0.0);
+    s.car_mut().set_forward_speed(6.0);
+    let config = PathFollowerConfig {
+        max_speed: 6.0,
+        lateral_accel: 60.0,
+        brake_decel: 6.0,
+        lookahead_base: 2.5,
+        lookahead_gain: 0.25,
+        throttle_gain: 0.6,
+        brake_gain: 0.3,
+        closed: true,
+    };
+    let mut driver = PathFollower::circle(center, radius, start, config);
+    let mut rows = Vec::new();
+    let mut acc = [0.0; 6];
+    let mut hands = HandSteer::new(&s);
+    for tick in 0..300_000u64 {
+        let target = 6.0 + 0.12 * tick as f64 / 1000.0;
+        driver.set_max_speed(target);
+        let mut frame = driver.frame(&s);
+        hands.follow(&mut frame, s.tick_dt());
+        s.step(&frame);
+        let r = steer_row(&s);
+        let pos = s.car().state.pos;
+        let error = ((pos.x - center[0]).hypot(pos.y - center[1]) - radius).abs();
+        for (a, v) in acc.iter_mut().zip([
+            r.speed_kmh,
+            r.column_nm,
+            r.lateral_g,
+            r.gyro_nm,
+            r.friction_nm,
+            error,
+        ]) {
+            *a += v;
+        }
+        if tick % 1000 == 999 {
+            let m: Vec<f64> = acc.iter().map(|a| a / 1000.0).collect();
+            acc = [0.0; 6];
+            if m[5] > 4.0 || target - m[0] / 3.6 > 4.0 {
+                break;
+            }
+            if m[5] < 1.5 && tick > 3000 {
+                rows.push(SteerRow {
+                    speed_kmh: m[0],
+                    column_nm: m[1],
+                    lateral_g: m[2],
+                    gyro_nm: m[3],
+                    friction_nm: m[4],
+                });
+            }
+        }
+    }
+    Ok(rows)
+}
+
+fn cmd_steering_compare(args: &Args) -> Result<(), String> {
+    let root = data_root()?;
+    let mut csv = String::from("car,model,run,speed_kmh,column_nm,lateral_g,gyro_nm,friction_nm\n");
+    for (car, fraction) in LEGACY_ASSIST {
+        println!("{car}");
+        for (model, legacy) in [("before", Some(fraction)), ("now", None)] {
+            for run in ["ridgeline", "skidpad"] {
+                let rows = if run == "ridgeline" {
+                    steering_lap(&root, car, legacy)?
+                } else {
+                    steering_skidpad(&root, car, legacy)?
+                };
+                for r in &rows {
+                    csv.push_str(&format!(
+                        "{car},{model},{run},{:.2},{:.4},{:.4},{:.4},{:.4}\n",
+                        r.speed_kmh, r.column_nm, r.lateral_g, r.gyro_nm, r.friction_nm
+                    ));
+                }
+                // Column torque per g of lateral acceleration, by speed band.
+                let mut line = format!("  {model:6} {run:9}");
+                for (lo, hi) in [(0.0, 40.0), (40.0, 80.0), (80.0, 120.0), (120.0, 250.0)] {
+                    let band: Vec<&SteerRow> = rows
+                        .iter()
+                        .filter(|r| {
+                            r.speed_kmh >= lo && r.speed_kmh < hi && r.lateral_g.abs() > 0.2
+                        })
+                        .collect();
+                    if band.is_empty() {
+                        line.push_str(&format!("  {lo:>3.0}-{hi:<3.0} km/h      -    "));
+                        continue;
+                    }
+                    let per_g = band.iter().map(|r| r.column_nm / r.lateral_g).sum::<f64>()
+                        / band.len() as f64;
+                    line.push_str(&format!("  {lo:>3.0}-{hi:<3.0} km/h {per_g:5.1} N.m/g"));
+                }
+                println!("{line}");
+            }
+        }
+    }
+    if let Some(path) = args.text("csv") {
+        std::fs::write(path, csv).map_err(|e| format!("{path}: {e}"))?;
+        println!("csv {path}");
+    }
+    Ok(())
+}
+
 fn cmd_kerb_ffb(args: &Args) -> Result<(), String> {
     use qts_sim::drivers::{PathFollower, PathFollowerConfig};
     let root = data_root()?;
@@ -839,6 +1079,7 @@ fn main() -> ExitCode {
         }
         "ffb-report" => cmd_ffb_report(&args).map(|()| true),
         "kerb-ffb" => cmd_kerb_ffb(&args).map(|()| true),
+        "steering-compare" => cmd_steering_compare(&args).map(|()| true),
         "ffb-devices" => cmd_ffb_devices().map(|()| true),
         "input-read" => cmd_input_read(&args).map(|()| true),
         "ffb-test" => cmd_ffb_test(&args).map(|()| true),

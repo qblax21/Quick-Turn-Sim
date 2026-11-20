@@ -186,9 +186,59 @@ pub struct SteeringParams {
     /// moment, rad per N·m. Models the twist of the column, rack mounts
     /// and bushes; it is a main source of understeer in real cars.
     pub compliance_rad_per_nm: f64,
-    /// Share of the steering load carried by power assist, 0 (unassisted)
-    /// to just under 1. The raw steering torque is what remains.
-    pub assist_fraction: f64,
+    /// Speeds of the power-assist table, km/h, ascending.
+    pub assist_speed_kmh: Vec<f64>,
+    /// Power-assist boost gain at each table speed: assist torque per N·m
+    /// of driver torque above the threshold. Zero is an unassisted rack.
+    /// Linear between table speeds, held beyond its ends.
+    pub assist_gain: Vec<f64>,
+    /// Driver torque at the column below which the assist gives nothing,
+    /// N·m: the on-centre zone where the driver feels the rack unassisted.
+    pub assist_threshold_nm: f64,
+    /// Coulomb friction of the rack, column and joints, referred to the
+    /// column, N·m. Felt against the direction the wheel is turned.
+    pub rack_friction_nm: f64,
+    /// Rotating inertia of the road wheels about their kingpins and of the
+    /// rack, referred to the column, kg·m². The steering wheel itself is
+    /// not included: the driver holds a real one.
+    pub steering_inertia_kg_m2: f64,
+}
+
+impl SteeringParams {
+    /// Power-assist boost gain at a speed, m/s.
+    pub fn assist_gain_at(&self, speed_m_s: f64) -> f64 {
+        let kmh = speed_m_s.abs() * 3.6;
+        let (xs, ys) = (&self.assist_speed_kmh, &self.assist_gain);
+        let (Some(&first), Some(&last)) = (ys.first(), ys.last()) else {
+            return 0.0;
+        };
+        if kmh <= xs[0] {
+            return first.max(0.0);
+        }
+        for i in 1..xs.len() {
+            if kmh <= xs[i] {
+                let t = (kmh - xs[i - 1]) / (xs[i] - xs[i - 1]);
+                return (ys[i - 1] + t * (ys[i] - ys[i - 1])).max(0.0);
+            }
+        }
+        last.max(0.0)
+    }
+
+    /// Torque the driver holds at the column against a steering load
+    /// `load_nm` (the rack load referred to the column), with the assist
+    /// at `speed_m_s`. A boost-curve assist: below the threshold the
+    /// driver carries everything; above it the assist adds its gain times
+    /// the driver's torque beyond the threshold, so the driver carries
+    /// `(|load| + K·T0) / (1 + K)`. Same sign as the load.
+    pub fn driver_torque(&self, load_nm: f64, speed_m_s: f64) -> f64 {
+        let t0 = self.assist_threshold_nm;
+        let magnitude = load_nm.abs();
+        if magnitude <= t0 {
+            return load_nm;
+        }
+        let k = self.assist_gain_at(speed_m_s);
+        ((magnitude + k * t0) / (1.0 + k)).copysign(load_nm)
+    }
 }
 
 /// Brake system.
@@ -608,12 +658,21 @@ impl CarParams {
         positive("traction_control.control_gain_per_s", tc.control_gain_per_s)?;
         positive("traction_control.min_speed_m_per_s", tc.min_speed_m_per_s)?;
         non_negative("steering.compliance_rad_per_nm", s.compliance_rad_per_nm)?;
-        if !(0.0..1.0).contains(&s.assist_fraction) {
-            return Err(format!(
-                "steering.assist_fraction must be in [0, 1), got {}",
-                s.assist_fraction
-            ));
+        if s.assist_speed_kmh.is_empty()
+            || s.assist_speed_kmh.len() != s.assist_gain.len()
+            || s.assist_speed_kmh.windows(2).any(|w| w[1] <= w[0])
+            || s.assist_gain
+                .iter()
+                .any(|g| !g.is_finite() || *g < 0.0 || *g > 20.0)
+        {
+            return Err(
+                "steering.assist_speed_kmh and assist_gain need matching tables, speeds ascending, gains 0 to 20"
+                    .into(),
+            );
         }
+        non_negative("steering.assist_threshold_nm", s.assist_threshold_nm)?;
+        non_negative("steering.rack_friction_nm", s.rack_friction_nm)?;
+        non_negative("steering.steering_inertia_kg_m2", s.steering_inertia_kg_m2)?;
         positive(
             "aero.air_density_kg_per_m3",
             self.aero.air_density_kg_per_m3,

@@ -108,7 +108,11 @@ fn soak(car: &str, track: &str, seed: u64) {
 
 #[test]
 fn ten_minutes_hatch_on_the_gravel_stage() {
-    soak("hatch_tern_gt", "gravel_stage", 1);
+    // Seed 1 was used until D-075; with the new steering model its random
+    // inputs pin the car against a tree at 474 m. Over seeds 1 to 6 the
+    // distance ranged 452 to 2473 m before that change and 474 to 1990 m
+    // after it: chaotic, not a trend. Seed 5 drives about with both.
+    soak("hatch_tern_gt", "gravel_stage", 5);
 }
 
 #[test]

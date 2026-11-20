@@ -10,7 +10,7 @@ says so.
 | Area | State |
 | --- | --- |
 | Workspace builds with one command on Windows | Verified (`tools\build.ps1`, GNU toolchain) |
-| Test suite | 210 tests pass in release |
+| Test suite | 216 tests pass in release |
 | Headless sim runs and replays exactly | Verified |
 | All cars drivable on all four tracks | Verified with scripted drivers and the front-end smoke test |
 | Front end renders, HUD and overlay work | Verified by screenshots |
@@ -133,6 +133,12 @@ plausible range. It is not evidence of realism.
   physics (D-074). Peak engine speed and over-revs past the limiter are
   shown on the HUD; optional engine damage from over-revving, down to
   failure. Clutch shudder and gear grind reach the wheel as light FFB cues.
+- Steering system in the physics (D-075): speed-sensitive power assist
+  with an on-centre zone, rack friction and inertia, gyroscopic moments of
+  the front wheels and weight moments through caster and kingpin
+  inclination; `qts-sim steering-compare` and
+  `docs/img/steering_torque.svg` show column torque against speed before
+  and after.
 - Standalone release package via `tools/package.ps1` (D-053): 129 MB on
   disk, 42 MB zipped. Verified to start and drive (`--self-test`) from a
   copy outside the repository with Rust and Godot off the path; not yet
@@ -185,12 +191,12 @@ plausible range. It is not evidence of realism.
 - **Cones** are detected and counted, not simulated as objects.
 - **Impacts**: trees and barriers stop the car with a rigid impulse on the
   whole car. No damage, no deformation, nothing through the suspension.
-- **Power steering**: a fixed assist fraction per car, not a speed-sensitive
-  model.
 - **Stability control**: none. Traction control is not per axle.
 - **Engine damage**: over-revving only; no overheating, oil or
   mechanical wear. The damage and failure speeds are placeholders.
-- **Wheel gyroscopic effects, chassis flex, driveline compliance, gearbox
+- **Steering rack as a dynamic part**: the rack follows the driver's
+  angle exactly; friction and inertia are felt but do not move it.
+- **Chassis flex, driveline compliance, gearbox
   efficiency, brake temperature and fade, tire wear, wet surfaces, wind**:
   not modelled.
 - **Cross-platform determinism**: not solved; the plan is in
@@ -242,7 +248,8 @@ Everything numeric. In particular:
 1. **Retune the CSL Elite preset from the lap logs.** Three F5 logs of
    Ridgeline, then `qts-sim ffb-report`: set the gain so fast corners stop
    clipping and the fall in torque past the front tires' peak reaches the
-   wheel.
+   wheel. The steering model of D-075 sends less torque than the one
+   the preset gain was set against, so expect the gain to go up.
 2. **Measure the input delay on the wheel.** With steering assigned both
    ways, the F1 overlay and `recordings/input_delay.log` give the real lag
    of the per-frame path; confirm the physics-thread path on hardware.
@@ -255,5 +262,5 @@ Everything numeric. In particular:
    pedals, try the H-pattern, stall and over-rev model on a real shifter,
    and set the shudder and grind cue strengths on the wheel.
 
-After those: a Linux force-feedback backend, a speed-sensitive power
-steering model, and the first torque-vectoring strategy.
+After those: a Linux force-feedback backend and the first torque-vectoring
+strategy.

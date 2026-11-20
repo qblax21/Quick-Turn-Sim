@@ -74,7 +74,11 @@ kingpin_inclination_rad = { value = 0.21, source = "about 12 degrees, typical st
 scrub_radius_m = { value = 0.005, source = "small positive scrub radius", confidence = "placeholder" }
 mechanical_trail_m = { value = 0.024, source = "raised from 0.022 after a drive asked for slightly more steering weight; originally: follows from caster and wheel radius, rounded", confidence = "placeholder" }
 compliance_rad_per_nm = { value = 0.00005, source = "chosen to add roughly 1.5 degrees per g of compliance understeer, a typical road-car order of magnitude", confidence = "placeholder" }
-assist_fraction = { value = 0.0, source = "no assist modelled; first drive on a wheel judged the weight about right", confidence = "placeholder" }
+assist_speed_kmh = { value = [0.0, 20.0, 50.0, 100.0, 160.0], source = "speeds of the assist table", confidence = "placeholder" }
+assist_gain = { value = [6.0, 4.0, 2.0, 1.2, 0.9], source = "electric power steering boost falling with speed, chosen to give about 5 N.m at the rim when parking and 3 to 4 N.m in a 0.5 g corner at 100 km/h, typical of published EPAS figures for the class; the earlier unassisted rack was judged about right in weight at a reduced FFB gain, which this does not contradict: the gain sets the scale", confidence = "placeholder" }
+assist_threshold_nm = { value = 0.8, source = "on-centre torque below which the assist does nothing, typical EPAS tuning; not measured", confidence = "placeholder" }
+rack_friction_nm = { value = 0.8, source = "order of the steering-system friction felt at the rim of an EPAS car; not measured", confidence = "placeholder" }
+steering_inertia_kg_m2 = { value = 0.008, source = "two 17 inch road-wheel assemblies at about 0.85 kg.m2 each about their kingpins, divided by the steering ratio squared, plus the rack", confidence = "estimated" }
 
 [brakes]
 max_torque_front_nm = { value = 3000.0, source = "enough to exceed front grip at full pedal", confidence = "placeholder" }
