@@ -20,6 +20,7 @@ from.
 | Damper bump and rebound, per axle | 0.5 to 2 times the car's | The span of an adjustable damper's clicks |
 | Anti-roll bar, per axle | 0 (disconnected) to 2.5 times the car's, at least 20 N/mm | Removed bar to an aftermarket adjustable bar |
 | Brake bias to the front | 50 % to 85 % (or 5 % above the car's own, if higher) | Bias valve or balance bar adjustment; front-drive road cars run 75 to 80 % |
+| Brake duct opening, per axle | 0 to 100 % | From no duct to a fully open cooling duct; a fully open duct doubles the speed-dependent disc cooling (placeholder) |
 | Differential preload | 0 to 200 N.m | Clutch-type limited-slip units; cars with an open differential have no adjustment |
 | Differential locking on and off power | 0 to 80 % | Ramp angles of a clutch-type unit |
 | Clutch bite point | 30 % to 65 % of pedal travel | Cable or master-cylinder pushrod adjustment; road cars bite from just above to a little below mid-travel |

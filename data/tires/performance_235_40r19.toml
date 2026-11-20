@@ -96,3 +96,9 @@ ppy3 = { value = -0.1, source = "friction falls slightly with pressure", confide
 ppy4 = { value = 0.0, source = "not modelled yet", confidence = "placeholder" }
 pfz1 = { value = 0.7, source = "vertical stiffness rises with pressure", confidence = "placeholder" }
 carcass_stiffness_sensitivity = { value = 0.5, source = "carcass stiffens with pressure", confidence = "placeholder" }
+
+[wear]
+rate_per_mj = { value = 0.005, source = "a scripted Ridgeline lap at about 0.7 g dissipates some 0.5 MJ of sliding on the busiest front tire; set so that lap uses a quarter of a percent of the tread, which puts tread life at a few hundred laps, fewer the harder the tires are worked; an estimate of track-day life, not a measurement", confidence = "placeholder" }
+grip_loss_at_full_wear = { value = 0.08, source = "compound ageing and graining over the tire's life; a shallower tread alone does not lose dry grip", confidence = "placeholder" }
+stiffness_gain_at_full_wear = { value = 0.15, source = "less tread depth to squirm; worn tires are known to respond more sharply", confidence = "placeholder" }
+tread_heat_capacity_share = { value = 0.5, source = "about half of the tread surface and bulk heat capacity is rubber worn away by the end of the usable tread", confidence = "placeholder" }

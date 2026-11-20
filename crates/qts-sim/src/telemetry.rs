@@ -105,6 +105,16 @@ macro_rules! wheel_channels {
                 "-",
                 concat!("Index of the surface under the wheel, ", $w)
             ),
+            ch!(
+                concat!($p, "_brake_temp_c"),
+                "degC",
+                concat!("Brake disc temperature, ", $w)
+            ),
+            ch!(
+                concat!($p, "_tire_wear"),
+                "-",
+                concat!("Share of the usable tread worn away, ", $w)
+            ),
         ]
     };
 }
@@ -251,7 +261,7 @@ const FFB: [Channel; 10] = [
     ),
 ];
 
-const WHEELS: [[Channel; 16]; 4] = [
+const WHEELS: [[Channel; 18]; 4] = [
     wheel_channels!("fl", "front left"),
     wheel_channels!("fr", "front right"),
     wheel_channels!("rl", "rear left"),
@@ -260,7 +270,7 @@ const WHEELS: [[Channel; 16]; 4] = [
 
 /// Every telemetry channel, in column order.
 pub fn channels() -> Vec<Channel> {
-    let mut all = Vec::with_capacity(CHASSIS.len() + 64 + FFB.len());
+    let mut all = Vec::with_capacity(CHASSIS.len() + 72 + FFB.len());
     all.extend_from_slice(&CHASSIS);
     for wheel in &WHEELS {
         all.extend_from_slice(wheel);
@@ -365,6 +375,8 @@ pub fn fill_row(session: &Session, input: &InputFrame, ffb: &FfbSample, row: &mu
             w.brake_torque,
             w.drive_torque,
             f64::from(w.surface_index),
+            w.brake_temp_c,
+            w.tire_wear,
         ]);
     }
     row.extend_from_slice(&[
@@ -388,7 +400,7 @@ mod tests {
     #[test]
     fn channel_names_are_unique_and_well_formed() {
         let all = channels();
-        assert_eq!(all.len(), 34 + 64 + 10);
+        assert_eq!(all.len(), 34 + 72 + 10);
         let mut names: Vec<&str> = all.iter().map(|c| c.name).collect();
         names.sort_unstable();
         names.dedup();

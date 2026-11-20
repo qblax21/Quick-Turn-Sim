@@ -132,6 +132,8 @@ missing from it.
 | `fl_brake_torque_nm` | N.m | Friction-brake torque applied, front left |
 | `fl_drive_torque_nm` | N.m | Driveline torque received, front left |
 | `fl_surface` | - | Index of the surface under the wheel, front left |
+| `fl_brake_temp_c` | degC | Brake disc temperature, front left |
+| `fl_tire_wear` | - | Share of the usable tread worn away, front left |
 | `fr_slip_ratio` | - | Transient slip ratio, front right |
 | `fr_slip_angle_rad` | rad | Transient slip angle, front right |
 | `fr_load_n` | N | Vertical tire load, front right |
@@ -148,6 +150,8 @@ missing from it.
 | `fr_brake_torque_nm` | N.m | Friction-brake torque applied, front right |
 | `fr_drive_torque_nm` | N.m | Driveline torque received, front right |
 | `fr_surface` | - | Index of the surface under the wheel, front right |
+| `fr_brake_temp_c` | degC | Brake disc temperature, front right |
+| `fr_tire_wear` | - | Share of the usable tread worn away, front right |
 | `rl_slip_ratio` | - | Transient slip ratio, rear left |
 | `rl_slip_angle_rad` | rad | Transient slip angle, rear left |
 | `rl_load_n` | N | Vertical tire load, rear left |
@@ -164,6 +168,8 @@ missing from it.
 | `rl_brake_torque_nm` | N.m | Friction-brake torque applied, rear left |
 | `rl_drive_torque_nm` | N.m | Driveline torque received, rear left |
 | `rl_surface` | - | Index of the surface under the wheel, rear left |
+| `rl_brake_temp_c` | degC | Brake disc temperature, rear left |
+| `rl_tire_wear` | - | Share of the usable tread worn away, rear left |
 | `rr_slip_ratio` | - | Transient slip ratio, rear right |
 | `rr_slip_angle_rad` | rad | Transient slip angle, rear right |
 | `rr_load_n` | N | Vertical tire load, rear right |
@@ -180,6 +186,8 @@ missing from it.
 | `rr_brake_torque_nm` | N.m | Friction-brake torque applied, rear right |
 | `rr_drive_torque_nm` | N.m | Driveline torque received, rear right |
 | `rr_surface` | - | Index of the surface under the wheel, rear right |
+| `rr_brake_temp_c` | degC | Brake disc temperature, rear right |
+| `rr_tire_wear` | - | Share of the usable tread worn away, rear right |
 | `steering_torque_nm` | N.m | Raw steering torque at the column from the physics, positive pushes the wheel left |
 | `ffb_raw_nm` | N.m | Force-feedback pipeline input (pre-filter), equal to steering_torque_nm |
 | `ffb_scaled_nm` | N.m | After gain, before filtering |

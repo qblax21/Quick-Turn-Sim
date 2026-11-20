@@ -276,14 +276,15 @@ func update(hud: Dictionary, status: Dictionary, input: Dictionary, telemetry_on
 	notice_label.text = "\n".join(notices)
 
 	if debug_visible:
-		var lines: Array = [car_name, "wheel   slip    angle    load   surf   core  carc   bar   surface"]
+		var lines: Array = [car_name, "wheel   slip    angle    load   surf   core  carc   bar   wear  brake °C  pad   surface"]
 		for i in range(4):
 			var surface_index: int = hud.surface[i]
 			var surface := surface_names[surface_index] if surface_index < surface_names.size() else "?"
-			lines.append("%s    %+5.2f  %+5.1f°  %5.0f N  %4.0f  %4.0f  %4.0f  %4.2f  %s" % [
+			lines.append("%s    %+5.2f  %+5.1f°  %5.0f N  %4.0f  %4.0f  %4.0f  %4.2f  %4.1f%%  %5.0f  %4.2f  %s" % [
 				WHEEL_NAMES[i], hud.slip_ratio[i], rad_to_deg(hud.slip_angle[i]), hud.load[i],
 				hud.temp_surface[i], hud.temp_core[i], hud.temp_carcass[i],
-				hud.pressure[i] / 100000.0 - 1.0, surface])
+				hud.pressure[i] / 100000.0 - 1.0, hud.get("tire_wear", [0, 0, 0, 0])[i] * 100.0,
+				hud.get("brake_temp", [0, 0, 0, 0])[i], hud.get("brake_friction", [1, 1, 1, 1])[i], surface])
 		lines.append("")
 		lines.append("accel  long %+5.2f g   lat %+5.2f g" % [hud.accel_long / 9.80665, hud.accel_lat / 9.80665])
 		lines.append("steering torque %+6.1f N·m" % hud.steering_torque_nm)

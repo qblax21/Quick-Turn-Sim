@@ -167,6 +167,8 @@ pub struct CarState {
     /// Steer angle lost at the front wheels to steering-system compliance,
     /// rad. Negative values reduce a left steer.
     pub steer_compliance: f64,
+    /// Brake disc temperature per wheel, °C.
+    pub brake_temp_c: [f64; 4],
     /// Steering-wheel angle of the last tick, rad.
     pub column_angle: f64,
     /// Filtered steering-wheel rate, rad/s.
@@ -242,6 +244,17 @@ pub struct WheelOutput {
     pub temp_carcass_c: f64,
     /// Inflation pressure, Pa absolute.
     pub pressure_pa: f64,
+    /// Brake disc temperature, °C.
+    pub brake_temp_c: f64,
+    /// Pad friction factor from the disc temperature (1 nominal, lower
+    /// when faded).
+    pub brake_friction_factor: f64,
+    /// Heat going into the disc from braking, W.
+    pub brake_heat_w: f64,
+    /// Heat leaving the disc, W.
+    pub brake_cooling_w: f64,
+    /// Share of the usable tread worn away, 0 to 1.
+    pub tire_wear: f64,
     /// Wheel centre position in the body frame, m.
     pub center_body: [f64; 3],
 }
@@ -435,6 +448,7 @@ impl Car {
             abs_factor: [1.0; 4],
             tc_factor: 1.0,
             steer_compliance: 0.0,
+            brake_temp_c: [tire_temp_c; 4],
             column_angle: 0.0,
             column_rate: 0.0,
             column_accel: 0.0,
@@ -503,6 +517,7 @@ impl Car {
             abs_factor: [1.0; 4],
             tc_factor: 1.0,
             steer_compliance: 0.0,
+            brake_temp_c: [self.initial_tire_temp_c; 4],
             column_angle: 0.0,
             column_rate: 0.0,
             column_accel: 0.0,
@@ -545,6 +560,12 @@ impl Car {
             w.temp_carcass_c = t.thermal.carcass_c;
             w.pressure_pa = t.thermal.pressure_pa(&self.tires[corner.axle]);
             w.rolling_radius = self.tires[corner.axle].geometry.unloaded_radius_m;
+            w.brake_temp_c = self.state.brake_temp_c[i];
+            w.brake_friction_factor = self
+                .params
+                .brakes
+                .friction_factor(self.state.brake_temp_c[i]);
+            w.tire_wear = t.wear;
         }
     }
 
@@ -735,6 +756,11 @@ impl Car {
                 temp_core_c: thermal.core_c,
                 temp_carcass_c: thermal.carcass_c,
                 pressure_pa: thermal.pressure_pa(tire),
+                brake_temp_c: self.state.brake_temp_c[i],
+                brake_friction_factor: p.brakes.friction_factor(self.state.brake_temp_c[i]),
+                brake_heat_w: 0.0,
+                brake_cooling_w: 0.0,
+                tire_wear: self.state.tires[i].wear,
                 center_body: rho[i].to_array(),
             };
         }
@@ -881,9 +907,11 @@ impl Car {
             } else {
                 p.brakes.max_torque_rear_nm
             };
-            service_brake[i] = brake * max * self.state.abs_factor[i];
+            // Pad friction follows the disc temperature: fade when hot.
+            let fade = p.brakes.friction_factor(self.state.brake_temp_c[i]);
+            service_brake[i] = brake * max * self.state.abs_factor[i] * fade;
             if i >= 2 {
-                handbrake_torque[i] = handbrake * p.brakes.handbrake_torque_nm;
+                handbrake_torque[i] = handbrake * p.brakes.handbrake_torque_nm * fade;
             }
             wheel_inertia[i] = self.corners[i].wheel_inertia;
         }
@@ -1063,6 +1091,22 @@ impl Car {
             self.state.wheel_angle[i] = angle;
             wheels[i].brake_torque = drive.brake_torque[i];
             wheels[i].drive_torque = drive.shaft_torque[i];
+            // Brake disc heat: the friction work of the brake, less the
+            // pads' share, against convection and radiation.
+            let th = if i < 2 {
+                &p.brakes.thermal_front
+            } else {
+                &p.brakes.thermal_rear
+            };
+            let heat = th.disc_heat_share * (drive.brake_torque[i] * drive.wheel_omega[i]).abs();
+            let temp = self.state.brake_temp_c[i];
+            let cooling = th.cooling_w(temp, env.air_temp_c, vel_body.x);
+            self.state.brake_temp_c[i] = temp + dt * (heat - cooling) / th.heat_capacity_j_per_k;
+            wheels[i].brake_temp_c = self.state.brake_temp_c[i];
+            wheels[i].brake_friction_factor = p.brakes.friction_factor(temp);
+            wheels[i].brake_heat_w = heat;
+            wheels[i].brake_cooling_w = cooling;
+            wheels[i].tire_wear = self.state.tires[i].wear;
         }
         self.state.pos += self.state.vel * dt;
         self.state.rot = rot.integrate_body_rate(self.state.ang_vel, dt);
@@ -1165,6 +1209,7 @@ impl Snapshot for Car {
         w.write_f64s(&s.abs_factor);
         w.write_f64(s.tc_factor);
         w.write_f64(s.steer_compliance);
+        w.write_f64s(&s.brake_temp_c);
         w.write_f64(s.column_angle);
         w.write_f64(s.column_rate);
         w.write_f64(s.column_accel);
@@ -1188,6 +1233,7 @@ impl Snapshot for Car {
         r.read_f64s(&mut s.abs_factor)?;
         s.tc_factor = r.read_f64()?;
         s.steer_compliance = r.read_f64()?;
+        r.read_f64s(&mut s.brake_temp_c)?;
         s.column_angle = r.read_f64()?;
         s.column_rate = r.read_f64()?;
         s.column_accel = r.read_f64()?;

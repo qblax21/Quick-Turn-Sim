@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Development tool: renders a screen and saves a screenshot.
-#   godot --path godot --script res://tests/menu_shot.gd -- OUTPUT.png [title|select|garage|setup|settings|pause|results|ffb|limits]
+#   godot --path godot --script res://tests/menu_shot.gd -- OUTPUT.png [title|select|garage|setup|settings|pause|results|ffb|limits|overlay]
 extends SceneTree
 
 
@@ -37,10 +37,12 @@ func _run() -> void:
 			main._show_settings()
 		"setup":
 			main._show_input_setup()
-		"pause", "results", "ffb", "limits":
+		"pause", "results", "ffb", "limits", "overlay":
 			var presets: PackedStringArray = main.sim.list_ids("ffb")
 			main._start_driving("hatch_tern_gt", "ridgeline_circuit", true, true, presets[0], "", false)
 			main.reader = FixedInput.new()
+			if mode == "overlay":
+				main.hud.toggle_debug()
 			if mode == "ffb":
 				main.reader.steer = 0.25
 				main.hud.toggle_ffb_meter()

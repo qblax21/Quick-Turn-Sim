@@ -236,6 +236,7 @@ fn heat_is_conserved_when_nothing_can_escape() {
         in_contact: true,
         air_temp_c: 20.0,
         road_temp_c: 25.0,
+        tread_scale: 1.0,
     };
     let steps = 20_000;
     for _ in 0..steps {

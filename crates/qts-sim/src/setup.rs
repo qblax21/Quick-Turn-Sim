@@ -196,6 +196,21 @@ pub fn setup_items(
         0.5,
         bias,
     );
+    for (axle, name, th) in [
+        ("front", "Front", &b.thermal_front),
+        ("rear", "Rear", &b.thermal_rear),
+    ] {
+        push(
+            &format!("{axle}.brake_duct_pct"),
+            "Brakes",
+            &format!("{name} brake duct opening"),
+            "%",
+            0.0,
+            100.0,
+            5.0,
+            100.0 * th.duct_opening,
+        );
+    }
     if let DrivetrainParams::EngineManual(m) = &car.drivetrain {
         let d = &m.differential;
         if d.kind == DifferentialKind::LimitedSlip {
@@ -397,6 +412,12 @@ impl Setup {
             let total = b.max_torque_front_nm + b.max_torque_rear_nm;
             b.max_torque_front_nm = total * v / 100.0;
             b.max_torque_rear_nm = total - b.max_torque_front_nm;
+        }
+        if let Some(v) = get("front.brake_duct_pct") {
+            car.brakes.thermal_front.duct_opening = v / 100.0;
+        }
+        if let Some(v) = get("rear.brake_duct_pct") {
+            car.brakes.thermal_rear.duct_opening = v / 100.0;
         }
         if let DrivetrainParams::EngineManual(m) = &mut car.drivetrain {
             if let Some(v) = get("diff.preload_nm") {

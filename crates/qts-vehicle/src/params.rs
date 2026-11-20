@@ -253,6 +253,78 @@ pub struct BrakeParams {
     pub handbrake_torque_nm: f64,
     /// Anti-lock system.
     pub abs: AbsParams,
+    /// Front disc temperature model, per wheel.
+    pub thermal_front: BrakeThermalParams,
+    /// Rear disc temperature model, per wheel.
+    pub thermal_rear: BrakeThermalParams,
+    /// Disc temperatures of the friction table, °C, ascending.
+    pub fade_temp_c: Vec<f64>,
+    /// Pad friction at each table temperature as a share of its nominal
+    /// value: the brake torque scales with it. Linear between points, held
+    /// beyond the ends.
+    pub fade_friction_factor: Vec<f64>,
+}
+
+/// One brake disc as a single thermal mass: heated by the brake's friction
+/// work, cooled by convection that grows with speed (more with a duct) and
+/// by radiation.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct BrakeThermalParams {
+    /// Heat capacity of the disc and the parts that heat with it, J/K.
+    pub heat_capacity_j_per_k: f64,
+    /// Share of the brake's friction work that goes into the disc; the
+    /// rest heats the pads and is not followed.
+    pub disc_heat_share: f64,
+    /// Convective cooling at rest, W/K.
+    pub convection_w_per_k: f64,
+    /// Extra convective cooling per m/s of road speed, W/K per m/s.
+    pub convection_speed_gain: f64,
+    /// Emissivity times radiating area, m².
+    pub radiation_area_m2: f64,
+    /// Extra speed-dependent cooling with the duct fully open, as a share
+    /// of `convection_speed_gain`.
+    pub duct_cooling_gain: f64,
+    /// Duct opening as delivered, 0 (none) to 1 (fully open).
+    pub duct_opening: f64,
+}
+
+/// Stefan-Boltzmann constant, W/(m²·K⁴).
+const STEFAN_BOLTZMANN: f64 = 5.670_374_419e-8;
+
+impl BrakeThermalParams {
+    /// Heat leaving the disc at `temp_c` in air at `air_c`, at road speed
+    /// `speed_m_s`, W.
+    pub fn cooling_w(&self, temp_c: f64, air_c: f64, speed_m_s: f64) -> f64 {
+        let speed = speed_m_s.abs();
+        let h = self.convection_w_per_k
+            + self.convection_speed_gain
+                * speed
+                * (1.0 + self.duct_cooling_gain * self.duct_opening.clamp(0.0, 1.0));
+        let (t, a) = (temp_c + 273.15, air_c + 273.15);
+        h * (temp_c - air_c)
+            + STEFAN_BOLTZMANN * self.radiation_area_m2 * (t * t * t * t - a * a * a * a)
+    }
+}
+
+impl BrakeParams {
+    /// Pad friction factor at a disc temperature, °C.
+    pub fn friction_factor(&self, temp_c: f64) -> f64 {
+        let (xs, ys) = (&self.fade_temp_c, &self.fade_friction_factor);
+        let (Some(&first), Some(&last)) = (ys.first(), ys.last()) else {
+            return 1.0;
+        };
+        if temp_c <= xs[0] {
+            return first;
+        }
+        for i in 1..xs.len() {
+            if temp_c <= xs[i] {
+                let t = (temp_c - xs[i - 1]) / (xs[i] - xs[i - 1]);
+                return ys[i - 1] + t * (ys[i] - ys[i - 1]);
+            }
+        }
+        last
+    }
 }
 
 /// Anti-lock brake controller: per-wheel pressure modulation on a slip
@@ -647,6 +719,49 @@ impl CarParams {
         non_negative("brakes.max_torque_front_nm", br.max_torque_front_nm)?;
         non_negative("brakes.max_torque_rear_nm", br.max_torque_rear_nm)?;
         non_negative("brakes.handbrake_torque_nm", br.handbrake_torque_nm)?;
+        for (axle, th) in [("front", &br.thermal_front), ("rear", &br.thermal_rear)] {
+            positive(
+                &format!("brakes.thermal_{axle}.heat_capacity_j_per_k"),
+                th.heat_capacity_j_per_k,
+            )?;
+            unit(
+                &format!("brakes.thermal_{axle}.disc_heat_share"),
+                th.disc_heat_share,
+            )?;
+            non_negative(
+                &format!("brakes.thermal_{axle}.convection_w_per_k"),
+                th.convection_w_per_k,
+            )?;
+            non_negative(
+                &format!("brakes.thermal_{axle}.convection_speed_gain"),
+                th.convection_speed_gain,
+            )?;
+            non_negative(
+                &format!("brakes.thermal_{axle}.radiation_area_m2"),
+                th.radiation_area_m2,
+            )?;
+            non_negative(
+                &format!("brakes.thermal_{axle}.duct_cooling_gain"),
+                th.duct_cooling_gain,
+            )?;
+            unit(
+                &format!("brakes.thermal_{axle}.duct_opening"),
+                th.duct_opening,
+            )?;
+        }
+        if br.fade_temp_c.is_empty()
+            || br.fade_temp_c.len() != br.fade_friction_factor.len()
+            || br.fade_temp_c.windows(2).any(|w| w[1] <= w[0])
+            || br
+                .fade_friction_factor
+                .iter()
+                .any(|f| !f.is_finite() || *f <= 0.0 || *f > 1.5)
+        {
+            return Err(
+                "brakes.fade_temp_c and fade_friction_factor need matching tables, temperatures ascending, factors above 0 and at most 1.5"
+                    .into(),
+            );
+        }
         positive("brakes.abs.slip_threshold", br.abs.slip_threshold)?;
         positive("brakes.abs.release_rate_per_s", br.abs.release_rate_per_s)?;
         positive("brakes.abs.apply_rate_per_s", br.abs.apply_rate_per_s)?;

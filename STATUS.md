@@ -10,7 +10,7 @@ says so.
 | Area | State |
 | --- | --- |
 | Workspace builds with one command on Windows | Verified (`tools\build.ps1`, GNU toolchain) |
-| Test suite | 216 tests pass in release |
+| Test suite | 223 tests pass in release |
 | Headless sim runs and replays exactly | Verified |
 | All cars drivable on all four tracks | Verified with scripted drivers and the front-end smoke test |
 | Front end renders, HUD and overlay work | Verified by screenshots |
@@ -139,6 +139,9 @@ plausible range. It is not evidence of realism.
   inclination; `qts-sim steering-compare` and
   `docs/img/steering_torque.svg` show column torque against speed before
   and after.
+- Brake disc temperature per wheel with fade, speed-dependent cooling and
+  garage brake ducts; tire wear from sliding energy, lowering grip and
+  thinning the tread (D-076). Both on the F1 overlay and in telemetry.
 - Standalone release package via `tools/package.ps1` (D-053): 129 MB on
   disk, 42 MB zipped. Verified to start and drive (`--self-test`) from a
   copy outside the repository with Rust and Godot off the path; not yet
@@ -196,9 +199,9 @@ plausible range. It is not evidence of realism.
   mechanical wear. The damage and failure speeds are placeholders.
 - **Steering rack as a dynamic part**: the rack follows the driver's
   angle exactly; friction and inertia are felt but do not move it.
-- **Chassis flex, driveline compliance, gearbox
-  efficiency, brake temperature and fade, tire wear, wet surfaces, wind**:
-  not modelled.
+- **Chassis flex, driveline compliance, gearbox efficiency, brake pad
+  temperature and fluid boiling, wet surfaces, wind**: not modelled. Brake
+  fade uses the disc temperature as one lumped mass.
 - **Cross-platform determinism**: not solved; the plan is in
   `ARCHITECTURE.md` section 5.
 - **Steam**: nothing integrated; see `docs/STEAM.md`.

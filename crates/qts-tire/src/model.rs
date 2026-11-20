@@ -23,6 +23,8 @@ pub struct TireState {
     pub deflection_lat_m: f64,
     /// Temperatures.
     pub thermal: ThermalState,
+    /// Share of the usable tread worn away, 0 (new) to 1.
+    pub wear: f64,
 }
 
 impl TireState {
@@ -32,6 +34,7 @@ impl TireState {
             deflection_long_m: 0.0,
             deflection_lat_m: 0.0,
             thermal: ThermalState::uniform(temp_c),
+            wear: 0.0,
         }
     }
 
@@ -40,6 +43,7 @@ impl TireState {
         self.deflection_long_m.is_finite()
             && self.deflection_lat_m.is_finite()
             && self.thermal.is_finite()
+            && self.wear.is_finite()
     }
 }
 
@@ -48,11 +52,17 @@ impl Snapshot for TireState {
         w.write_f64(self.deflection_long_m);
         w.write_f64(self.deflection_lat_m);
         self.thermal.save(w);
+        w.write_f64(self.wear);
     }
     fn load(&mut self, r: &mut StateReader<'_>) -> Result<(), SnapshotError> {
         self.deflection_long_m = r.read_f64()?;
         self.deflection_lat_m = r.read_f64()?;
-        self.thermal.load(r)
+        self.thermal.load(r)?;
+        self.wear = r.read_f64()?;
+        if !(0.0..=1.0).contains(&self.wear) {
+            return Err(SnapshotError::Invalid("tire wear out of range"));
+        }
+        Ok(())
     }
 }
 
@@ -142,15 +152,19 @@ pub fn step(p: &TireParams, state: &mut TireState, input: &TireInput<'_>, dt: f6
     let surface = input.surface;
     let fz = input.fz.max(0.0);
     let dpi = state.thermal.dpi(p);
+    let wear = state.wear;
     let mut op = Operating {
         fz,
         kappa: 0.0,
         tan_alpha: 0.0,
         camber: input.camber,
         dpi,
-        grip_factor: state.thermal.grip_factor(&p.thermal),
-        stiffness_factor: state.thermal.stiffness_factor(&p.thermal),
+        grip_factor: state.thermal.grip_factor(&p.thermal)
+            * (1.0 - p.wear.grip_loss_at_full_wear * wear),
+        stiffness_factor: state.thermal.stiffness_factor(&p.thermal)
+            * (1.0 + p.wear.stiffness_gain_at_full_wear * wear),
     };
+    let tread_scale = 1.0 - p.wear.tread_heat_capacity_share * wear;
 
     let vsx = input.vx - input.omega * input.rolling_radius_m;
     let vsy = input.vy;
@@ -179,6 +193,7 @@ pub fn step(p: &TireParams, state: &mut TireState, input: &TireInput<'_>, dt: f6
                 in_contact: false,
                 air_temp_c: input.air_temp_c,
                 road_temp_c: input.road_temp_c,
+                tread_scale,
             },
             dt,
         );
@@ -243,6 +258,8 @@ pub fn step(p: &TireParams, state: &mut TireState, input: &TireInput<'_>, dt: f6
     // Power leaving the vehicle through the contact patch. Positive when
     // the forces oppose the slip velocities, which is the dissipative case.
     out.sliding_power_w = (-(out.fx * vsx + out.fy * vsy)).max(0.0);
+    // Wear in proportion to the sliding work.
+    state.wear = (state.wear + p.wear.rate_per_mj * out.sliding_power_w * dt * 1e-6).min(1.0);
 
     state.thermal.step(
         &p.thermal,
@@ -253,6 +270,7 @@ pub fn step(p: &TireParams, state: &mut TireState, input: &TireInput<'_>, dt: f6
             in_contact: true,
             air_temp_c: input.air_temp_c,
             road_temp_c: input.road_temp_c,
+            tread_scale,
         },
         dt,
     );

@@ -41,6 +41,9 @@ pub struct ThermalInput {
     pub air_temp_c: f64,
     /// Road surface temperature, °C.
     pub road_temp_c: f64,
+    /// Share of the new tread's heat capacity left (1 new, less when
+    /// worn); scales the surface and core nodes.
+    pub tread_scale: f64,
 }
 
 impl ThermalState {
@@ -76,9 +79,10 @@ impl ThermalState {
         let heat_core = rolling * p.hysteresis_core_fraction;
         let heat_carcass = rolling * (1.0 - p.hysteresis_core_fraction);
 
-        self.surface_c +=
-            dt * (heat_surface - q_sc - q_road - q_air_surface) / p.surface_heat_capacity_j_per_k;
-        self.core_c += dt * (heat_core + q_sc - q_cc) / p.core_heat_capacity_j_per_k;
+        let tread = input.tread_scale.clamp(0.05, 1.0);
+        self.surface_c += dt * (heat_surface - q_sc - q_road - q_air_surface)
+            / (p.surface_heat_capacity_j_per_k * tread);
+        self.core_c += dt * (heat_core + q_sc - q_cc) / (p.core_heat_capacity_j_per_k * tread);
         self.carcass_c +=
             dt * (heat_carcass + q_cc - q_cg - q_air_carcass) / p.carcass_heat_capacity_j_per_k;
         self.gas_c += dt * q_cg / p.gas_heat_capacity_j_per_k;

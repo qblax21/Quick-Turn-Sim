@@ -1046,3 +1046,56 @@ centring a steered car. The gravel soak's random driver now runs seed 5:
 seed 1 pinned the car against a tree at 474 m with the new steering;
 over seeds 1 to 6 the distance ranged 452 to 2473 m before and 474 to
 1990 m after.
+
+## D-076 Brake temperature and fade; tire wear
+
+**Brakes.** Each disc is one thermal mass (`[brakes.thermal_front]`,
+`[brakes.thermal_rear]`, per wheel). It takes `disc_heat_share` (0.9) of
+the brake's friction work, |brake torque × wheel speed|, so a locked
+wheel heats the tire, not the disc. It loses heat by convection that
+grows linearly with road speed, scaled up by a duct
+(`1 + duct_cooling_gain · duct_opening`), and by radiation
+(Stefan-Boltzmann with emissivity times area). Pad friction follows a
+per-car table against disc temperature (`fade_temp_c`,
+`fade_friction_factor`): slightly low cold (0.92 at 0 degC, 0.94 at a
+28 degC start), flat through the working range, fading above about
+450 degC to 0.45 at 800 degC; the service brake and handbrake torque
+scale with it, and anti-lock works on top. Disc heat capacities follow
+from disc sizes and cast iron (estimated); cooling is set for a time
+constant of about two minutes at 30 m/s; the fade curve is the shape of
+a road pad, not a measured pad. One mass per disc ignores the gradient
+through the disc and the pad temperature, which is what really sets
+pad friction; brake fluid boiling is not modelled.
+
+Garage: front and rear brake duct opening, 0 to 100 %; the cars come
+without ducts. A fully open duct doubles the speed-dependent cooling, a
+placeholder.
+
+**Tire wear.** Each tire's `wear` (0 new, 1 at the end of the usable
+tread) grows with the energy dissipated by sliding in the contact patch,
+an Archard-type law (`[wear] rate_per_mj`). A scripted Ridgeline lap at
+about 0.7 g puts about 0.5 MJ through the busiest front tire; the rate is
+set so that lap costs a quarter of a percent, a few hundred laps of tread,
+fewer when driven harder. Wear lowers friction by up to
+`grip_loss_at_full_wear` (8 %), standing for compound ageing and graining:
+a shallower tread alone grips as well or better in the dry, so this is
+not tread depth. It raises slip and cornering stiffness by up to 15 %
+(less tread to squirm) and takes away up to half the heat capacity of the
+tread surface and core nodes, so a worn tire heats and cools faster.
+Wear never recovers within a session; resetting the car fits new tires
+and cold brakes, as it repairs the engine.
+
+Both are state (snapshot, replays) and are shown on the F1 overlay (wear
+%, disc temperature and pad friction factor per wheel) and in telemetry
+(`*_brake_temp_c`, `*_tire_wear`).
+
+Tests: a disc's stored heat equals the heat put in less the heat cooled
+away, to 1e-6; a full stop from 30 m/s puts 75 to 98 % of the lost kinetic
+energy into the brakes (the rest into tire slip under anti-lock, rolling
+and drag); fifteen hard stops from 40 m/s without rest take the front
+discs past 550 degC and cut the deceleration by more than 10 %, with the
+rears cooler; discs cool faster at speed than parked, and faster again
+with a duct; a duct setting reaches the physics; wear equals the sliding
+energy times the rate; a worn tire has the configured peak-grip loss,
+higher stiffness, and stores exactly the heat put in with its thinner
+tread while warming faster.

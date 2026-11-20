@@ -125,6 +125,12 @@ pub mod test_support {
                 pfz1: 0.7,
                 carcass_stiffness_sensitivity: 0.5,
             },
+            wear: WearParams {
+                rate_per_mj: 0.002,
+                grip_loss_at_full_wear: 0.1,
+                stiffness_gain_at_full_wear: 0.15,
+                tread_heat_capacity_share: 0.5,
+            },
         }
     }
 

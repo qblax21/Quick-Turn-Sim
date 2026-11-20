@@ -31,6 +31,29 @@ pub struct TireParams {
     pub thermal: ThermalParams,
     /// Inflation pressure model.
     pub pressure: PressureParams,
+    /// Tread wear.
+    pub wear: WearParams,
+}
+
+/// Tread wear, driven by the energy dissipated by sliding in the contact
+/// patch (an Archard-type law: material removed in proportion to friction
+/// work).
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct WearParams {
+    /// Share of the usable tread removed per megajoule of sliding energy.
+    pub rate_per_mj: f64,
+    /// Fractional loss of friction at full wear, standing for the compound
+    /// ageing and graining that come with use. A shallower tread alone
+    /// grips as well or better in the dry; this is the degradation, not
+    /// the depth.
+    pub grip_loss_at_full_wear: f64,
+    /// Fractional gain of slip and cornering stiffness at full wear: less
+    /// tread rubber to squirm.
+    pub stiffness_gain_at_full_wear: f64,
+    /// Share of the tread surface and core heat capacity gone at full
+    /// wear: a worn tread heats and cools faster.
+    pub tread_heat_capacity_share: f64,
 }
 
 /// Tire size.
@@ -358,6 +381,16 @@ impl TireParams {
         unit("thermal.min_grip_factor", th.min_grip_factor)?;
         unit("thermal.surface_weight", th.surface_weight)?;
         positive("pressure.cold_pressure_pa", self.pressure.cold_pressure_pa)?;
+        let w = &self.wear;
+        positive("wear.rate_per_mj", w.rate_per_mj)?;
+        unit("wear.grip_loss_at_full_wear", w.grip_loss_at_full_wear)?;
+        unit(
+            "wear.stiffness_gain_at_full_wear",
+            w.stiffness_gain_at_full_wear,
+        )?;
+        if !(0.0..0.95).contains(&w.tread_heat_capacity_share) {
+            return Err("wear.tread_heat_capacity_share must be in [0, 0.95)".into());
+        }
         Ok(())
     }
 }
