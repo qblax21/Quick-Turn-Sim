@@ -1131,3 +1131,31 @@ note: the harness still compares it and prints `FAIL*` with the reason,
 but the run (and CI) does not fail on it; if the gap ever closes, the
 stale mark fails the run until it is removed. The proposed parameter
 changes are listed in `docs/VALIDATION_SOURCES.md`.
+
+## D-078 Validation gaps closed with published specifications
+
+With the owner's approval, the gaps of D-077 were closed by bringing the
+cars to the comparable cars' published specifications, not by fitting
+parameters to the targets:
+
+- Halden E4: motor peak power 160 + 250 kW to 137 + 213 kW, 350 kW
+  together, Car and Driver's estimate of the comparable's output, in the
+  same proportion. 0-60 with rollout went from 2.72 s (-12.1 %) to 2.91 s
+  (-6.3 %) against 3.1 s; the remaining 0.2 s was not tuned away. The
+  `known_gap` mark is removed.
+- Tern GT: Volkswagen's torque curve (350 N.m from 1500 to 4400 rpm,
+  169 kW to 6200 rpm), the tested kerb weight (1413 kg, inertias scaled
+  with it) and a 225/40 R18 summer tire derived by size from the
+  performance placeholder, the size the comparable was tested on. Every
+  target is now within 3 %.
+
+Tried one at a time, the real weight on the old 205-section tire moved
+the hatch away from the targets, which pointed at the tire. The tire's
+compound coefficients are still placeholders, so a match here says the
+car is in the right place, not that the tire is right.
+
+The changes alter the hatch's feel (heavier, more torque, more grip) and
+the sedan's launch; earlier drives that set its steering and balance were
+on the old values. The gravel soak's random driver now resets the car
+after 15 s without moving, as a person would, instead of searching for a
+seed that does not pin it against a tree; seed 1 is back.

@@ -39,10 +39,10 @@ Comparable: Golf GTI Mk7, six-speed manual, with the Performance Pack
 | | Tern GT (data) | Golf GTI as tested |
 | --- | --- | --- |
 | Layout | front engine, front drive, 6-speed manual | same |
-| Engine | 2.0 turbo, 320 N.m plateau, about 170 kW peak | 2.0 turbo, 258 lb-ft (350 N.m) at 1500 rpm, 220 hp (164 kW) US; 230 PS (169 kW) in Europe |
+| Engine | 2.0 turbo, 350 N.m from 1500 to 4400 rpm, 169 kW from 4700 to 6200 rpm (since D-078; was a 320 N.m plateau) | 2.0 turbo, 258 lb-ft (350 N.m) at 1500 rpm, 220 hp (164 kW) US; 230 PS (169 kW), 350 N.m from 1500 to 4400 rpm in Europe |
 | Differential | open (the `hatch_tern_gt_lsd` variant has a limited-slip) | electronically controlled limited-slip |
-| Kerb weight | 1300 kg | 3116 lb (1413 kg) (2017 test) |
-| Tires | 205/45R17 | 225/40R18 Bridgestone Potenza S001 (2015 test) |
+| Kerb weight | 1413 kg (since D-078; was 1300 kg) | 3116 lb (1413 kg) (2017 test) |
+| Tires | 225/40R18 summer placeholder (since D-078; was 205/45R17) | 225/40R18 Bridgestone Potenza S001 (2015 test) |
 
 Figures:
 
@@ -64,7 +64,7 @@ Comparable: Model 3 Dual Motor Performance with the Performance Upgrade
 | | Halden E4 (data) | Model 3 Performance as tested |
 | --- | --- | --- |
 | Layout | one motor per axle, all-wheel drive, single reductions | same |
-| Power | front 160 kW + rear 250 kW peak (sum of motor peaks) | 450 hp (336 kW) in 2018; about 470 hp after a 2019 update, Car and Driver's estimate |
+| Power | front 137 kW + rear 213 kW = 350 kW (since D-078; was 160 + 250 = 410 kW) | 450 hp (336 kW) in 2018; about 470 hp after a 2019 update, Car and Driver's estimate |
 | Battery | 75 kWh usable | 80.5 kWh |
 | Kerb weight | 1850 kg | 4087 lb (1854 kg) (2018 test) |
 | Tires | 235/40R19 | 20-inch Michelin Pilot Sport 4S |
@@ -82,7 +82,51 @@ Figures:
 The understeer target (2.0 deg/g) is a guess; the only steering data found
 is the qualitative "moderate understeer".
 
-## Results and what would close the gaps
+## Results, before and after closing the gaps (D-078)
+
+`cargo run --release -p qts-validate`. "Before" is D-077, "after" D-078.
+
+| Car | Metric | Before | After | Published | Error before | Error after |
+| --- | --- | --- | --- | --- | --- | --- |
+| Tern GT | skidpad | 0.910 g | 0.934 g | 0.94 g | -3.2 % | -0.6 % |
+| Tern GT | 70-0 mph | 48.42 m | 46.59 m | 46.94 m | +3.2 % | -0.7 % |
+| Tern GT | 0-60 mph, rollout | 6.21 s | 6.08 s | 5.9 s | +5.2 % | +3.0 % |
+| Tern GT | top speed | 69.68 m/s | 69.99 m/s | 69.44 m/s | +0.3 % | +0.8 % |
+| Tern GT | understeer (guess) | 2.20 deg/g | 2.23 deg/g | 2.5 | -12.2 % | -10.8 % |
+| Halden E4 | skidpad | 0.956 g | 0.955 g | 0.96 g | -0.4 % | -0.5 % |
+| Halden E4 | 70-0 mph | 46.57 m | 46.57 m | 44.81 m | +3.9 % | +3.9 % |
+| Halden E4 | 0-60 mph, rollout | 2.72 s | 2.91 s | 3.1 s | **-12.1 %** | -6.3 % |
+| Halden E4 | top speed | 71.79 m/s | 71.72 m/s | 72.42 m/s | -0.9 % | -1.0 % |
+| Halden E4 | understeer (guess) | 1.83 deg/g | 1.83 deg/g | 2.0 | -8.4 % | -8.4 % |
+
+What changed, each anchored to a published figure rather than fitted to
+the targets:
+
+1. **Halden E4 motor power**: 160 + 250 kW to 137 + 213 kW, 350 kW
+   together, Car and Driver's estimate of the comparable's output (about
+   470 hp), keeping the front-rear proportion. Torque unchanged. The
+   0-60 is still 0.2 s quick; matching it exactly would mean tuning to the
+   target, which was not done.
+2. **Tern GT torque curve**: Volkswagen's published 350 N.m from 1500 to
+   4400 rpm and 169 kW from 4700 to 6200 rpm. The ends are guesses.
+3. **Tern GT weight**: the comparable's tested kerb weight, 1413 kg; the
+   body inertias scale with the sprung mass.
+4. **Tern GT tires**: a 225/40 R18 summer tire, the size and class the
+   comparable was tested on, derived by size from the existing
+   performance-tire placeholder (`data/tires/summer_225_40r18.toml`). The
+   compound coefficients are still placeholders.
+
+Each was tried alone first: at the real weight on the old narrow tire the
+car moved further from the targets (0-60 +9.8 %, skidpad -5.2 %), which is
+what pointed at the tire.
+
+Still open:
+
+- **Halden E4 braking (+3.9 %)**: within tolerance; no published tire or
+  brake data to anchor a change, so none was made.
+- **Understeer**: no published data for either car.
+
+## What was proposed before the changes
 
 `cargo run --release -p qts-validate`, after D-077 and with no physics
 change:

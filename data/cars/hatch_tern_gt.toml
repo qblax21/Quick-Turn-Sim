@@ -10,14 +10,14 @@ id = "hatch_tern_gt"
 name = "Tern GT"
 class = "Compact front-wheel-drive turbocharged hot hatch (fictional)"
 description = "Car A. Front engine, six-speed manual, open differential."
-tire_front = "street_205_45r17"
-tire_rear = "street_205_45r17"
+tire_front = "summer_225_40r18"
+tire_rear = "summer_225_40r18"
 
 [body]
-sprung_mass_kg = { value = 1229.0, source = "class-typical 1300 kg kerb weight plus a 75 kg driver, less unsprung mass", confidence = "placeholder" }
-inertia_roll_kg_m2 = { value = 420.0, source = "rule-of-thumb radius of gyration for a compact hatch", confidence = "placeholder" }
-inertia_pitch_kg_m2 = { value = 1700.0, source = "rule-of-thumb radius of gyration for a compact hatch", confidence = "placeholder" }
-inertia_yaw_kg_m2 = { value = 1900.0, source = "rule-of-thumb radius of gyration for a compact hatch", confidence = "placeholder" }
+sprung_mass_kg = { value = 1342.0, source = "the comparable car's tested kerb weight, 1413 kg (Car and Driver, 2017 GTI manual, docs/VALIDATION_SOURCES.md), plus a 75 kg driver, less unsprung mass; was a class-typical 1300 kg", confidence = "estimated" }
+inertia_roll_kg_m2 = { value = 459.0, source = "rule-of-thumb radius of gyration for a compact hatch, scaled with the sprung mass when it rose to the comparable car's weight", confidence = "placeholder" }
+inertia_pitch_kg_m2 = { value = 1856.0, source = "rule-of-thumb radius of gyration for a compact hatch, scaled with the sprung mass when it rose to the comparable car's weight", confidence = "placeholder" }
+inertia_yaw_kg_m2 = { value = 2075.0, source = "rule-of-thumb radius of gyration for a compact hatch, scaled with the sprung mass when it rose to the comparable car's weight", confidence = "placeholder" }
 wheelbase_m = { value = 2.50, source = "class-typical wheelbase", confidence = "placeholder" }
 cg_to_front_axle_m = { value = 0.9286, source = "chosen to give 62 percent of total weight on the front axle", confidence = "placeholder" }
 cg_height_m = { value = 0.56, source = "class-typical centre-of-gravity height", confidence = "placeholder" }
@@ -125,8 +125,8 @@ kind = "engine_manual"
 driven_axle = "front"
 
 [drivetrain.engine]
-torque_curve_rpm = { value = [1000.0, 1500.0, 2000.0, 4500.0, 5500.0, 6500.0, 7000.0], source = "shape typical of a 2.0 litre turbocharged petrol engine", confidence = "placeholder" }
-torque_curve_nm = { value = [180.0, 300.0, 320.0, 320.0, 295.0, 245.0, 200.0], source = "class-typical 320 N.m plateau and about 170 kW peak", confidence = "placeholder" }
+torque_curve_rpm = { value = [1000.0, 1500.0, 4400.0, 4700.0, 6200.0, 7000.0], source = "the comparable engine's published shape: 350 N.m from 1500 to 4400 rpm, 169 kW from 4700 to 6200 rpm (Volkswagen press presentation, GTI Performance, docs/VALIDATION_SOURCES.md); the ends below 1500 and above 6200 rpm are guesses", confidence = "estimated" }
+torque_curve_nm = { value = [200.0, 350.0, 350.0, 343.0, 260.0, 200.0], source = "as torque_curve_rpm: 343 and 260 N.m are 169 kW at 4700 and 6200 rpm", confidence = "estimated" }
 inertia_kg_m2 = { value = 0.16, source = "engine plus flywheel, order of magnitude", confidence = "placeholder" }
 idle_rpm = { value = 850.0, source = "typical idle speed", confidence = "placeholder" }
 redline_rpm = { value = 6800.0, source = "typical rev limit for the class", confidence = "placeholder" }

@@ -98,15 +98,16 @@ sees in the demo is described in `DEMO.md`.
 
 | Metric | Tern GT vs Golf GTI Mk7 | error | Halden E4 vs Model 3 Performance | error | tolerance |
 | --- | --- | --- | --- | --- | --- |
-| Skidpad lateral | 0.910 g vs 0.94 | -3.2% | 0.956 g vs 0.96 | -0.4% | 10% |
-| 70-0 mph distance | 48.4 m vs 46.9 | +3.2% | 46.6 m vs 44.8 | +3.9% | 10% |
-| 0-60 mph, 1 ft rollout | 6.21 s vs 5.9 | +5.2% | 2.72 s vs 3.1 | **-12.1%** (known gap) | 10% |
-| Top speed | 69.7 m/s vs 69.4 | +0.3% | 71.8 m/s vs 72.4 | -0.9% | 6% |
-| Understeer gradient | 2.20 deg/g vs 2.5 (guess) | -12.2% | 1.83 deg/g vs 2.0 (guess) | -8.4% | 40% |
+| Skidpad lateral | 0.934 g vs 0.94 | -0.6% | 0.955 g vs 0.96 | -0.5% | 10% |
+| 70-0 mph distance | 46.6 m vs 46.9 | -0.7% | 46.6 m vs 44.8 | +3.9% | 10% |
+| 0-60 mph, 1 ft rollout | 6.08 s vs 5.9 | +3.0% | 2.91 s vs 3.1 | -6.3% | 10% |
+| Top speed | 70.0 m/s vs 69.4 | +0.8% | 71.7 m/s vs 72.4 | -1.0% | 6% |
+| Understeer gradient | 2.23 deg/g vs 2.5 (guess) | -10.8% | 1.83 deg/g vs 2.0 (guess) | -8.4% | 40% |
 
 These figures measure the comparable real cars, not ours, so they are
-labelled estimated. The Halden E4 is too quick off the line; the fix
-(less motor power) waits for approval. No understeer data was found.
+labelled estimated. The gaps were closed with published specifications
+(D-078): the sedan's motor output, the hatch's torque curve, weight and
+tire size. No understeer data was found.
 
 ### Front end
 - Title screen with the circuit flown over behind it; car and track
@@ -256,10 +257,9 @@ Everything numeric. In particular:
 2. **Measure the input delay on the wheel.** With steering assigned both
    ways, the F1 overlay and `recordings/input_delay.log` give the real lag
    of the per-frame path; confirm the physics-thread path on hardware.
-3. **Close the validation gaps.** Once approved, the parameter changes in
-   `docs/VALIDATION_SOURCES.md`: Halden E4 motor power first, then the Tern
-   GT's torque curve, mass and tire; then measured runs of our own
-   (`docs/TELEMETRY_IMPORT.md`) for the understeer gradient.
+3. **Measure understeer.** Neither published source gives an understeer
+   gradient; a measured steady-state run (`docs/TELEMETRY_IMPORT.md`) or a
+   magazine steering sweep would replace the two guessed targets.
 4. **Cross-platform determinism check.** Run the same inputs on Windows and
    Linux in CI and compare hash sequences.
 5. **Pedals and shifter on hardware.** Set the bite point by feel on real

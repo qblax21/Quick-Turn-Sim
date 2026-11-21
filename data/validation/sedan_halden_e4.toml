@@ -42,7 +42,6 @@ unit = "s"
 tolerance_percent = 10.0
 source = "Car and Driver, 2019 Tesla Model 3 Performance, 4 May 2021: 0-60 mph in 3.1 s, after an over-the-air power increase (the 2018 car: 3.5 s). One-foot rollout subtracted per Car and Driver's published method (not restated on the page); the harness measures this metric the same way"
 confidence = "estimated"
-known_gap = "the car is about 0.4 s too quick: its motor torque and power were raised from driving feedback to reach 60 mph in just under 3 s timed without rollout, which with rollout subtracted is 2.7 s against the comparable car's 3.1 s. Lowering front and rear motor peak torque and power is the change; not made, as physics changes for validation wait for approval (D-077)"
 
 [[target]]
 metric = "top_speed"

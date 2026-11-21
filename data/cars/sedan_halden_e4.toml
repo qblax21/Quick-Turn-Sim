@@ -127,7 +127,7 @@ torque_vectoring = "none"
 
 [drivetrain.front_motor]
 peak_torque_nm = { value = 280.0, source = "raised after driver feedback that the car should reach 60 mph in just under 3 s; not a measurement", confidence = "placeholder" }
-peak_power_w = { value = 160000.0, source = "raised after driver feedback that the car should reach 60 mph in just under 3 s; not a measurement", confidence = "placeholder" }
+peak_power_w = { value = 137000.0, source = "lowered to bring the two motors to 350 kW together, Car and Driver's estimate of the comparable car's output (about 470 hp, docs/VALIDATION_SOURCES.md), in the same front-rear proportion; earlier raised after driver feedback asking for just under 3 s to 60 mph", confidence = "estimated" }
 max_speed_rad_per_s = { value = 2050.0, source = "about 19 600 rpm, sets the top speed with the reduction", confidence = "placeholder" }
 reduction_ratio = { value = 9.0, source = "class-typical single-speed reduction", confidence = "placeholder" }
 rotor_inertia_kg_m2 = { value = 0.045, source = "order of magnitude", confidence = "placeholder" }
@@ -137,7 +137,7 @@ regen_power_limit_w = { value = 60000.0, source = "guess", confidence = "placeho
 
 [drivetrain.rear_motor]
 peak_torque_nm = { value = 480.0, source = "raised after driver feedback that the car should reach 60 mph in just under 3 s; not a measurement", confidence = "placeholder" }
-peak_power_w = { value = 250000.0, source = "raised after driver feedback that the car should reach 60 mph in just under 3 s; not a measurement", confidence = "placeholder" }
+peak_power_w = { value = 213000.0, source = "lowered to bring the two motors to 350 kW together, Car and Driver's estimate of the comparable car's output (about 470 hp, docs/VALIDATION_SOURCES.md), in the same front-rear proportion; earlier raised after driver feedback asking for just under 3 s to 60 mph", confidence = "estimated" }
 max_speed_rad_per_s = { value = 2050.0, source = "about 19 600 rpm, sets the top speed with the reduction", confidence = "placeholder" }
 reduction_ratio = { value = 9.0, source = "class-typical single-speed reduction", confidence = "placeholder" }
 rotor_inertia_kg_m2 = { value = 0.06, source = "order of magnitude", confidence = "placeholder" }

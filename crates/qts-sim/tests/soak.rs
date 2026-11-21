@@ -5,11 +5,14 @@
 mod common;
 
 use common::*;
+use qts_core::input::buttons;
 use qts_core::step::Simulation;
 use qts_sim::drivers::{Driver, Erratic};
 use qts_sim::Session;
 
 const SOAK_SECONDS: u64 = 600;
+/// Seconds without moving after which the soak driver resets the car.
+const STUCK_SECONDS: u64 = 15;
 
 /// Returns a description of the first thing found wrong with the state.
 fn check(session: &Session) -> Result<(), String> {
@@ -70,9 +73,24 @@ fn soak(car: &str, track: &str, seed: u64) {
     let ticks = SOAK_SECONDS * u64::from(session.tick_rate_hz());
     let mut distance = 0.0;
     let mut max_speed: f64 = 0.0;
+    let mut stuck_ticks = 0u64;
+    let mut resets = 0u32;
+    let stuck_limit = STUCK_SECONDS * u64::from(session.tick_rate_hz());
     for _ in 0..ticks {
-        let frame = driver.frame(&session);
+        let mut frame = driver.frame(&session);
+        // A driver pinned against a tree for a while resets the car, as a
+        // person would; this also soaks the reset path.
+        if stuck_ticks >= stuck_limit {
+            frame.buttons |= buttons::RESET;
+            stuck_ticks = 0;
+            resets += 1;
+        }
         session.step(&frame);
+        if session.car().output().speed < 0.3 {
+            stuck_ticks += 1;
+        } else {
+            stuck_ticks = 0;
+        }
         if let Err(problem) = check(&session) {
             panic!(
                 "{car} on {track} (seed {seed}): {problem} at tick {} ({:.3} s)",
@@ -86,8 +104,8 @@ fn soak(car: &str, track: &str, seed: u64) {
     }
     assert_eq!(session.tick(), ticks);
     // The soak is only meaningful if the car was really driven about. Among
-    // solid trees a driver that never reverses ends up held against one,
-    // which is a soak of the contact code instead, so less ground is asked.
+    // solid trees a driver that never reverses still spends time held
+    // against one before it resets, so less ground is asked.
     let needed = if session.track().trees().is_empty() {
         1500.0
     } else {
@@ -102,17 +120,13 @@ fn soak(car: &str, track: &str, seed: u64) {
         "{car} on {track}: only reached {max_speed:.1} m/s"
     );
     println!(
-        "soak {car} on {track}: {SOAK_SECONDS} s, {distance:.0} m, peak {max_speed:.1} m/s, no instability"
+        "soak {car} on {track}: {SOAK_SECONDS} s, {distance:.0} m, peak {max_speed:.1} m/s, {resets} resets, no instability"
     );
 }
 
 #[test]
 fn ten_minutes_hatch_on_the_gravel_stage() {
-    // Seed 1 was used until D-075; with the new steering model its random
-    // inputs pin the car against a tree at 474 m. Over seeds 1 to 6 the
-    // distance ranged 452 to 2473 m before that change and 474 to 1990 m
-    // after it: chaotic, not a trend. Seed 5 drives about with both.
-    soak("hatch_tern_gt", "gravel_stage", 5);
+    soak("hatch_tern_gt", "gravel_stage", 1);
 }
 
 #[test]
