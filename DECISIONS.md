@@ -1802,3 +1802,10 @@ over its edge onto the rim lip. The black centre lock is reversed: it sits
 in a 42 mm deep well in the middle of the disc, which has white walls and
 a dark floor, so the top of its nut is about 12 mm below the face.
 Drawing only.
+
+## D-102 Shorter wheel slots
+
+At the owner's request, the slots in the Tern GT's aero disc are cut to
+three quarters of their D-101 length. They keep their outer edge just
+inside the rim, and their inner edge moves out from 76 to 80.6 percent
+of the rim radius. Drawing only.

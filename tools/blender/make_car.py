@@ -1203,7 +1203,7 @@ def turbofan_face(radius, rim_r, hw, mats, slots=40):
             f.normal_flip()
 
     # Outer slots: short rectangles pointing at the centre.
-    r0, r1, half = 0.76 * rim_r, 0.945 * rim_r, 0.008
+    r0, r1, half = 0.806 * rim_r, 0.945 * rim_r, 0.008
     for k in range(slots):
         t = 2 * math.pi * k / slots
         d, n = (math.cos(t), math.sin(t)), (-math.sin(t), math.cos(t))
