@@ -1,18 +1,52 @@
 # SPDX-License-Identifier: Apache-2.0
-# The car as drawn: a generated low-poly body (see car_body.gd) with glass,
-# lamps, mirrors and spoked wheels, sized from the dimensions the simulation
-# core reports, plus a bare interior (dashboard, steering wheel, screen
-# pillars) for the driver's-seat view. It is moved to the pose the core
-# publishes each frame.
+# The car as drawn: the car's model from assets/cars (built in Blender by
+# tools/blender/make_car.py from the same data file), or, for a car without
+# one, a generated low-poly body (see car_body.gd) with glass, lamps,
+# mirrors and spoked wheels, sized from the dimensions the simulation core
+# reports; plus a bare interior (dashboard, steering wheel, screen pillars)
+# for the driver's-seat view. It is moved to the pose the core publishes
+# each frame.
 extends Node3D
 
 const CarBody := preload("res://scripts/car_body.gd")
+const MODEL_DIR := "res://assets/cars/"
 
 var wheels: Array = []
 var interior: Node3D
 var steering_rim: Node3D
 # Eye point of the driver's seat, relative to the centre of gravity.
 var seat_offset := Vector3(-0.36, 0.6, 0.3)
+# Wheel meshes from the model, front and rear, or empty.
+var model_wheels: Array = []
+
+
+# The model for a car id: its own, or that of the car it is a variant of
+# (hatch_tern_gt_lsd falls back to hatch_tern_gt). Empty if there is none.
+static func model_path(id: String) -> String:
+	var name := id
+	while not name.is_empty():
+		var path := MODEL_DIR + name + ".glb"
+		if ResourceLoader.exists(path):
+			return path
+		var cut := name.rfind("_")
+		if cut <= 0:
+			break
+		name = name.substr(0, cut)
+	return ""
+
+
+# Adds the model's body parts and keeps its two wheel meshes.
+func _add_model(path: String) -> void:
+	var scene: Node = (load(path) as PackedScene).instantiate()
+	var front: MeshInstance3D = scene.find_child("wheel_front", true, false)
+	var rear: MeshInstance3D = scene.find_child("wheel_rear", true, false)
+	model_wheels = [front.mesh, rear.mesh]
+	front.get_parent().remove_child(front)
+	rear.get_parent().remove_child(rear)
+	front.free()
+	rear.free()
+	scene.name = "model"
+	add_child(scene)
 
 
 func _material(color: Color, roughness: float = 0.6, metallic: float = 0.0) -> StandardMaterial3D:
@@ -57,33 +91,13 @@ func build(info: Dictionary) -> void:
 
 	var shape := CarBody.new()
 	shape.setup(info)
-	var body := MeshInstance3D.new()
-	body.mesh = shape.build_mesh()
-	body.set_surface_override_material(0, paint)
-	body.set_surface_override_material(1, glass)
-	add_child(body)
-
 	var nose: float = shape.nose_z
-	var tail: float = nose + length
-	var front := shape.section(nose + 0.02 * length)
-	var rear := shape.section(tail - 0.02 * length)
-	var lamp_white := _material(Color(0.96, 0.96, 0.88), 0.15)
-	lamp_white.emission_enabled = true
-	lamp_white.emission = Color(0.9, 0.9, 0.8)
-	lamp_white.emission_energy_multiplier = 0.6
-	var lamp_red := _material(Color(0.75, 0.04, 0.04), 0.15)
-	lamp_red.emission_enabled = true
-	lamp_red.emission = Color(0.8, 0.05, 0.05)
-	lamp_red.emission_energy_multiplier = 0.5
 	var screen_base := shape.section(nose + shape.keys[3][0] * length)
-	for side in [-1.0, 1.0]:
-		_box(self, Vector3(0.36, 0.08, 0.16), Vector3(side * (front[5].x - 0.20), front[5].y - 0.07, nose + 0.07), lamp_white)
-		_box(self, Vector3(0.40, 0.08, 0.16), Vector3(side * (rear[5].x - 0.22), rear[5].y - 0.08, tail - 0.07), lamp_red)
-		# Door mirror at the base of the windscreen.
-		_box(self, Vector3(0.17, 0.10, 0.07), Vector3(side * (screen_base[5].x + 0.07), screen_base[5].y + 0.05, screen_base[5].z + 0.25), paint)
-	# Intake below the nose, a plate at the back and dark sills.
-	_box(self, Vector3(width * 0.55, 0.13, 0.06), Vector3(0.0, front[0].y + 0.16, nose + 0.02), dark)
-	_box(self, Vector3(0.46, 0.11, 0.03), Vector3(0.0, rear[5].y - 0.26, tail - 0.01), _material(Color(0.92, 0.92, 0.9), 0.5))
+	var path := model_path(info.get("id", ""))
+	if not path.is_empty():
+		_add_model(path)
+	else:
+		_add_generated_body(shape, length, width, paint, glass, dark)
 
 	# Eye point of a left-hand-drive seat: 55 percent of the wheelbase behind
 	# the front axle, near roof height.
@@ -143,6 +157,14 @@ func build(info: Dictionary) -> void:
 		var tire_width: float = info.get("tire_width_front" if is_front else "tire_width_rear", 0.22)
 		var pivot := Node3D.new()
 		add_child(pivot)
+		wheels.append(pivot)
+		if not model_wheels.is_empty():
+			# The model's wheel faces +X; update() mirrors it on the left.
+			var wheel := MeshInstance3D.new()
+			wheel.name = "wheel"
+			wheel.mesh = model_wheels[0 if is_front else 1]
+			pivot.add_child(wheel)
+			continue
 		# A cylinder's axis is local Y; the axle is local X.
 		_wheel_disc(pivot, radius, tire_width, rubber)
 		_wheel_disc(pivot, radius * 0.66, tire_width * 1.02, dark)
@@ -158,7 +180,37 @@ func build(info: Dictionary) -> void:
 			holder.rotation.x = TAU * k / 10.0
 			pivot.add_child(holder)
 			_box(holder, Vector3(tire_width * 1.05, radius * 0.07, radius * 0.44), Vector3(0.0, radius * 0.64, 0.0), alloy)
-		wheels.append(pivot)
+
+
+# The generated body, lamps, mirrors and trim, for a car without a model.
+func _add_generated_body(shape: CarBody, length: float, width: float, paint: Material, glass: Material, dark: Material) -> void:
+	var body := MeshInstance3D.new()
+	body.mesh = shape.build_mesh()
+	body.set_surface_override_material(0, paint)
+	body.set_surface_override_material(1, glass)
+	add_child(body)
+
+	var nose: float = shape.nose_z
+	var screen_base := shape.section(nose + shape.keys[3][0] * length)
+	var tail: float = nose + length
+	var front := shape.section(nose + 0.02 * length)
+	var rear := shape.section(tail - 0.02 * length)
+	var lamp_white := _material(Color(0.96, 0.96, 0.88), 0.15)
+	lamp_white.emission_enabled = true
+	lamp_white.emission = Color(0.9, 0.9, 0.8)
+	lamp_white.emission_energy_multiplier = 0.6
+	var lamp_red := _material(Color(0.75, 0.04, 0.04), 0.15)
+	lamp_red.emission_enabled = true
+	lamp_red.emission = Color(0.8, 0.05, 0.05)
+	lamp_red.emission_energy_multiplier = 0.5
+	for side in [-1.0, 1.0]:
+		_box(self, Vector3(0.36, 0.08, 0.16), Vector3(side * (front[5].x - 0.20), front[5].y - 0.07, nose + 0.07), lamp_white)
+		_box(self, Vector3(0.40, 0.08, 0.16), Vector3(side * (rear[5].x - 0.22), rear[5].y - 0.08, tail - 0.07), lamp_red)
+		# Door mirror at the base of the windscreen.
+		_box(self, Vector3(0.17, 0.10, 0.07), Vector3(side * (screen_base[5].x + 0.07), screen_base[5].y + 0.05, screen_base[5].z + 0.25), paint)
+	# Intake below the nose, a plate at the back and dark sills.
+	_box(self, Vector3(width * 0.55, 0.13, 0.06), Vector3(0.0, front[0].y + 0.16, nose + 0.02), dark)
+	_box(self, Vector3(0.46, 0.11, 0.03), Vector3(0.0, rear[5].y - 0.26, tail - 0.01), _material(Color(0.92, 0.92, 0.9), 0.5))
 
 
 func _wheel_disc(parent: Node3D, radius: float, width: float, material: Material) -> void:
@@ -210,5 +262,8 @@ func update(car_xform: Transform3D, states: PackedFloat32Array, steering_wheel_a
 		var o := i * 5
 		var pivot: Node3D = wheels[i]
 		pivot.position = Vector3(states[o], states[o + 1], states[o + 2])
+		if not model_wheels.is_empty():
+			# Outer face outward: mirrored on the left (negative x).
+			pivot.get_child(0).scale.x = -1.0 if states[o] < 0.0 else 1.0
 		# Default Euler order is YXZ: steer about Y, then roll about X.
 		pivot.rotation = Vector3(-states[o + 4], states[o + 3], 0.0)

@@ -176,8 +176,10 @@ tire size. No understeer data was found.
   tried on a second machine.
 - Placeholder world built from track data: ground, surface regions, road
   strip, cones that tip when hit, timing gates, painted markers.
-- Generated low-poly car bodies (two shapes) with glass, lamps, mirrors and
-  spoked wheels (D-055); chase and driver's-seat cameras.
+- Car models built in Blender by a script from each car's data file
+  (`tools/make_car_models.ps1`, D-091): smooth body, glass, lamps, mirrors,
+  wheel wells and spoked wheels; the generated low-poly body (D-055)
+  remains for a car without a model. Chase and driver's-seat cameras.
 - Track map with three modes (N), painted edge lines, distance boards
   before corners, worn-in rubber on an approximate fast line, tire marks
   left by the car while sliding, and trackside trees (D-056, D-059, D-061).

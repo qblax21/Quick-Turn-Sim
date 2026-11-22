@@ -1563,3 +1563,31 @@ movements; D-088's figure of under 35 % had counted that friction as
 filtered. The torsion-bar test now measures the road load it filters
 (under 45 % roughness, largest jump under a third); the steady-corner
 check is unchanged.
+
+## D-091 Car models built in Blender from the data files
+
+The owner asked for the cars to be made in Blender. The models are built
+by a script, `tools/blender/make_car.py` (run for every non-variant car by
+`tools/make_car_models.ps1`), rather than by hand, so that each body is
+sized from the same numbers the simulation uses and can be rebuilt when
+they change: length, width, body height, ground clearance, wheelbase,
+centre-of-gravity position, both tracks and the tire size. The body is a
+mirrored cage of cross-sections from nose to tail, subdivided twice, with
+the belt line and sill creased; the wheel arches are cut 6 cm clear of the
+tire, and the faces the cut leaves form a dark wheel well. Lamps, grille,
+intake, plates and sills are thin panels projected onto the body; the
+windscreen sits 0.95 m ahead of the seat's eye point (as the interior in
+car_view.gd), the overhangs are equal (as the sim's body box). The
+shapes are original and generic: a two-box hatch under 4.3 m, a
+three-box fastback above. Drawing only; nothing feeds the simulation.
+
+Outputs: `godot/assets/cars/<id>.glb` (body plus one wheel per axle, about
+8 400 faces), an editable `art/cars/<id>.blend`, and three preview renders
+in `docs/cars/`. The front end loads the model for the car's id, or for
+its base car's id with trailing `_suffix` parts removed (the limited-slip
+Tern GT uses the Tern GT's), and keeps the generated body (D-055) for a
+car without one. The paint is single-sided, as before, so the
+driver's-seat view looks out through the shell; the door mirrors are
+visible from the seat. Hand edits to a .blend are overwritten when the
+script is rerun. Checked by `godot/tests/car_model.gd` and by in-game
+screenshots of both cars.

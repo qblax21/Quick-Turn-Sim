@@ -5,3 +5,4 @@
 *.dylib
 *.pdb
 /out/
+*.blend1
