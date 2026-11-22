@@ -107,6 +107,45 @@ pub struct AxisBinding {
     pub max: f32,
     /// Reverse the direction.
     pub invert: bool,
+    /// Pedal shaping: deadzones and curve. Ignored for steering.
+    pub shape: PedalShape,
+}
+
+/// Deadzones and response curve of a pedal or lever, applied after the
+/// range calibration (D-085).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PedalShape {
+    /// Share of travel at the released end that reads as zero.
+    pub deadzone_low: f32,
+    /// Share of travel at the pressed end that reads as full.
+    pub deadzone_high: f32,
+    /// Exponent of the response: 1 linear; above 1 gentler at first and
+    /// steeper toward the end, as most drivers want a brake.
+    pub curve: f32,
+}
+
+impl Default for PedalShape {
+    fn default() -> Self {
+        Self {
+            deadzone_low: 0.0,
+            deadzone_high: 0.0,
+            curve: 1.0,
+        }
+    }
+}
+
+impl PedalShape {
+    /// Shapes a calibrated travel, 0 to 1.
+    pub fn apply(&self, travel: f32) -> f32 {
+        let lo = self.deadzone_low.clamp(0.0, 0.45);
+        let hi = self.deadzone_high.clamp(0.0, 0.45);
+        let x = ((travel - lo) / (1.0 - lo - hi).max(0.05)).clamp(0.0, 1.0);
+        let curve = self.curve.clamp(0.2, 5.0);
+        if curve == 1.0 || x == 0.0 {
+            return x;
+        }
+        qts_core::math::fm::powf(f64::from(x), f64::from(curve)) as f32
+    }
 }
 
 impl AxisBinding {
@@ -128,11 +167,7 @@ impl AxisBinding {
             }
         } else {
             let v = ((raw - self.min) / (self.max - self.min).max(0.001)).clamp(0.0, 1.0);
-            if self.invert {
-                1.0 - v
-            } else {
-                v
-            }
+            self.shape.apply(if self.invert { 1.0 - v } else { v })
         }
     }
 }
@@ -429,6 +464,49 @@ impl DirectInputs {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pedal_deadzones_and_curve_shape_the_travel() {
+        let flat = PedalShape::default();
+        for t in [0.0, 0.25, 0.5, 1.0] {
+            assert_eq!(flat.apply(t), t);
+        }
+        let shaped = PedalShape {
+            deadzone_low: 0.05,
+            deadzone_high: 0.05,
+            curve: 2.0,
+        };
+        // Inside the deadzones: zero at rest, full at the floor.
+        assert_eq!(shaped.apply(0.04), 0.0);
+        assert_eq!(shaped.apply(0.96), 1.0);
+        // Half way through the live travel, squared.
+        assert!((shaped.apply(0.5) - 0.25).abs() < 1e-6);
+        // Monotonic and continuous.
+        let mut prev = 0.0;
+        for i in 0..=1000 {
+            let v = shaped.apply(i as f32 / 1000.0);
+            assert!(v >= prev && v - prev < 0.01);
+            prev = v;
+        }
+        // A brake binding shapes; steering ignores the shape.
+        let brake = AxisBinding {
+            action: AxisAction::Brake,
+            device: "p".into(),
+            axis: 0,
+            min: -1.0,
+            center: -1.0,
+            max: 1.0,
+            invert: false,
+            shape: shaped,
+        };
+        assert!((brake.calibrate(0.0) - 0.25).abs() < 1e-6);
+        let steer = AxisBinding {
+            action: AxisAction::Steer,
+            center: 0.0,
+            ..brake.clone()
+        };
+        assert!((steer.calibrate(0.5) - 0.5).abs() < 1e-6);
+    }
     use qts_ffb::ScriptedInput;
 
     fn wheel_map() -> DirectInputMap {
@@ -442,6 +520,7 @@ mod tests {
                     center: 0.0,
                     max: 1.0,
                     invert: false,
+                    shape: PedalShape::default(),
                 },
                 AxisBinding {
                     action: AxisAction::Brake,
@@ -451,6 +530,7 @@ mod tests {
                     center: -1.0,
                     max: 1.0,
                     invert: true,
+                    shape: PedalShape::default(),
                 },
             ],
             buttons: vec![ButtonBinding {
@@ -495,6 +575,7 @@ mod tests {
             center: -1.0,
             max: 1.0,
             invert: false,
+            shape: PedalShape::default(),
         });
         let (inputs, errors) = DirectInputs::open(map, |id| {
             if id == "pedals" {
@@ -553,6 +634,7 @@ mod tests {
             center: 0.1,
             max: 0.9,
             invert: false,
+            shape: PedalShape::default(),
         };
         assert_eq!(steer.calibrate(0.1), 0.0);
         assert!((steer.calibrate(0.5) - 0.5).abs() < 1e-6);

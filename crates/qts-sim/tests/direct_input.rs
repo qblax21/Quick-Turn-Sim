@@ -39,6 +39,7 @@ fn pedal(action: AxisAction, axis: usize) -> AxisBinding {
         center: -1.0,
         max: 1.0,
         invert: false,
+        shape: qts_sim::direct_input::PedalShape::default(),
     }
 }
 
@@ -56,6 +57,7 @@ fn pedals_read_on_the_physics_thread_drive_the_car_and_replay_exactly() {
                 center: 0.0,
                 max: 1.0,
                 invert: false,
+                shape: qts_sim::direct_input::PedalShape::default(),
             },
         ],
         buttons: vec![],

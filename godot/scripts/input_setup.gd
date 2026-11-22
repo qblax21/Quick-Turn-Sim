@@ -4,6 +4,7 @@
 extends CanvasLayer
 
 signal closed
+signal wizard_requested
 
 const AXIS_LABELS := {
 	"steer": "Steering",
@@ -109,6 +110,10 @@ func _ready() -> void:
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	help.add_theme_font_size_override("font_size", 13)
 	left.add_child(help)
+	var wizard_button := Button.new()
+	wizard_button.text = "Run the wheel and pedal setup wizard"
+	wizard_button.pressed.connect(func() -> void: wizard_requested.emit())
+	left.add_child(wizard_button)
 	var direct_box := CheckBox.new()
 	direct_box.text = "Read wheel, pedals and shifter on the physics thread (recommended)"
 	direct_box.button_pressed = reader.use_direct

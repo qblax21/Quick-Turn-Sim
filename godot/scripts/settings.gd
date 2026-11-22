@@ -31,6 +31,7 @@ const DEFAULTS := {
 	"menu/ffb_preset": "",
 	"ffb/wheel_model": "",
 	"ffb/match_rotation": true,
+	"input/wizard_done": false,
 }
 
 var values := {}

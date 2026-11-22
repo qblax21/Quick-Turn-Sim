@@ -9,6 +9,7 @@ const InputSetup := preload("res://scripts/input_setup.gd")
 const InputReader := preload("res://scripts/input_reader.gd")
 const World := preload("res://scripts/world.gd")
 const PhotoMode := preload("res://scripts/photo_mode.gd")
+const Wizard := preload("res://scripts/wizard.gd")
 const CarView := preload("res://scripts/car_view.gd")
 const Hud := preload("res://scripts/hud.gd")
 const SkidMarks := preload("res://scripts/skid_marks.gd")
@@ -168,6 +169,9 @@ func _ready() -> void:
 	settings.changed.connect(_apply_settings)
 	_apply_settings()
 	_show_menu()
+	# First run: no controls set up yet (D-085).
+	if not settings.get_value("input/wizard_done") and not FileAccess.file_exists(InputReader.CONFIG_PATH):
+		_show_wizard()
 	if "--self-test" in OS.get_cmdline_args() or "--self-test" in OS.get_cmdline_user_args():
 		_self_test.call_deferred()
 
@@ -325,10 +329,22 @@ func _close_menu() -> void:
 		menu = null
 
 
+func _show_wizard() -> void:
+	var wizard = Wizard.new()
+	wizard.setup(sim, reader, settings)
+	wizard.closed.connect(func() -> void: wizard.queue_free())
+	add_child(wizard)
+
+
 func _show_input_setup() -> void:
 	_close_overlays()
 	setup = InputSetup.new()
 	setup.setup(sim, reader, settings)
+	setup.wizard_requested.connect(func() -> void:
+		setup.queue_free()
+		setup = null
+		_show_menu()
+		_show_wizard())
 	setup.closed.connect(func() -> void:
 		setup.queue_free()
 		setup = null

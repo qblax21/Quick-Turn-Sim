@@ -10,7 +10,7 @@ says so.
 | Area | State |
 | --- | --- |
 | Workspace builds with one command on Windows | Verified (`tools\build.ps1`, GNU toolchain) |
-| Test suite | 236 tests pass in release |
+| Test suite | 237 tests pass in release |
 | Headless sim runs and replays exactly | Verified |
 | All cars drivable on all four tracks | Verified with scripted drivers and the front-end smoke test |
 | Front end renders, HUD and overlay work | Verified by screenshots |
@@ -120,6 +120,10 @@ labelled estimated. The gaps were closed with published specifications
 tire size. No understeer data was found.
 
 ### Front end
+- First-run wheel and pedal wizard: steering axis, centre and rotation
+  (from a quarter turn), pedals, brake curve and deadzones, FFB strength
+  in N·m, saved as a profile per device (D-085). The hands-on steps are
+  untried on hardware.
 - Photo mode (F8, or O in a replay): paused free camera, field of view,
   depth of field, stills at up to 4x the window; a trailer director that
   renders a marked replay stretch to a PNG sequence with automatic cuts

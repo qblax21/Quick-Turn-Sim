@@ -42,11 +42,13 @@ var keyboard_brake := 0.0
 
 func _ready() -> void:
 	for action in AXIS_ACTIONS:
-		axes[action] = {"device": -1, "axis": 0, "min": -1.0, "center": 0.0, "max": 1.0, "invert": false}
+		axes[action] = {"device": -1, "axis": 0, "min": -1.0, "center": 0.0, "max": 1.0, "invert": false,
+			"deadzone_low": 0.0, "deadzone_high": 0.0, "curve": 1.0}
 	for action in BUTTON_ACTIONS:
 		buttons[action] = {"device": -1, "button": 0}
 	for action in AXIS_ACTIONS:
-		direct[action] = {"device": "", "axis": 0, "min": -1.0, "center": 0.0, "max": 1.0, "invert": false}
+		direct[action] = {"device": "", "axis": 0, "min": -1.0, "center": 0.0, "max": 1.0, "invert": false,
+			"deadzone_low": 0.0, "deadzone_high": 0.0, "curve": 1.0}
 	for action in BUTTON_ACTIONS:
 		direct[action] = {"device": "", "button": 0}
 	load_config()
@@ -123,7 +125,61 @@ func direct_calibrated(action: String, raw: float) -> float:
 		value = clampf(value, -1.0, 1.0)
 		return -value if m.invert else value
 	value = clampf((raw - m.min) / maxf(m.max - m.min, 0.001), 0.0, 1.0)
-	return 1.0 - value if m.invert else value
+	return shape_pedal(1.0 - value if m.invert else value, m)
+
+
+# Pedal deadzones and curve, the same arithmetic as the core's PedalShape
+# (D-085): travel inside the low deadzone reads zero, inside the high one
+# full, and the rest is raised to the curve's power.
+static func shape_pedal(travel: float, m: Dictionary) -> float:
+	var lo := clampf(m.get("deadzone_low", 0.0), 0.0, 0.45)
+	var hi := clampf(m.get("deadzone_high", 0.0), 0.0, 0.45)
+	var x := clampf((travel - lo) / maxf(1.0 - lo - hi, 0.05), 0.0, 1.0)
+	var curve := clampf(m.get("curve", 1.0), 0.2, 5.0)
+	if curve == 1.0 or x == 0.0:
+		return x
+	return pow(x, curve)
+
+
+# A file-name-safe key for a device's profile.
+static func profile_key(device_name: String) -> String:
+	var key := ""
+	for c in device_name.to_lower():
+		key += c if (c >= "a" and c <= "z") or (c >= "0" and c <= "9") else "_"
+	return key.strip_edges().left(60)
+
+
+# Saves the current mappings as the profile of a device (D-085), with any
+# extra values (force feedback) the caller adds.
+func save_profile(device_name: String, extra: Dictionary) -> String:
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("user://input_profiles"))
+	var path := "user://input_profiles/%s.cfg" % profile_key(device_name)
+	var cfg := ConfigFile.new()
+	cfg.set_value("profile", "device_name", device_name)
+	for action in direct.keys():
+		for key in direct[action].keys():
+			cfg.set_value("direct_" + action, key, direct[action][key])
+	for key in extra.keys():
+		cfg.set_value("extra", key, extra[key])
+	cfg.save(path)
+	return path
+
+
+# Loads a device's profile into the mappings; returns its extra values, or
+# an empty dictionary if there is none.
+func load_profile(device_name: String) -> Dictionary:
+	var cfg := ConfigFile.new()
+	if cfg.load("user://input_profiles/%s.cfg" % profile_key(device_name)) != OK:
+		return {}
+	for action in direct.keys():
+		for key in direct[action].keys():
+			direct[action][key] = cfg.get_value("direct_" + action, key, direct[action][key])
+	use_direct = true
+	var extra := {"found": true}
+	if cfg.has_section("extra"):
+		for key in cfg.get_section_keys("extra"):
+			extra[key] = cfg.get_value("extra", key)
+	return extra
 
 
 func is_mapped(action: String) -> bool:
@@ -155,7 +211,7 @@ func _calibrated_centered(action: String) -> float:
 func _calibrated_pedal(action: String) -> float:
 	var m: Dictionary = axes[action]
 	var value := clampf((raw_axis(action) - m.min) / maxf(m.max - m.min, 0.001), 0.0, 1.0)
-	return 1.0 - value if m.invert else value
+	return shape_pedal(1.0 - value if m.invert else value, m)
 
 
 func _button(action: String) -> bool:

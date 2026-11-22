@@ -25,7 +25,7 @@ use qts_core::input::{InputFrame, GEAR_NO_REQUEST};
 use qts_ffb::FfbConfig;
 use qts_ffb::InputSource;
 use qts_sim::direct_input::{
-    AxisAction, AxisBinding, ButtonAction, ButtonBinding, DirectInputMap, DirectInputs,
+    AxisAction, AxisBinding, ButtonAction, ButtonBinding, DirectInputMap, DirectInputs, PedalShape,
 };
 use qts_sim::ffb_log::FfbLogStatus;
 use qts_sim::host::{HostCommand, HostOptions, RealtimeHost};
@@ -1658,6 +1658,11 @@ impl SimBridge {
                     .get("invert")
                     .and_then(|v| v.try_to::<bool>().ok())
                     .unwrap_or(false),
+                shape: PedalShape {
+                    deadzone_low: get_f(&d, "deadzone_low", 0.0) as f32,
+                    deadzone_high: get_f(&d, "deadzone_high", 0.0) as f32,
+                    curve: get_f(&d, "curve", 1.0) as f32,
+                },
             });
         }
         for d in list("buttons") {

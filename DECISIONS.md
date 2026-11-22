@@ -1367,3 +1367,41 @@ of the input torque at a quarter, half and three-quarter throttle (within
 3 %) and rises with it; on overrun the coast ramp sets it; open lets the
 ice-side wheel spin, locked holds both wheels together, and the clutch
 pack holds the ice wheel back.
+
+## D-085 Wheel and pedal setup wizard; pedal curves and deadzones; device profiles
+
+On first launch (no saved controls and the wizard never run; existing
+installs are not interrupted), and from a button on the Controls screen,
+a wizard walks through:
+
+1. the wheel: turn it, and the axis that moves on any device the core can
+   read on the physics thread is taken as steering;
+2. the centre: held straight ahead;
+3. the rotation: turned exactly a quarter turn; the device reports its
+   whole rotation as -1 to 1, so the rotation lock to lock is
+   180 / (the axis movement), e.g. 0.2 for a 900-degree base; it feeds
+   the rotation matching of D-083, and the steering calibration becomes
+   the whole device range about that centre;
+4. to 6. each pedal: pressed to the floor and released, detected as the
+   axis that moves (not one already taken), its rest and floor recorded;
+   each can be skipped;
+7. brake curve and deadzones: a response curve (an exponent, 1 linear)
+   and a deadzone at each end of every pedal, shown live;
+8. force feedback: the wheel-base model sets the peak torque in N·m and
+   the gain that puts hard cornering at the knee (D-079, D-083);
+9. save: the mappings, shaping, rotation and FFB choice are written as a
+   profile for the device (by name) and loaded again when that device is
+   found.
+
+Pedal shaping is part of the axis mapping (`PedalShape`): travel inside
+the low deadzone reads zero, inside the high one full, and the live
+travel between is raised to the curve's power. The physics-thread path
+(in the core, with the deterministic `powf`) and the front-end path do
+the same arithmetic. What reaches the physics is the shaped value in the
+input frame, so replays are unchanged in kind.
+
+Tests: the shaping (deadzones, curve, continuity; steering ignores it);
+in the game, the rotation from a quarter turn, the suggested gain, the
+same shaping numbers on the front-end side, and a device profile saved
+and loaded back. The steps that need hands on a wheel (turning it,
+pressing pedals) have not been tried on hardware.
