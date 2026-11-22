@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Regressions from a drive (D-088): pulling away on lock, the electric
-//! sedan's lift-off snap, and the steering column's torsion bar.
+//! sedan's lift-off snap, and the steering column's torsion bar; and a
+//! parked car's wheel that shook (D-090).
 
 mod common;
 
@@ -58,7 +59,8 @@ fn the_electric_sedan_does_not_snap_on_a_lift_at_speed() {
 }
 
 /// A scripted Ridgeline lap, hand-limited steering; returns per tick the
-/// torque on the rack side of the torsion bar and the torque felt, N·m.
+/// road's load on the rack side of the torsion bar and what of it is felt
+/// (the felt torque less friction and inertia, which bypass the bar), N·m.
 fn lap(car: &str) -> Vec<(f64, f64, f64)> {
     let mut s: Session = session(car, "ridgeline_circuit");
     let path = s.track().path("circuit").unwrap().clone();
@@ -85,8 +87,9 @@ fn lap(car: &str) -> Vec<(f64, f64, f64)> {
         s.step(&f);
         let o = s.car().output();
         let st = o.steering;
-        let rack = st.load_nm + st.assist_nm + st.friction_nm + st.inertia_nm;
-        out.push((rack, o.steering_torque_nm, o.accel_body[1]));
+        let road = st.load_nm + st.assist_nm;
+        let felt = o.steering_torque_nm - st.friction_nm - st.inertia_nm;
+        out.push((road, felt, o.accel_body[1]));
     }
     out
 }
@@ -112,8 +115,26 @@ fn the_torsion_bar_passes_steady_load_and_softens_shocks() {
         };
         let (rack_hf, felt_hf) = (hf(0), hf(1));
         assert!(
-            felt_hf < 0.35 * rack_hf,
-            "{car}: felt {felt_hf:.4} against rack side {rack_hf:.4} N.m per tick"
+            felt_hf < 0.45 * rack_hf,
+            "{car}: felt {felt_hf:.4} against road load {rack_hf:.4} N.m per tick"
+        );
+        // The largest one-tick jump (a kerb strike) is cut to under a third.
+        let jump = |k: usize| {
+            rows.windows(2)
+                .map(|w| {
+                    if k == 0 {
+                        (w[1].0 - w[0].0).abs()
+                    } else {
+                        (w[1].1 - w[0].1).abs()
+                    }
+                })
+                .fold(0.0_f64, f64::max)
+        };
+        assert!(
+            jump(1) < 0.33 * jump(0),
+            "{car}: largest jump felt {:.3} against road load {:.3} N.m",
+            jump(1),
+            jump(0)
         );
         // Steady cornering on the skidpad circle: the bar passes the load
         // unchanged.
@@ -163,6 +184,52 @@ fn the_torsion_bar_passes_steady_load_and_softens_shocks() {
             "{car}: steady corner felt {:.3} against {:.3} N.m",
             felt / 2000.0,
             rack / 2000.0
+        );
+    }
+}
+
+#[test]
+fn a_parked_cars_wheel_stays_still_with_hands_off() {
+    // The wheel in a closed loop, as on the owner's CSL Elite: a light rim
+    // (0.02 kg.m2) turned only by the force feedback, its angle read in
+    // 16-bit steps over 880 degrees and fed back as steering, the torque
+    // reaching it 4 ms late. Friction and inertia used to reach the rim
+    // through the torsion bar's resonance and drove it into a steady
+    // shake near 8 Hz, at 0.27 rad/s; now it only creeps.
+    use qts_core::input::AXIS_MAX;
+    use qts_ffb::{matched_steer, FfbPipeline};
+    use qts_sim::host::ffb_input;
+    let root = data();
+    for car in CARS {
+        let mut cfg = root.load_ffb("fanatec_csl_elite").unwrap().value;
+        let rotation = 880_f64.to_radians();
+        cfg.device_rotation_rad = rotation;
+        let peak = cfg.device_max_torque_nm;
+        let mut s = session(car, "test_track");
+        let mut pipeline = FfbPipeline::new(cfg.clone(), s.tick_rate_hz()).unwrap();
+        let lock = s.car().params().steering.max_wheel_angle_rad;
+        let step = rotation / 65536.0;
+        let (j, dt) = (0.02, 0.001);
+        let (mut angle, mut rate) = (5_f64.to_radians(), 0.0_f64);
+        let mut late = std::collections::VecDeque::from(vec![0.0; 4]);
+        let mut worst: f64 = 0.0;
+        for t in 0..8000 {
+            let read = (angle / step).round() * step;
+            let steer = matched_steer(read / (0.5 * rotation), rotation, lock);
+            let mut f = InputFrame::from_analog(0.0, 0.0, 0.0, 0.0, 0.0);
+            f.steer = (steer * f64::from(AXIS_MAX)).round() as i16;
+            s.step(&f);
+            let sample = pipeline.step(&ffb_input(&s, Some(read)));
+            late.push_back(f64::from(sample.device_command(&cfg)) * peak);
+            rate += late.pop_front().unwrap() / j * dt;
+            angle += rate * dt;
+            if t >= 4000 {
+                worst = worst.max(rate.abs());
+            }
+        }
+        assert!(
+            worst < 0.05,
+            "{car}: the parked wheel moves at up to {worst:.3} rad/s"
         );
     }
 }

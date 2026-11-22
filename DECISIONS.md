@@ -1532,3 +1532,34 @@ opening a device; `godot/tests/direct_map.gd` feeds it a map built from a
 config file in the saved format and checks the axes (0, 1, 5, 6), the
 pedal curves and a gate button. Built with the old strict read, the test
 fails on throttle, brake, clutch and the gate, as reported.
+
+## D-090 A parked car's wheel shook
+
+The owner reported the wheel shaking with the car stationary. Reproduced
+in a closed loop (`a_parked_cars_wheel_stays_still_with_hands_off`): the
+CSL Elite preset, a 0.02 kg·m² rim turned only by the force feedback, its
+angle read in 16-bit steps over 880 degrees and fed back as steering, the
+torque 4 ms late. Hands off, the wheel settled into a steady shake of
+about ±0.7 degrees near 8 Hz (rim speed up to 0.28 rad/s, ±0.18 N·m at
+the rim) while the tire load stayed near zero.
+
+Cause: D-088 passed the whole rack-side torque through the torsion bar's
+second-order filter (natural frequency 7.6 Hz), including rack friction
+and reflected inertia. Those two answer the driver's own movement of the
+wheel, which the simulation imposes on the column directly; delayed by
+the bar's resonance, the friction (a steep damper within 0.15 rad/s)
+stopped damping the rim and drove it.
+
+Fix: only the road's load (tire and assist) goes through the bar; friction
+and inertia are added after it. Hands off, the parked wheel now only
+creeps by one angle step at a time (under 0.05 rad/s; 0.006 seen).
+
+Effect on D-088: the bar still cuts the road load's tick-to-tick
+roughness to 36-40 % and its largest one-tick jump from 1.5-2.1 N·m to
+0.38 N·m, so kerb kicks stay softened. The felt torque's overall
+roughness on a scripted lap is now close to the rack side's (0.91), since
+most of it is friction reversing with the scripted driver's quick hand
+movements; D-088's figure of under 35 % had counted that friction as
+filtered. The torsion-bar test now measures the road load it filters
+(under 45 % roughness, largest jump under a third); the steady-corner
+check is unchanged.

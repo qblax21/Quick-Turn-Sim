@@ -1091,22 +1091,27 @@ impl Car {
         // the bar follow the rack-side torque as a second-order system: a
         // steady load passes unchanged, a sudden one (a kerb, a wheel
         // landing) is rounded off (D-088).
-        let rack_side = driver_nm + friction_nm + inertia_nm;
+        //
+        // Only the road's load goes through that filter. Friction and
+        // inertia answer the driver's own movement of the wheel, which the
+        // simulation imposes on the column directly; delayed by the bar's
+        // resonance they stopped damping the rim and drove it, and a parked
+        // car's wheel shook at the bar's frequency, near 8 Hz (D-090).
         let steering_torque_nm = if legacy.is_some() {
-            rack_side
+            driver_nm + friction_nm + inertia_nm
         } else {
             let s = &mut self.state;
             if !s.column_settled {
-                s.torsion_torque_nm = rack_side;
+                s.torsion_torque_nm = driver_nm;
                 s.torsion_rate_nm_s = 0.0;
                 s.column_settled = true;
             }
             let wn = fm::sqrt(st.torsion_bar_nm_per_rad / st.assist_side_inertia_kg_m2);
-            let accel = wn * wn * (rack_side - s.torsion_torque_nm)
+            let accel = wn * wn * (driver_nm - s.torsion_torque_nm)
                 - 2.0 * st.torsion_damping_ratio * wn * s.torsion_rate_nm_s;
             s.torsion_rate_nm_s += accel * dt;
             s.torsion_torque_nm += s.torsion_rate_nm_s * dt;
-            s.torsion_torque_nm
+            s.torsion_torque_nm + friction_nm + inertia_nm
         };
         let steering = SteeringOutput {
             load_nm,
