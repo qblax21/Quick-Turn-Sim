@@ -16,8 +16,9 @@ var interior: Node3D
 var steering_rim: Node3D
 # Eye point of the driver's seat, relative to the centre of gravity.
 var seat_offset := Vector3(-0.36, 0.6, 0.3)
-# Wheel meshes from the model, front and rear, or empty.
+# Wheel and brake caliper meshes from the model, front and rear, or empty.
 var model_wheels: Array = []
+var model_calipers: Array = []
 
 
 # The model for a car id: its own, or that of the car it is a variant of
@@ -35,16 +36,16 @@ static func model_path(id: String) -> String:
 	return ""
 
 
-# Adds the model's body parts and keeps its two wheel meshes.
+# Adds the model's body parts and keeps its wheel and caliper meshes.
 func _add_model(path: String) -> void:
 	var scene: Node = (load(path) as PackedScene).instantiate()
-	var front: MeshInstance3D = scene.find_child("wheel_front", true, false)
-	var rear: MeshInstance3D = scene.find_child("wheel_rear", true, false)
-	model_wheels = [front.mesh, rear.mesh]
-	front.get_parent().remove_child(front)
-	rear.get_parent().remove_child(rear)
-	front.free()
-	rear.free()
+	for list in [[model_wheels, "wheel_"], [model_calipers, "caliper_"]]:
+		for axle in ["front", "rear"]:
+			var node: MeshInstance3D = scene.find_child(list[1] + axle, true, false)
+			list[0].append(node.mesh if node else null)
+			if node:
+				node.get_parent().remove_child(node)
+				node.free()
 	scene.name = "model"
 	add_child(scene)
 
@@ -159,11 +160,22 @@ func build(info: Dictionary) -> void:
 		add_child(pivot)
 		wheels.append(pivot)
 		if not model_wheels.is_empty():
-			# The model's wheel faces +X; update() mirrors it on the left.
+			# pivot (steers) > side (mirrored on the left, as the model's
+			# wheel faces +X) > the spinning wheel, and the caliper, which
+			# steers with it but does not spin.
+			var mirror := Node3D.new()
+			mirror.name = "side"
+			pivot.add_child(mirror)
 			var wheel := MeshInstance3D.new()
 			wheel.name = "wheel"
 			wheel.mesh = model_wheels[0 if is_front else 1]
-			pivot.add_child(wheel)
+			mirror.add_child(wheel)
+			var caliper_mesh: Mesh = model_calipers[0 if is_front else 1]
+			if caliper_mesh:
+				var caliper := MeshInstance3D.new()
+				caliper.name = "caliper"
+				caliper.mesh = caliper_mesh
+				mirror.add_child(caliper)
 			continue
 		# A cylinder's axis is local Y; the axle is local X.
 		_wheel_disc(pivot, radius, tire_width, rubber)
@@ -264,6 +276,10 @@ func update(car_xform: Transform3D, states: PackedFloat32Array, steering_wheel_a
 		pivot.position = Vector3(states[o], states[o + 1], states[o + 2])
 		if not model_wheels.is_empty():
 			# Outer face outward: mirrored on the left (negative x).
-			pivot.get_child(0).scale.x = -1.0 if states[o] < 0.0 else 1.0
+			var mirror: Node3D = pivot.get_child(0)
+			mirror.scale.x = -1.0 if states[o] < 0.0 else 1.0
+			pivot.rotation = Vector3(0.0, states[o + 3], 0.0)
+			mirror.get_child(0).rotation.x = -states[o + 4]
+			continue
 		# Default Euler order is YXZ: steer about Y, then roll about X.
 		pivot.rotation = Vector3(-states[o + 4], states[o + 3], 0.0)

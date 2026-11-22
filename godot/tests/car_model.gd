@@ -38,14 +38,23 @@ func _run() -> void:
 		_check(model != null and model.find_child("body", true, false) != null, "%s draws the model's body" % id)
 		_check(model != null and model.find_child("wheel_front", true, false) == null, "%s's wheel templates are not left on the body" % id)
 		var wheels := 0
+		var calipers := 0
 		for pivot in view.wheels:
-			if pivot.get_child_count() == 1 and pivot.get_child(0) is MeshInstance3D and pivot.get_child(0).mesh != null:
+			var side: Node = pivot.get_node_or_null("side")
+			if side and side.get_node_or_null("wheel") and side.get_node("wheel").mesh != null:
 				wheels += 1
+			if side and side.get_node_or_null("caliper") and side.get_node("caliper").mesh != null:
+				calipers += 1
 		_check(wheels == 4, "%s has four model wheels (got %d)" % [id, wheels])
-		# A left wheel (negative x) is mirrored so its face points out.
-		var states := PackedFloat32Array([-0.75, -0.24, -0.93, 0, 0, 0.75, -0.24, -0.93, 0, 0, -0.75, -0.24, 1.57, 0, 0, 0.75, -0.24, 1.57, 0, 0])
+		_check(calipers == 4, "%s has four brake calipers (got %d)" % [id, calipers])
+		# Front wheels steered 0.3 rad and every wheel turned 1 rad.
+		var states := PackedFloat32Array([-0.75, -0.24, -0.93, 0.3, 1, 0.75, -0.24, -0.93, 0.3, 1, -0.75, -0.24, 1.57, 0, 1, 0.75, -0.24, 1.57, 0, 1])
 		view.update(Transform3D.IDENTITY, states)
-		_check(view.wheels[0].get_child(0).scale.x < 0.0 and view.wheels[1].get_child(0).scale.x > 0.0, "%s mirrors the left wheels" % id)
+		var fl: Node3D = view.wheels[0]
+		_check(fl.get_node("side").scale.x < 0.0 and view.wheels[1].get_node("side").scale.x > 0.0, "%s mirrors the left wheels" % id)
+		_check(is_equal_approx(fl.rotation.y, 0.3), "%s steers the front wheels" % id)
+		_check(is_equal_approx(fl.get_node("side/wheel").rotation.x, -1.0), "%s spins the wheels" % id)
+		_check(fl.get_node("side/caliper").rotation == Vector3.ZERO, "%s's calipers steer but do not spin" % id)
 		view.free()
 	_check(CarView.model_path("hatch_tern_gt_lsd") == "res://assets/cars/hatch_tern_gt.glb", "a variant uses its base car's model")
 	_check(CarView.model_path("no_such_car") == "", "a car without a model has no path")

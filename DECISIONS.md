@@ -1591,3 +1591,36 @@ driver's-seat view looks out through the shell; the door mirrors are
 visible from the seat. Hand edits to a .blend are overwritten when the
 script is rerun. Checked by `godot/tests/car_model.gd` and by in-game
 screenshots of both cars.
+
+## D-092 Each car drawn so its type reads at a glance
+
+The owner asked for the models to look more like the cars they stand for
+and to carry more detail, without being those cars. Each car now has a
+style in `tools/blender/make_car.py` that draws on the look of its type,
+not of one model, and copies no badge, name, grille or lamp graphic:
+
+- Tern GT, a hot hatch: upright nose with slim headlamps joined by a black
+  grille band and a thin red line, a large mesh lower intake with side
+  intakes and fog lamps, five-door glasshouse with a black B-pillar and a
+  small quarter light ahead of a thick forward-leaning C-pillar, roof
+  spoiler with a brake light over a steep tailgate, a wiper, twin round
+  tailpipes, five split-spoke silver wheels.
+- Halden E4, an electric sport sedan: low rounded nose with no upper
+  grille, swept headlamps set into its top, a slim lower intake, a more
+  raked screen, one sweep of dark glass from screen to boot, flush door
+  handles, a short boot with a black lip spoiler, tail lamps wrapping onto
+  the sides, a finned diffuser, dark ten-blade turbine wheels.
+
+Both gain panel gaps (doors, bonnet, tailgate or boot), door handles,
+mirrors on arms, black sills, a front and rear plate, wheel nuts, tread
+grooves and red brake calipers. The calipers are their own meshes: the
+car view puts them under the steering pivot but outside the spinning
+wheel, so they steer and do not turn. The side glass is now drawn as
+panels on black surrounds, which lets window outlines slope (A- and
+C-pillars) instead of following the body's cross-sections. About 12 000
+faces per car.
+
+Not changed: the dimensions. The Tern GT's placeholder size (3.95 m long,
+2.50 m wheelbase) is shorter than its comparable, and the overhangs stay
+equal (D-091); both are simulation parameters, left as they are.
+
