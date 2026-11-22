@@ -93,6 +93,47 @@ is the qualitative "moderate understeer".
 Ratios are derived from these (D-083): 11.73 and 10.30. Driven at full
 lock, the cars trace 11.12 m and 11.81 m.
 
+## Tire sanity (D-086)
+
+Published ranges, from [Wikipedia, "Tire load sensitivity"](https://en.wikipedia.org/wiki/Tire_load_sensitivity)
+(read 2026-11-21), which cites Milliken and Milliken, *Race Car Vehicle
+Dynamics* (SAE, 1995), p. 27 and figure 2.9:
+
+- production-car tires develop their peak lateral force at 6 to 10 degrees
+  of slip angle, and the angle rises with load (in the book's figure,
+  5.6, 6.0 and 6.7 degrees at 900, 1350 and 1800 lbf);
+- the friction coefficient falls as load rises (1.10, 1.08, 0.97 in that
+  figure), while the peak force still rises, roughly as the load to a
+  power of 0.7 to 0.9 (marked "citation needed" in the article).
+
+No source was found for the slip ratio of the longitudinal peak; it is
+plotted but not judged.
+
+`qts-sim tire-plots` draws, for each tire file, lateral force against slip
+angle and longitudinal force against slip ratio at half, one and one and a
+half times the reference load, and the combined-slip curves at the
+reference load; `crates/qts-sim/tests/tire_sanity.rs` checks the same
+curves.
+
+| Tire | Peak slip angle at 0.5 / 1 / 1.5 x load | Peak Fy/Fz | Load exponent | Combined slip, worst | Result |
+| --- | --- | --- | --- | --- | --- |
+| summer_225_40r18 (Tern GT) | 8.65 / 9.45 / 10.95 deg | 1.20 / 1.12 / 1.04 | 0.84 | 1.039 of the ellipse | inside the ranges; ellipse gap |
+| performance_235_40r19 (Halden E4) | 8.65 / 9.45 / 10.95 deg | 1.20 / 1.12 / 1.04 | 0.84 | 1.039 | inside the ranges; ellipse gap |
+| street_205_45r17 (unused since D-078) | 9.30 / 10.15 / 11.75 deg | 1.17 / 1.09 / 1.01 | 0.83 | 1.032 | peak 0.15 deg beyond 10; ellipse gap |
+
+Plots: `docs/img/tire_summer_225_40r18.svg`,
+`docs/img/tire_performance_235_40r19.svg`, `docs/img/tire_street_205_45r17.svg`.
+
+Known gaps, no physics changed (awaiting approval):
+
+1. **Combined slip**: braking at about 6 degrees of slip angle, every file
+   reaches 3 to 4 % beyond the ellipse of its pure peaks. Likely cause:
+   the placeholder combined-slip weights `rbx1`, `rbx2`; raising them would
+   pull it in. Not yet confirmed by trying.
+2. **Street tire peak angle**: 10.15 degrees at its reference load, 0.15
+   beyond the range; raising `pky1` would bring it in. No car uses the
+   tire.
+
 ## Results, before and after closing the gaps (D-078)
 
 `cargo run --release -p qts-validate`. "Before" is D-077, "after" D-078.

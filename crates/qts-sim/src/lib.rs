@@ -26,6 +26,7 @@ pub mod playback;
 pub mod session;
 pub mod setup;
 pub mod telemetry;
+pub mod tire_plots;
 pub mod track;
 
 pub use data::{DataError, DataRoot};

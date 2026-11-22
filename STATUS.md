@@ -10,7 +10,7 @@ says so.
 | Area | State |
 | --- | --- |
 | Workspace builds with one command on Windows | Verified (`tools\build.ps1`, GNU toolchain) |
-| Test suite | 237 tests pass in release |
+| Test suite | 238 tests pass in release |
 | Headless sim runs and replays exactly | Verified |
 | All cars drivable on all four tracks | Verified with scripted drivers and the front-end smoke test |
 | Front end renders, HUD and overlay work | Verified by screenshots |
@@ -99,6 +99,9 @@ sees in the demo is described in `DEMO.md`.
 ### Telemetry, import, validation
 - Telemetry CSV with 116 documented channels; a test keeps the document and
   the code in step.
+- Tire sanity plots for every tire file (`qts-sim tire-plots`) checked
+  against published peak slip angle and load sensitivity (D-086); two
+  known gaps listed in `docs/VALIDATION_SOURCES.md`, awaiting approval.
 - Per-lap telemetry files and a two-lap comparison by distance with an SVG
   chart (`qts-sim lap-compare`, D-081).
 - Logger CSV importer with column-mapping profiles and run summaries,

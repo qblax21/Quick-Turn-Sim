@@ -1405,3 +1405,27 @@ in the game, the rotation from a quarter turn, the suggested gain, the
 same shaping numbers on the front-end side, and a device profile saved
 and loaded back. The steps that need hands on a wheel (turning it,
 pressing pedals) have not been tried on hardware.
+
+## D-086 Tire sanity plots against published ranges
+
+For each tire file, `qts-sim tire-plots` computes the steady-state Magic
+Formula as the simulation uses it (reference pressure, optimum
+temperature, tarmac) and draws lateral force against slip angle and
+longitudinal force against slip ratio at half, one and one and a half
+times the reference load, and the combined-slip curves at the reference
+load (`docs/img/tire_<id>.svg`). The same curves (`qts_sim::tire_plots`)
+are checked in `tests/tire_sanity.rs` against published ranges, from
+Wikipedia's "Tire load sensitivity" citing Milliken and Milliken (1995):
+peak lateral force at 6 to 10 degrees of slip angle for production-car
+tires, rising with load; the friction coefficient falling with load; the
+peak force rising roughly as load to the 0.7 to 0.9 (that last marked as
+needing a citation in the article). The longitudinal peak's slip ratio
+has no source found, so it is plotted, not judged. Combined slip is
+checked against the friction ellipse of the pure peaks in the same
+direction.
+
+No physics was changed. Two gaps are recorded in the test and in
+`docs/VALIDATION_SOURCES.md`: every file exceeds the ellipse by 3 to 4 %
+when braking at about 6 degrees (likely the placeholder `rbx1`, `rbx2`),
+and the unused street tire peaks at 10.15 degrees. The test fails if
+either gap grows or closes, so the record stays true.

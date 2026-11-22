@@ -54,6 +54,9 @@ Commands:
   lap-compare A.csv B.csv [--svg FILE] [--step M]
                                          line two lap files up by distance:
                                          where B gains and loses time on A
+  tire-plots [--out DIR]                 force against slip at three loads and
+                                         the combined-slip envelope, one SVG
+                                         per tire file (default docs/img)
   ffb-devices                            list steering devices
   input-read [--device ID] [--reads N]   read every axis and button of the
                                          attached controllers and time the reads
@@ -805,6 +808,33 @@ fn steer_row(s: &Session) -> SteerRow {
     }
 }
 
+fn cmd_tire_plots(args: &Args) -> Result<(), String> {
+    use qts_sim::tire_plots::{curves, peak, svg};
+    let root = data_root()?;
+    let out = args.text("out").unwrap_or("docs/img");
+    let surface = root
+        .load_surface("tarmac")
+        .map_err(|e| e.to_string())?
+        .value;
+    for id in root.list("tires").map_err(|e| e.to_string())? {
+        let p = root.load_tire(&id).map_err(|e| e.to_string())?.value;
+        let c = curves(&p, &surface);
+        for (k, load) in c.loads.iter().enumerate() {
+            let (a, fy) = peak(&c.lateral[k]);
+            let (s, fx) = peak(&c.longitudinal[k]);
+            println!(
+                "{id:22} {load:6.0} N  lateral peak {:.3} x load at {a:5.2} deg  longitudinal peak {:.3} x load at slip {s:.3}",
+                fy / load,
+                fx / load
+            );
+        }
+        let path = format!("{out}/tire_{id}.svg");
+        std::fs::write(&path, svg(&c, &p.name)).map_err(|e| format!("{path}: {e}"))?;
+        println!("  -> {path}");
+    }
+    Ok(())
+}
+
 fn cmd_lap_compare(args: &Args) -> Result<(), String> {
     use qts_sim::lap_telemetry::{compare, compare_svg, Lap};
     let [a, b] = args
@@ -1219,6 +1249,7 @@ fn main() -> ExitCode {
         "steering-compare" => cmd_steering_compare(&args).map(|()| true),
         "ffb-gain" => cmd_ffb_gain(&args).map(|()| true),
         "lap-compare" => cmd_lap_compare(&args).map(|()| true),
+        "tire-plots" => cmd_tire_plots(&args).map(|()| true),
         "ffb-devices" => cmd_ffb_devices().map(|()| true),
         "input-read" => cmd_input_read(&args).map(|()| true),
         "ffb-test" => cmd_ffb_test(&args).map(|()| true),
