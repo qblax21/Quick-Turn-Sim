@@ -75,6 +75,20 @@ impl Default for TractionControlParams {
     }
 }
 
+impl BodyParams {
+    /// Front axle to nose, m: the data's figure, or half of length minus
+    /// wheelbase when it has none.
+    pub fn front_overhang(&self) -> f64 {
+        self.front_overhang_m
+            .unwrap_or(0.5 * (self.length_m - self.wheelbase_m))
+    }
+
+    /// Centre of the body box ahead of the sprung centre of gravity, m.
+    pub fn box_center_x(&self) -> f64 {
+        self.cg_to_front_axle_m + self.front_overhang() - 0.5 * self.length_m
+    }
+}
+
 /// Sprung body mass properties and outline.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -96,6 +110,10 @@ pub struct BodyParams {
     pub cg_height_m: f64,
     /// Overall body length, m. Used for ground contact and drawing.
     pub length_m: f64,
+    /// Distance from the front axle to the nose, m. Optional: without it
+    /// the overhangs are equal (see `front_overhang`).
+    #[serde(default)]
+    pub front_overhang_m: Option<f64>,
     /// Overall body width, m.
     pub width_m: f64,
     /// Body height from underside to roof, m.
@@ -740,6 +758,13 @@ impl CarParams {
         }
         positive("body.cg_height_m", b.cg_height_m)?;
         positive("body.length_m", b.length_m)?;
+        if let Some(f) = b.front_overhang_m {
+            if !(f.is_finite() && f >= 0.0 && f <= b.length_m - b.wheelbase_m) {
+                return Err(format!(
+                    "body.front_overhang_m must be between 0 and length minus wheelbase, got {f}"
+                ));
+            }
+        }
         positive("body.width_m", b.width_m)?;
         positive("body.height_m", b.height_m)?;
         positive("body.ground_clearance_m", b.ground_clearance_m)?;

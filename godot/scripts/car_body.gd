@@ -62,7 +62,9 @@ func setup(info: Dictionary) -> void:
 	keys = TWO_BOX if length < TWO_BOX_MAX_LENGTH else THREE_BOX
 	# The origin is the sprung centre of gravity; forward is -Z.
 	floor_y = -(cg_height - clearance)
-	nose_z = -(cg_to_front - wheelbase * 0.5) - length * 0.5
+	# Nose ahead of the front axle by the front overhang (equal overhangs
+	# when the car data gives none), as the simulation's body box.
+	nose_z = -(cg_to_front + float(info.get("front_overhang", 0.5 * (length - wheelbase))))
 	for front in [true, false]:
 		var radius: float = info.get("wheel_radius_front" if front else "wheel_radius_rear", 0.31)
 		var tire_width: float = info.get("tire_width_front" if front else "tire_width_rear", 0.22)

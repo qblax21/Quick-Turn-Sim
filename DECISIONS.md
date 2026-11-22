@@ -1715,3 +1715,24 @@ and are cast in several rows so they follow its curve. The headlamps and
 grille are larger, and the tail lamps move inboard for the rounder tail.
 The other cars are unchanged. The overhangs stay equal (D-094). About
 14 500 faces.
+
+## D-096 Front overhang in the car data
+
+Until now the body box (ground and wall contact) and the drawn body were
+centred between the axles, so every car had equal overhangs. The real
+small hatch the Tern GT is based on (D-093) has a long nose and a short
+tail, and the owner asked for the model to match it. `body.front_overhang_m`
+is a new optional figure, front axle to nose. Without it the overhangs
+stay equal, so the Halden E4 and older data are unchanged.
+`BodyParams::front_overhang` and `box_center_x` give the figure and the
+box's place; the contact points (`qts-vehicle`), the wall and cone box
+(`qts-sim`), the generated body in Godot and the Blender model all use
+them, so what is drawn is what collides.
+
+The Tern GT takes 691 mm, from BMW Group press technical data for the
+2011 MINI hatch, seen only as a search-result excerpt (691 / 565 mm; the
+sheet itself redirects and was not read). The two add up to the 3723 mm
+version's length less the wheelbase; the data keeps the 3729 mm length,
+so the rear overhang is 571 mm. Confidence `estimated`. The body box
+moves 61 mm forward, which changes only body contact: tire forces,
+masses and the validation results are unchanged.

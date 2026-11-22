@@ -422,8 +422,8 @@ impl Car {
                 ),
             };
         }
-        // Body box for ground contact, centred between the axles.
-        let x_mid = 0.5 * (a - c);
+        // Body box for ground contact, placed by the front overhang.
+        let x_mid = b.box_center_x();
         let z_bottom = -(b.cg_height_m - b.ground_clearance_m);
         let z_top = z_bottom + b.height_m;
         let mut contact_points = [Vec3::ZERO; 8];

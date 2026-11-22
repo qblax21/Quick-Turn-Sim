@@ -49,6 +49,17 @@ pub mod test_support {
         }
     }
 
+    #[test]
+    fn body_box_follows_the_front_overhang() {
+        let mut b = body();
+        // Equal overhangs: the box is centred between the axles.
+        assert!((b.front_overhang() - 0.75).abs() < 1e-12);
+        assert!((b.box_center_x() - (-0.3)).abs() < 1e-12);
+        // A longer nose moves the box forward by the difference.
+        b.front_overhang_m = Some(0.85);
+        assert!((b.box_center_x() - (-0.2)).abs() < 1e-12);
+    }
+
     fn body() -> BodyParams {
         BodyParams {
             sprung_mass_kg: 1150.0,
@@ -59,6 +70,7 @@ pub mod test_support {
             cg_to_front_axle_m: 1.0,
             cg_height_m: 0.55,
             length_m: 4.1,
+            front_overhang_m: None,
             width_m: 1.75,
             height_m: 1.2,
             ground_clearance_m: 0.13,

@@ -55,7 +55,7 @@ cars and from the maker, as labelled.
 | Gearbox | 3.308, 2.130, 1.483, 1.139, 0.949, 0.816; reverse 3.231; final drive 3.706 | same |
 | Differential | open (the `hatch_tern_gt_lsd` variant has a limited-slip) | open; limited-slip optional |
 | Mass | 1265 kg with driver | 2623 lb (1190 kg) measured, 2007 car; 1205 to 1215 kg quoted at the kerb |
-| Size | 3729 x 1683 mm, 2467 mm wheelbase, tracks 1453 / 1461 mm | same |
+| Size | 3729 x 1683 mm, 2467 mm wheelbase, tracks 1453 / 1461 mm, overhangs 691 / 571 mm (since D-096) | same; overhangs 691 / 565 mm on the 3723 mm car |
 | Tires | 195/55 R16 summer placeholder | 195/55 R16 standard; 17 inch optional |
 | Aero | 0.72 m2 drag area | Cd 0.36, 1.99 m2 |
 | Steering | 2.4 turns lock to lock, ratio 13.40 derived (D-083 method) | 2.4 turns; 10.7 m turning circle |
@@ -66,6 +66,7 @@ Sources of the car data:
 | --- | --- |
 | Length 3729 mm, width 1683, height 1407, ground clearance 149, wheelbase 2467, tracks 1453 / 1461, kerb 1215 kg, Cd 0.36 x 1.99 m2, 260 N.m at 1700 to 4500 rpm, 135 kW at 5500 rpm, 2.4 turns lock to lock, 195/55 R16 87V on 6.5J x 16, discs 294 / 259 mm, 228 km/h, 0-100 km/h 7 s | [Carfolio, 2010 MINI Cooper S R56](https://www.carfolio.com/mini-cooper-s-216579), read 2026-11-22 (maker's figures as compiled there) |
 | Gear ratios, final drive 3.706, reverse 3.231, wheelbase, 10.7 m turning circle, length 3714 mm before the update | BMW Group press technical data for the MINI Cooper S, January 2010 and March 2012, seen as search-result excerpts of press.bmwgroup.com attachments; the attachment links now redirect to the newsroom home page, so the sheets were not read first-hand |
+| Overhangs 691 mm front, 565 mm rear | BMW Group press technical data for the 2011 MINI hatch (press.bmwgroup.com attachment T0097274EN_GB), seen as a search-result excerpt on 2026-11-22; the link redirects to the newsroom home page and automobile-catalog.com refused the browser, so it was not read first-hand. The sheet does not say which variant; the two add up to 1256 mm, the 3723 mm length (CarExpert) less the wheelbase. The Tern GT keeps the 691 mm nose and takes the remainder at the rear |
 | 240 N.m, 192 lb-ft (260 N.m) on overboost, 181 hp | [Edmunds, 2011 MINI Cooper review](https://www.edmunds.com/mini/cooper/2011/review/), read 2026-11-22 |
 | 2623 lb as tested, optional limited-slip differential, 0-60 in 6.5 s (2007 Cooper S, 172 hp) | [Edmunds, 2007 MINI Cooper S long-term road test](https://www.edmunds.com/mini/cooper/2007/long-term-road-test/), read 2026-11-22 |
 

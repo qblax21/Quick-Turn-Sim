@@ -883,6 +883,7 @@ impl SimBridge {
             "name" => gstr(&c.name),
             "class" => gstr(&c.class),
             "length" => b.length_m,
+            "front_overhang" => b.front_overhang(),
             "width" => b.width_m,
             "height" => b.height_m,
             "ground_clearance" => b.ground_clearance_m,

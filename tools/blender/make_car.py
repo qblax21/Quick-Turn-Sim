@@ -78,6 +78,10 @@ def car_dimensions(path):
         t = read_toml(os.path.join(tires_dir, car[key] + ".toml"))
         tires.append((value(t["geometry"]["unloaded_radius_m"]), value(t["geometry"]["width_m"])))
     length = value(b["length_m"])
+    wheelbase = value(b["wheelbase_m"])
+    # Front axle to nose: the data's figure, else equal overhangs, as the
+    # simulation's body box (BodyParams::front_overhang).
+    front_overhang = value(b["front_overhang_m"]) if "front_overhang_m" in b else 0.5 * (length - wheelbase)
     return {
         "id": car["id"],
         "style": STYLES.get(car["id"], "hatch" if length < 4.3 else "sedan"),
@@ -86,7 +90,8 @@ def car_dimensions(path):
         "height": value(b["height_m"]),
         "clearance": value(b["ground_clearance_m"]),
         "cg_height": value(b["cg_height_m"]),
-        "wheelbase": value(b["wheelbase_m"]),
+        "wheelbase": wheelbase,
+        "front_overhang": front_overhang,
         "cg_to_front": value(b["cg_to_front_axle_m"]),
         "tracks": (value(car["suspension"]["front"]["track_m"]), value(car["suspension"]["rear"]["track_m"])),
         "tires": tires,
@@ -181,8 +186,7 @@ def body_design(d):
     half-width a fraction of half the overall width. Also returns the
     places the details are drawn at, as distances from the nose."""
     L, wb = d["length"], d["wheelbase"]
-    over = 0.5 * (L - wb)               # equal overhangs, as the sim's body box
-    fa, ra = over, over + wb             # axle stations
+    fa, ra = d["front_overhang"], d["front_overhang"] + wb   # axle stations, as the sim's body box
     eye = fa + 0.55 * wb                 # driver's eye, as car_view.gd
     if d["style"] == "small":
         # Small upright three-door: short bonnet with an upright face, an
@@ -348,7 +352,7 @@ class Frame:
         self.H = d["height"]
         self.hw = 0.5 * d["width"]
         self.zf = -(d["cg_height"] - d["clearance"])
-        self.y_nose = (d["cg_to_front"] - 0.5 * d["wheelbase"]) + 0.5 * d["length"]
+        self.y_nose = d["cg_to_front"] + d["front_overhang"]
 
     def y(self, s):
         return self.y_nose - s

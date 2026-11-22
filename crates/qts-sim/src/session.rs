@@ -248,8 +248,7 @@ impl Session {
         let body = &assets.car.body;
         let half_length = 0.5 * body.length_m;
         let half_width = 0.5 * body.width_m;
-        let box_center_x =
-            0.5 * (body.cg_to_front_axle_m - (body.wheelbase_m - body.cg_to_front_axle_m));
+        let box_center_x = body.box_center_x();
         let susp = &assets.car.suspension;
         let mass =
             body.sprung_mass_kg + 2.0 * (susp.front.unsprung_mass_kg + susp.rear.unsprung_mass_kg);
