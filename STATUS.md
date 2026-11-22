@@ -100,8 +100,8 @@ sees in the demo is described in `DEMO.md`.
 - Telemetry CSV with 116 documented channels; a test keeps the document and
   the code in step.
 - Tire sanity plots for every tire file (`qts-sim tire-plots`) checked
-  against published peak slip angle and load sensitivity (D-086); two
-  known gaps listed in `docs/VALIDATION_SOURCES.md`, awaiting approval.
+  against published peak slip angle and load sensitivity, and combined
+  slip inside the friction ellipse (D-086, D-087).
 - Per-lap telemetry files and a two-lap comparison by distance with an SVG
   chart (`qts-sim lap-compare`, D-081).
 - Logger CSV importer with column-mapping profiles and run summaries,
@@ -111,7 +111,7 @@ sees in the demo is described in `DEMO.md`.
 
 | Metric | Tern GT vs Golf GTI Mk7 | error | Halden E4 vs Model 3 Performance | error | tolerance |
 | --- | --- | --- | --- | --- | --- |
-| Skidpad lateral | 0.934 g vs 0.94 | -0.6% | 0.955 g vs 0.96 | -0.5% | 10% |
+| Skidpad lateral | 0.923 g vs 0.94 | -1.9% | 0.953 g vs 0.96 | -0.7% | 10% |
 | 70-0 mph distance | 46.6 m vs 46.9 | -0.7% | 46.6 m vs 44.8 | +3.9% | 10% |
 | 0-60 mph, 1 ft rollout | 6.08 s vs 5.9 | +3.0% | 2.91 s vs 3.1 | -6.3% | 10% |
 | Top speed | 70.0 m/s vs 69.4 | +0.8% | 71.7 m/s vs 72.4 | -1.0% | 6% |

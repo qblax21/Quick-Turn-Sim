@@ -117,22 +117,24 @@ curves.
 
 | Tire | Peak slip angle at 0.5 / 1 / 1.5 x load | Peak Fy/Fz | Load exponent | Combined slip, worst | Result |
 | --- | --- | --- | --- | --- | --- |
-| summer_225_40r18 (Tern GT) | 8.65 / 9.45 / 10.95 deg | 1.20 / 1.12 / 1.04 | 0.84 | 1.039 of the ellipse | inside the ranges; ellipse gap |
-| performance_235_40r19 (Halden E4) | 8.65 / 9.45 / 10.95 deg | 1.20 / 1.12 / 1.04 | 0.84 | 1.039 | inside the ranges; ellipse gap |
-| street_205_45r17 (unused since D-078) | 9.30 / 10.15 / 11.75 deg | 1.17 / 1.09 / 1.01 | 0.83 | 1.032 | peak 0.15 deg beyond 10; ellipse gap |
+| summer_225_40r18 (Tern GT) | 8.65 / 9.45 / 10.95 deg | 1.20 / 1.12 / 1.04 | 0.84 | 0.9997 of the ellipse | inside every range |
+| performance_235_40r19 (Halden E4) | 8.65 / 9.45 / 10.95 deg | 1.20 / 1.12 / 1.04 | 0.84 | 0.9997 | inside every range |
+| street_205_45r17 (unused since D-078) | 9.05 / 9.65 / 11.15 deg | 1.17 / 1.09 / 1.01 | 0.83 | 0.9998 | inside every range |
 
 Plots: `docs/img/tire_summer_225_40r18.svg`,
 `docs/img/tire_performance_235_40r19.svg`, `docs/img/tire_street_205_45r17.svg`.
 
-Known gaps, no physics changed (awaiting approval):
+D-086 found two gaps, closed in D-087 with the owner's approval:
 
-1. **Combined slip**: braking at about 6 degrees of slip angle, every file
-   reaches 3 to 4 % beyond the ellipse of its pure peaks. Likely cause:
-   the placeholder combined-slip weights `rbx1`, `rbx2`; raising them would
-   pull it in. Not yet confirmed by trying.
-2. **Street tire peak angle**: 10.15 degrees at its reference load, 0.15
-   beyond the range; raising `pky1` would bring it in. No car uses the
-   tire.
+1. **Combined slip** reached 3 to 4 % beyond the ellipse of the pure peaks
+   when braking at about 6 degrees of slip angle, in every file. Cause,
+   confirmed by a sweep: the combined-slip weight `rbx1`; raised from 12
+   to 16.
+2. **Street tire peak angle** was 10.15 degrees at its reference load;
+   `pky1` raised from 19 to 20 puts it at 9.65.
+
+Effect on validation: skidpad 0.934 to 0.923 g (Tern GT) and 0.955 to
+0.953 g (Halden E4); everything else unchanged; all targets pass.
 
 ## Results, before and after closing the gaps (D-078)
 

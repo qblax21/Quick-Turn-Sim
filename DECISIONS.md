@@ -1429,3 +1429,28 @@ No physics was changed. Two gaps are recorded in the test and in
 when braking at about 6 degrees (likely the placeholder `rbx1`, `rbx2`),
 and the unused street tire peaks at 10.15 degrees. The test fails if
 either gap grows or closes, so the record stays true.
+
+## D-087 The two tire gaps of D-086 closed
+
+With the owner's approval:
+
+- **Combined slip.** `rbx1` raised from 12 to 16 in all three tire files.
+  It sets how fast longitudinal force falls away with slip angle; at 12,
+  braking at about 6 degrees reached 3 to 4 % beyond the friction ellipse
+  of the pure peaks. A sweep confirmed it as the cause (raising `rby1`
+  alone also helps but needs a larger change) and found 16 the smallest
+  round value that keeps every file inside: now at most 0.9998 of the
+  ellipse.
+- **Street tire peak angle.** `pky1` raised from 19 to 20: the lateral
+  peak at the reference load moved from 10.15 to 9.65 degrees, inside the
+  published 6 to 10 degrees (19.5 would have left only 0.1 degree of
+  margin). No car uses this tire.
+
+Effect on validation: the Tern GT's skidpad went from 0.934 to 0.923 g
+(-1.9 % against 0.94 g) and the Halden E4's from 0.955 to 0.953 g (-0.7 %
+against 0.96 g); braking, acceleration, top speed and understeer
+gradient unchanged within a millimetre or a thousandth. The skidpad loss
+is the expected one: at the limit the tires carry some longitudinal force
+too, and no longer exceed the ellipse doing it. Every target still
+passes. The tire test now asserts both bounds outright, with no gaps
+listed.

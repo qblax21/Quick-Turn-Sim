@@ -42,7 +42,7 @@ pky1 = { value = 21.0, source = "cornering stiffness about 0.26 x load per degre
 pky2 = { value = 2.0, source = "cornering stiffness peaks at twice nominal load", confidence = "placeholder" }
 pky3 = { value = 0.3, source = "small camber effect on cornering stiffness", confidence = "placeholder" }
 pvy3 = { value = 1.0, source = "camber thrust about 1.7 percent of load per degree", confidence = "placeholder" }
-rbx1 = { value = 12.0, source = "textbook-typical combined-slip weighting", confidence = "placeholder" }
+rbx1 = { value = 16.0, source = "raised from 12 (D-087) so combined braking and cornering stays inside the friction ellipse of the pure peaks (it reached 3 to 4 percent beyond at 6 degrees); still a placeholder shape, not a fit", confidence = "placeholder" }
 rbx2 = { value = 10.0, source = "textbook-typical combined-slip weighting", confidence = "placeholder" }
 rcx1 = { value = 1.0, source = "textbook-typical combined-slip weighting", confidence = "placeholder" }
 rby1 = { value = 10.0, source = "textbook-typical combined-slip weighting", confidence = "placeholder" }
