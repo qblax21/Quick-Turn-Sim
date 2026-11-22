@@ -6,6 +6,7 @@ extends CanvasLayer
 const WHEEL_NAMES := ["FL", "FR", "RL", "RR"]
 const Minimap := preload("res://scripts/minimap.gd")
 const FfbMeter := preload("res://scripts/ffb_meter.gd")
+const PerfOverlay := preload("res://scripts/perf_overlay.gd")
 
 var main_label: Label
 var time_label: Label
@@ -32,6 +33,7 @@ var setup_name := ""
 var electric := false
 var minimap
 var ffb_meter
+var perf_overlay
 var sim_ref
 
 
@@ -141,6 +143,13 @@ func _ready() -> void:
 	ffb_meter.visible = false
 	add_child(ffb_meter)
 
+	# Frame-time and physics-step overlay, top centre, off until F6.
+	perf_overlay = PerfOverlay.new()
+	perf_overlay.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP, Control.PRESET_MODE_MINSIZE, 12)
+	perf_overlay.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	perf_overlay.visible = false
+	add_child(perf_overlay)
+
 
 func _bar_row(caption: String, minimum: float) -> HBoxContainer:
 	var row := HBoxContainer.new()
@@ -167,6 +176,10 @@ func flash(text: String) -> void:
 
 func toggle_ffb_meter() -> void:
 	ffb_meter.visible = not ffb_meter.visible
+
+
+func toggle_perf_overlay() -> void:
+	perf_overlay.visible = not perf_overlay.visible
 
 
 func ffb_meter_visible() -> bool:
@@ -268,6 +281,7 @@ func update(hud: Dictionary, status: Dictionary, input: Dictionary, telemetry_on
 				notices.append("FFB log: recording this lap")
 	if ffb_meter.visible and sim_ref:
 		ffb_meter.update_from(status, sim_ref.ffb_config())
+	perf_overlay.update_from(status)
 	var error: String = status.get("error", "")
 	if error != "":
 		notices.append(error)

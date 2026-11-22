@@ -113,6 +113,7 @@ wheel setup** first: assign and calibrate the axes, choose the wheel under
 | Force-feedback tuning meter | F4 |
 | While the meter shows: gain down, up / minimum force down, up | [ ] / ; ' |
 | Log the force feedback for the next full lap | F5 |
+| Frame time and physics step overlay | F6 |
 | Starter (engine stalled: clutch down first) | I |
 | Photo mode: free camera, depth of field, high-res stills | F8 |
 | Hide everything on screen | H |
@@ -129,7 +130,11 @@ F4 shows the force-feedback meter: the bar is what the wheel is sent, the
 white line what was asked for before the soft clip, the orange lines the
 largest request of the last two seconds, the dashed lines the soft-clip
 knee and the solid lines the wheel's full force. Red means clipping: the
-wheel cannot give more, and a change in tire grip there is not felt.
+wheel cannot give more, and a change in tire grip there is not felt. The
+CLIP lamp at the right end lights while clipping and holds for half a
+second; under the bar is the share of this lap and the last spent
+clipping, which every per-lap telemetry file also records
+(`ffb_clipped_percent`, D-104).
 
 Strength is in real units (D-079): gain is the torque at your wheel per
 N·m at the car's steering column, the same on every base, and gain 1 is the

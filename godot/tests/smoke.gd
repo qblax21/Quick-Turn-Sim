@@ -142,6 +142,7 @@ func _run() -> void:
 			hud.setup(sim)
 			hud.toggle_debug()
 			hud.toggle_ffb_meter()
+			hud.toggle_perf_overlay()
 			sim.ffb_log_start(OS.get_temp_dir().path_join("qts_smoke_ffb.csv"))
 			check(sim.set_direct_inputs({"axes": [], "buttons": []}), label + ": an empty direct map is accepted")
 			var bogus := {"axes": [{"action": "throttle", "device": "00000000000000000000000000000001", "axis": 1}], "buttons": []}
@@ -158,6 +159,7 @@ func _run() -> void:
 			var h: Dictionary = sim.hud()
 			var st: Dictionary = sim.status()
 			check(st.has("clip_lap_percent") and st.has("clip_last_lap_percent"), label + ": status reports the lap's clipping")
+			check(st.get("tick_rate_fixed", 0) > 0 and st.get("step_worst_us", 0.0) > 0.0, label + ": status reports the physics rate and step time")
 			var moved: float = sim.car_transform().origin.distance_to(start.origin)
 			check(h.get("tick", 0) > 300, label + ": physics advanced (%d ticks)" % h.get("tick", 0))
 			check(h.get("speed", 0.0) > 1.0, label + ": car is moving (%.2f m/s)" % h.get("speed", 0.0))

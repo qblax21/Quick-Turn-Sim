@@ -609,6 +609,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			hud.visible = not hud.visible
 		KEY_F4:
 			hud.toggle_ffb_meter()
+		KEY_F6:
+			hud.toggle_perf_overlay()
 		KEY_F8:
 			_open_photo_mode()
 		KEY_F5:

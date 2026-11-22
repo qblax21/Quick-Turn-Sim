@@ -305,6 +305,17 @@ pub struct HostStatus {
     pub ffb_log: FfbLogStatus,
     /// Ticks simulated per second of real time, measured.
     pub measured_tick_rate_hz: f64,
+    /// The fixed physics rate the session steps at, Hz. Physics and force
+    /// feedback run at this rate on the host thread whatever the frame
+    /// rate is.
+    pub tick_rate_hz: u32,
+    /// Mean wall-clock time of one tick (physics step and force-feedback
+    /// pipeline) over the last second, microseconds.
+    pub step_mean_us: f64,
+    /// Longest single tick over the last second, microseconds. A tick must
+    /// take less than the tick period (1000 µs at 1000 Hz) for the host to
+    /// keep up.
+    pub step_worst_us: f64,
     /// Most ticks run in a single wake-up during the last second. Above a
     /// handful means the thread is being scheduled late.
     pub worst_wake_ticks: u32,
@@ -446,6 +457,32 @@ struct Shared {
     status: Mutex<HostStatus>,
 }
 
+impl Shared {
+    fn for_session(session: &Session) -> Arc<Self> {
+        let pose = RenderPose::of(session);
+        Arc::new(Shared {
+            stop: AtomicBool::new(false),
+            input: Mutex::new(InputSlot::default()),
+            commands: Mutex::new(Vec::new()),
+            published: Mutex::new(Published {
+                previous: pose,
+                current: pose,
+                alpha: 1.0,
+                hud: HudState::of(session),
+                cones_down: session.timing().cone_down.clone(),
+                ghost: None,
+                ghost_time_s: 0.0,
+                ghost_delta_s: None,
+                ghost_setup: String::new(),
+            }),
+            status: Mutex::new(HostStatus {
+                ffb_enabled: true,
+                ..HostStatus::default()
+            }),
+        })
+    }
+}
+
 /// Locks a mutex, recovering the data if another thread panicked while
 /// holding it. The protected values are plain data that stay usable.
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -512,27 +549,7 @@ impl RealtimeHost {
     /// Starts stepping `session` in real time.
     pub fn start(session: Session, options: HostOptions) -> Result<Self, String> {
         let pipeline = FfbPipeline::new(options.ffb.clone(), session.tick_rate_hz())?;
-        let pose = RenderPose::of(&session);
-        let shared = Arc::new(Shared {
-            stop: AtomicBool::new(false),
-            input: Mutex::new(InputSlot::default()),
-            commands: Mutex::new(Vec::new()),
-            published: Mutex::new(Published {
-                previous: pose,
-                current: pose,
-                alpha: 1.0,
-                hud: HudState::of(&session),
-                cones_down: session.timing().cone_down.clone(),
-                ghost: None,
-                ghost_time_s: 0.0,
-                ghost_delta_s: None,
-                ghost_setup: String::new(),
-            }),
-            status: Mutex::new(HostStatus {
-                ffb_enabled: true,
-                ..HostStatus::default()
-            }),
-        });
+        let shared = Shared::for_session(&session);
         let thread_shared = Arc::clone(&shared);
         let thread = std::thread::Builder::new()
             .name("sim".into())
@@ -610,6 +627,59 @@ impl Drop for RealtimeHost {
     }
 }
 
+/// The host's per-tick work driven by the caller's clock instead of its
+/// own thread: the same input ramping, physics step and force-feedback
+/// pipeline as [`RealtimeHost`], for tests that script the timing (render
+/// stalls, a late wake-up) and for benchmarks.
+pub struct SteppedHost {
+    sim: SimThread,
+    driver: FixedStepDriver,
+}
+
+impl SteppedHost {
+    /// Wraps `session` as the real-time host would.
+    pub fn new(session: Session, options: HostOptions) -> Result<Self, String> {
+        let pipeline = FfbPipeline::new(options.ffb.clone(), session.tick_rate_hz())?;
+        let shared = Shared::for_session(&session);
+        let driver = FixedStepDriver::new(session.tick_rate_hz(), options.max_catch_up_ticks);
+        Ok(Self {
+            sim: SimThread::new(session, pipeline, options, shared),
+            driver,
+        })
+    }
+
+    /// Supplies the latest driver input, as the renderer would.
+    pub fn set_input(&self, frame: InputFrame) {
+        let mut slot = lock(&self.sim.shared.input);
+        slot.frame = frame;
+        slot.sequence += 1;
+        slot.sent_at = Some(Instant::now());
+    }
+
+    /// Lets `elapsed_s` of the caller's time pass, as one wake-up of the
+    /// host thread: runs the ticks that are due and returns each tick's
+    /// force-feedback sample.
+    pub fn advance(&mut self, elapsed_s: f64) -> Vec<FfbSample> {
+        let ticks = self.driver.advance(elapsed_s);
+        (0..ticks)
+            .map(|_| {
+                self.sim.tick();
+                self.sim.last_sample
+            })
+            .collect()
+    }
+
+    /// The session being stepped.
+    pub fn session(&self) -> &Session {
+        &self.sim.session
+    }
+
+    /// Mean and worst tick time since the last call, microseconds.
+    pub fn take_step_report(&mut self) -> (f64, f64) {
+        self.sim.take_step_report()
+    }
+}
+
 struct SimThread {
     session: Session,
     pipeline: FfbPipeline,
@@ -657,6 +727,10 @@ struct SimThread {
     delay: DelayWindow,
     delay_report: InputDelay,
     last_frame: InputFrame,
+    // Wall-clock time per tick over the current one-second window.
+    step_sum_s: f64,
+    step_n: u32,
+    step_worst_s: f64,
 }
 
 fn ramp_axis(from: i16, to: i16, pos: u32, len: u32) -> i16 {
@@ -726,6 +800,9 @@ impl SimThread {
             delay: DelayWindow::default(),
             delay_report: InputDelay::default(),
             last_frame: InputFrame::default(),
+            step_sum_s: 0.0,
+            step_n: 0,
+            step_worst_s: 0.0,
         }
     }
 
@@ -934,6 +1011,15 @@ impl SimThread {
     }
 
     fn tick(&mut self) {
+        let began = Instant::now();
+        self.tick_inner();
+        let took = began.elapsed().as_secs_f64();
+        self.step_sum_s += took;
+        self.step_n += 1;
+        self.step_worst_s = self.step_worst_s.max(took);
+    }
+
+    fn tick_inner(&mut self) {
         let mut frame = self.next_frame();
         let ramp_done = self.ramp_pos >= self.ramp_len;
         let read_at = Instant::now();
@@ -1047,6 +1133,21 @@ impl SimThread {
         }
     }
 
+    /// Mean and worst tick time of the window just ended, microseconds,
+    /// and a fresh window.
+    fn take_step_report(&mut self) -> (f64, f64) {
+        let mean = if self.step_n > 0 {
+            self.step_sum_s / f64::from(self.step_n)
+        } else {
+            0.0
+        };
+        let report = (mean * 1e6, self.step_worst_s * 1e6);
+        self.step_sum_s = 0.0;
+        self.step_n = 0;
+        self.step_worst_s = 0.0;
+        report
+    }
+
     /// Writes the best lap to the ghost file, if one was asked for.
     fn save_ghost(&mut self) {
         let (Some(path), Some(lap)) = (self.options.ghost_path.as_ref(), self.ghost.best()) else {
@@ -1069,6 +1170,7 @@ impl SimThread {
         let mut worst_wake = 0u32;
         let mut measured_rate = 0.0;
         let mut reported_worst = 0u32;
+        let mut step_report = (0.0, 0.0);
         while !self.shared.stop.load(Ordering::SeqCst) {
             let commands: Vec<HostCommand> = std::mem::take(&mut *lock(&self.shared.commands));
             for command in commands {
@@ -1098,6 +1200,7 @@ impl SimThread {
                 self.delay_report = std::mem::take(&mut self.delay).report(lag);
                 measured_rate = f64::from(window_ticks) / window;
                 reported_worst = worst_wake;
+                step_report = self.take_step_report();
                 window_start = now;
                 window_ticks = 0;
                 worst_wake = 0;
@@ -1146,6 +1249,8 @@ impl SimThread {
                 }
                 s.ffb_log = self.ffb_log_status.clone();
                 s.measured_tick_rate_hz = measured_rate;
+                s.tick_rate_hz = rate;
+                (s.step_mean_us, s.step_worst_us) = step_report;
                 s.worst_wake_ticks = reported_worst;
                 s.dropped_time_s = driver.dropped_time();
                 s.telemetry_rows = self.telemetry.as_ref().map(|t| t.rows());

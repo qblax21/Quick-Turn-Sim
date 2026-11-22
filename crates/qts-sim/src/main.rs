@@ -10,7 +10,7 @@ use qts_core::step::Simulation;
 use qts_ffb::{FfbPipeline, FfbSample};
 use qts_sim::data::{provenance_report, DataRoot};
 use qts_sim::drivers::{Driver, Erratic, Idle, PathFollower, PathFollowerConfig, Scripted};
-use qts_sim::host::ffb_input;
+use qts_sim::host::{ffb_input, HostOptions, SteppedHost};
 use qts_sim::session::{Session, SessionAssets, SessionConfig};
 use qts_sim::telemetry;
 use qts_telemetry::import::{import_csv, summarize, targets_snippet};
@@ -36,6 +36,10 @@ Commands:
       --ffb PRESET         force-feedback preset used for the FFB channels
       --ffb-log FILE       log the force-feedback signal for the first full lap
       --lap-telemetry DIR  write every lap to its own telemetry file in DIR
+  bench [--car ID] [--track ID] [--seconds N] [--driver NAME]
+                                         time the host's tick (input, physics and
+                                         force feedback) as fast as it will run;
+                                         every car on Ridgeline by default
   replay FILE                            re-simulate a replay and compare hashes
   provenance --car ID [--track ID]       where every parameter came from
   track-info ID                          length, bounds and surfaces of a track
@@ -213,6 +217,93 @@ fn make_driver(name: &str, session: &Session, seed: u64) -> Result<Box<dyn Drive
             "unknown driver `{other}` (idle, launch, path, erratic)"
         )),
     }
+}
+
+/// Times the host's per-tick work: the same input ramp, physics step and
+/// force-feedback pipeline the real-time host runs, through
+/// [`SteppedHost`], one tick per call and as fast as it will go. The wall
+/// clock is read here only to measure.
+fn cmd_bench(args: &Args) -> Result<(), String> {
+    let root = data_root()?;
+    let seconds = args.number("seconds", 60.0)?;
+    let track_id = args.text("track").unwrap_or("ridgeline_circuit");
+    let driver_name = args.text("driver").unwrap_or("path");
+    let cars: Vec<String> = match args.text("car") {
+        Some(c) => vec![c.to_string()],
+        None => root.list("cars").map_err(|e| e.to_string())?,
+    };
+    let ffb = root
+        .load_ffb(args.text("ffb").unwrap_or("generic_wheel"))
+        .map_err(|e| e.to_string())?
+        .value;
+    let mut printed_rate = false;
+    for car in &cars {
+        let config = SessionConfig {
+            assists: Assists {
+                auto_clutch: true,
+                auto_shift: true,
+                traction_control: true,
+                engine_damage: false,
+            },
+            ..SessionConfig::default()
+        };
+        let session = Session::from_data(&root, car, track_id, config)?;
+        let rate = session.tick_rate_hz();
+        if !printed_rate {
+            println!(
+                "physics and force feedback: fixed {rate} Hz on the host thread, apart from rendering; tick budget {:.0} µs",
+                1e6 / f64::from(rate)
+            );
+            println!(
+                "{:<20} {:>8} {:>9} {:>8} {:>8} {:>8} {:>8} {:>11}",
+                "car",
+                "ticks",
+                "mean µs",
+                "p50 µs",
+                "p99 µs",
+                "p99.9 µs",
+                "worst µs",
+                "x real time"
+            );
+            printed_rate = true;
+        }
+        let mut driver = make_driver(driver_name, &session, 1)?;
+        let mut host = SteppedHost::new(
+            session,
+            HostOptions {
+                ffb: ffb.clone(),
+                max_catch_up_ticks: 100,
+                interpolate_inputs: true,
+                ghost_path: None,
+            },
+        )?;
+        let ticks = (seconds * f64::from(rate)).round().max(1.0) as usize;
+        let dt = 1.0 / f64::from(rate);
+        let mut times = Vec::with_capacity(ticks);
+        for _ in 0..ticks {
+            let frame = driver.frame(host.session());
+            host.set_input(frame);
+            let began = std::time::Instant::now();
+            let n = host.advance(dt).len();
+            times.push(began.elapsed().as_secs_f64() * 1e6);
+            debug_assert!(n <= 1);
+        }
+        let total: f64 = times.iter().sum();
+        times.sort_by(f64::total_cmp);
+        let pct = |p: f64| times[((times.len() - 1) as f64 * p).round() as usize];
+        println!(
+            "{:<20} {:>8} {:>9.1} {:>8.1} {:>8.1} {:>8.1} {:>8.1} {:>11.1}",
+            car,
+            ticks,
+            total / ticks as f64,
+            pct(0.5),
+            pct(0.99),
+            pct(0.999),
+            times[times.len() - 1],
+            ticks as f64 * dt / (total * 1e-6)
+        );
+    }
+    Ok(())
 }
 
 fn cmd_run(args: &Args) -> Result<(), String> {
@@ -1232,6 +1323,7 @@ fn main() -> ExitCode {
     let result = match command {
         "list" => cmd_list().map(|()| true),
         "run" => cmd_run(&args).map(|()| true),
+        "bench" => cmd_bench(&args).map(|()| true),
         "replay" => cmd_replay(&args),
         "provenance" => cmd_provenance(&args).map(|()| true),
         "track-info" => cmd_track_info(&args).map(|()| true),

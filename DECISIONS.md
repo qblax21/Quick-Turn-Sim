@@ -1860,3 +1860,52 @@ clipping, counted on every tick rather than only the rows written
 
 No gain or other force-feedback default was changed; that waits for the
 owner's F5 logs.
+
+## D-105 Fixed-rate loop: confirmed, measured, benchmarked, stall-tested
+
+**Confirmed.** Physics and force feedback run together on the host
+thread (`qts-sim/src/host.rs`): `FixedStepDriver` turns wall-clock time
+into a whole number of fixed ticks (1000 Hz by default), and each tick
+runs one physics step and one force-feedback pipeline step. Rendering
+runs on its own thread. It only hands over driver input
+(`set_input`) and reads published poses, which it interpolates. After a
+late wake-up the host runs at most 100 catch-up ticks; beyond that, the
+time is dropped and reported, so the loop cannot spiral.
+
+**Measured.** The host now times every tick and reports, each second, the
+mean and worst tick time and the configured rate (`tick_rate_hz`,
+`step_mean_us`, `step_worst_us` in `HostStatus`). F6 shows an overlay with
+the render frame time (now, and the worst over the last second, with a
+strip of the last 120 frames), the fixed and measured physics rate, the
+step times against the tick budget, late wake-ups and dropped time.
+
+**Benchmark.** `qts-sim bench [--car] [--track] [--seconds] [--driver]`
+runs the host's own per-tick code as fast as it will go and prints the
+mean, median, 99th and 99.9th percentile and worst tick time, and the
+multiple of real time. On the development PC, over 20 s of a Ridgeline
+lap with the path driver: mean 86 to 90 µs, 99th percentile 158 to
+174 µs, worst 277 to 332 µs, against a budget of 1000 µs. That is about
+11 times real time.
+
+**Stall test.** `SteppedHost` drives the same per-tick code as the
+real-time host, but by a caller's clock, so `tests/render_stall.rs` can
+script the timing without depending on the test machine's scheduler. A
+6 s weave is driven with input handed over at 240 fps, at 30 fps, at
+30 fps with render stalls of 250, 100 and 150 ms, and at 30 fps with the
+host thread waking 40 ms late once.
+
+- The tick count is 6000 at every frame rate (240, 60, 30, 12 fps, with a
+  300 ms stall).
+- At 30 fps, and after the late wake-up, the largest tick-to-tick step and
+  the largest change of slope (a staircase at frame boundaries would show
+  there) equal the 240 fps reference: 0.0119 and 0.0118 of full scale per
+  tick on the Tern GT, and 0.0157 and 0.0150 on the Halden E4.
+- After a render stall, the input jumps to where the driver's hands now
+  are, and the host spreads that over at most 50 ms. The car really does
+  steer faster for a moment, so the steps reach 0.0157 (Tern GT) and
+  0.0247 (Halden E4) of full scale. The test allows up to twice the
+  reference: no single-tick spike. With a wheel, the steering angle is
+  read on the host thread itself, so a render stall does not touch it at
+  all.
+
+No simulation behaviour changed.

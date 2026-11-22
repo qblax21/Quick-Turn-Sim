@@ -37,12 +37,14 @@ func _run() -> void:
 			main._show_settings()
 		"setup":
 			main._show_input_setup()
-		"pause", "results", "ffb", "limits", "overlay":
+		"pause", "results", "ffb", "limits", "overlay", "perf":
 			var presets: PackedStringArray = main.sim.list_ids("ffb")
 			main._start_driving("hatch_tern_gt", "ridgeline_circuit", true, true, presets[0], "", false)
 			main.reader = FixedInput.new()
 			if mode == "overlay":
 				main.hud.toggle_debug()
+			if mode == "perf":
+				main.hud.toggle_perf_overlay()
 			if mode == "ffb":
 				main.reader.steer = 0.25
 				main.hud.toggle_ffb_meter()
