@@ -1756,3 +1756,20 @@ style now has:
 
 No maker's wheel or lamp design is copied. Drawing only; the physics is
 unchanged.
+
+## D-098 Grille between the lamps, rally turbofans
+
+Following the owner's notes on D-097:
+
+- The headlamps come back in a little, to 70 percent of the half-width.
+- A larger six-sided grille sits between them, its top level with the
+  lamps, with a chrome surround and four chrome bars. The bonnet's shut
+  line runs across just above it, from lamp to lamp, as on the
+  comparable car, where the grille sits below the bonnet between the
+  lamps. The shape is a plain hexagon, not a copy of the maker's.
+- The wheels are now rally-style turbofans, not the swirled fan of
+  D-097: a flat white disc almost to the rim, 28 straight vanes leaning
+  the same way round its outer ring, and a flat centre with four exposed
+  nuts. The owner asked for no research here, so the design is generic.
+
+Drawing only; the physics is unchanged.

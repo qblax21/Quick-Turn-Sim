@@ -915,7 +915,7 @@ def add_small_ends(det, d, frame, places, front_belt, rear_belt):
     z_shut = zb - 0.225
     for side in (1.0, -1.0):
         corner = (-side * 0.42, -1.0, 0.0)
-        c = (side * 0.76 * hw, yn, z_lamp)
+        c = (side * 0.70 * hw, yn, z_lamp)
         # Chrome bezel round a silver reflector, a dark projector bowl with
         # a lit lens above the middle, and the indicator low in the lamp.
         det.ring("headlamp_bezel", "chrome", c, 0.132, 0.114, corner, lift=0.006)
@@ -923,20 +923,28 @@ def add_small_ends(det, d, frame, places, front_belt, rear_belt):
         det.ring("headlamp_bowl", "housing", (c[0], c[1], c[2] + 0.02), 0.052, 0.0, corner, lift=0.008)
         det.ring("headlamp_lens", "head", (c[0], c[1], c[2] + 0.02), 0.032, 0.0, corner, lift=0.010)
         det.ring("indicator", "amber", (c[0], c[1], c[2] - 0.072), 0.026, 0.0, corner, lift=0.009)
-    # Bonnet shut line: across the face under the lamps, then back along
-    # each side just under the belt to the screen.
+    # A six-sided grille between the lamps, its top level with them, with a
+    # chrome surround and bars; the bonnet's shut line runs across just
+    # above it from lamp to lamp, then back along each side under the belt.
+    gt = z_lamp + 0.01
+    gm, g0 = gt - 0.065, gt - 0.175
+    wt, wm, wb_ = 0.36 * hw, 0.47 * hw, 0.38 * hw
+
+    def gw(z):
+        if z >= gm:
+            return wm + (wt - wm) * (z - gm) / (gt - gm)
+        return wb_ + (wm - wb_) * (z - g0) / (gm - g0)
     sb = places["screen"][0]
-    det.line("bonnet_gap", [(-0.93 * hw, yn, z_shut), (0.93 * hw, yn, z_shut)], fwd, lift=0.004)
+    det.line("bonnet_gap", [(-0.52 * hw, yn, gt + 0.025), (0.52 * hw, yn, gt + 0.025)], fwd, lift=0.004)
     for side in (1.0, -1.0):
         det.line("bonnet_gap", [(side * hw, frame.y(s), frame.belt(s) - 0.03) for s in (0.07, 0.3, 0.6, sb - 0.03)], (-side, 0.0, 0.0))
-    # Grille under the shut line, with chrome bars.
-    g0, g1 = z_shut - 0.135, z_shut - 0.015
-    det.panel("grille", "gloss_black", [(-0.38 * hw, yn, g0), (0.38 * hw, yn, g0), (0.43 * hw, yn, g1), (-0.43 * hw, yn, g1)], fwd)
-    det.line("grille_surround", [(-0.38 * hw, yn, g0), (0.38 * hw, yn, g0), (0.43 * hw, yn, g1), (-0.43 * hw, yn, g1), (-0.38 * hw, yn, g0)],
-             fwd, width=0.012, mat="chrome", lift=0.007)
-    for k in (1, 2, 3):
-        z = g0 + (g1 - g0) * k / 4
-        det.line("grille_bar", [(-0.39 * hw, yn, z), (0.39 * hw, yn, z)], fwd, width=0.008, mat="chrome", lift=0.007)
+    det.panel("grille", "gloss_black", [(-wm, yn, gm), (wm, yn, gm), (wt, yn, gt), (-wt, yn, gt)], fwd)
+    det.panel("grille", "gloss_black", [(-wb_, yn, g0), (wb_, yn, g0), (wm, yn, gm), (-wm, yn, gm)], fwd)
+    hexagon = [(-wt, gt), (wt, gt), (wm, gm), (wb_, g0), (-wb_, g0), (-wm, gm), (-wt, gt)]
+    det.line("grille_surround", [(x, yn, z) for x, z in hexagon], fwd, width=0.016, mat="chrome", lift=0.007)
+    for k in range(1, 5):
+        z = g0 + (gt - g0) * k / 5
+        det.line("grille_bar", [(-gw(z) + 0.01, yn, z), (gw(z) - 0.01, yn, z)], fwd, width=0.009, mat="chrome", lift=0.007)
     det.panel("front_plate", "plate", [(-0.24, yn, g0 - 0.125), (0.24, yn, g0 - 0.125), (0.24, yn, g0 - 0.015), (-0.24, yn, g0 - 0.015)], fwd, lift=0.008)
     # Wide lower intake with a mesh and round fog lamps at its ends.
     zi = frame.lift(0.05) + 0.03
@@ -1172,40 +1180,50 @@ def build_wheel(name, radius, width, mats, style):
     return join(parts, name)
 
 
-def turbofan_face(radius, rim_r, hw, mats, blades=16, twist=0.70):
-    """A near-solid painted face, slightly dished, with a ring of narrow
-    swept slots between curved blades, like a fan; a domed centre cap."""
-    x_face = hw * 0.60
-    face = [(0.16 * radius, x_face + 0.006), (0.40 * rim_r, x_face), (0.94 * rim_r, x_face - 0.004),
-            (rim_r - 0.006, x_face + 0.010), (rim_r + 0.006, hw * 0.88)]
+def turbofan_face(radius, rim_r, hw, mats, blades=28, lean=0.30):
+    """Rally-style turbofan: a flat painted disc almost to the rim, a ring
+    of straight vanes leaning the same way round its outer part (dark slots
+    between white vanes), and a flat centre with four exposed nuts."""
+    x_face = hw * 0.62
+    face = [(0.05 * radius, x_face + 0.004), (0.50 * rim_r, x_face + 0.002), (0.95 * rim_r, x_face),
+            (rim_r - 0.006, x_face + 0.008), (rim_r + 0.006, hw * 0.88)]
     parts = [lathe("fan_face", face, mats["alloy"], 72)]
-    # Slots: dark swept strips on the face, widening outward.
+    # Slots: straight dark strips from the inner to the outer edge of the
+    # ring, each turned by `lean` radians against a radius.
     mesh = bpy.data.meshes.new("fan_slots")
     bm = bmesh.new()
-    r0, r1, steps = 0.40 * rim_r, 0.92 * rim_r, 8
+    r0, r1 = 0.56 * rim_r, 0.93 * rim_r
     for k in range(blades):
         t0 = 2 * math.pi * k / blades
-        rows = []
-        for i in range(steps + 1):
-            u = i / steps
-            r = r0 + (r1 - r0) * u
-            a = t0 + twist * u
-            half = (0.007 + 0.015 * u) / r
-            x = x_face + 0.0025
-            rows.append([bm.verts.new((x, r * math.cos(a + e), r * math.sin(a + e))) for e in (-half, half)])
-        for a_, b_ in zip(rows, rows[1:]):
-            f = bm.faces.new((a_[0], a_[1], b_[1], b_[0]))
-            if f.normal.x < 0:
-                f.normal_flip()
+        p0 = (r0 * math.cos(t0), r0 * math.sin(t0))
+        d = (math.cos(t0 + lean), math.sin(t0 + lean))
+        n = (-d[1], d[0])
+        span = r1 - r0
+        quad = []
+        for along, half in ((0.0, 0.006), (span, 0.010)):
+            c = (p0[0] + d[0] * along, p0[1] + d[1] * along)
+            quad.append([(c[0] + n[0] * e, c[1] + n[1] * e) for e in (-half, half)])
+        vs = [bm.verts.new((x_face + 0.0025, y, z)) for y, z in (quad[0][0], quad[0][1], quad[1][1], quad[1][0])]
+        f = bm.faces.new(vs)
+        if f.normal.x < 0:
+            f.normal_flip()
     bm.to_mesh(mesh)
     bm.free()
     mesh.materials.append(mats["fan_slot"])
     obj = bpy.data.objects.new("fan_slots", mesh)
     bpy.context.collection.objects.link(obj)
     parts.append(obj)
-    # Centre cap with a dark ring round it.
-    parts.append(lathe("fan_cap", [(0.0, x_face + 0.03), (0.08 * radius, x_face + 0.024), (0.15 * radius, x_face + 0.008)], mats["alloy"], 32))
-    parts.append(lathe("fan_cap_ring", [(0.15 * radius, x_face + 0.0085), (0.165 * radius, x_face + 0.0065)], mats["under"], 32))
+    # A thin dark ring at the inner edge of the vanes, and four nuts.
+    parts.append(lathe("fan_ring", [(0.50 * rim_r, x_face + 0.0045), (0.52 * rim_r, x_face + 0.0045)], mats["fan_slot"], 72))
+    for k in range(4):
+        t = 2 * math.pi * k / 4 + math.pi / 4
+        r = 0.16 * radius
+        bpy.ops.mesh.primitive_cylinder_add(vertices=6, radius=0.013, depth=0.024,
+                                            location=(x_face + 0.008, r * math.cos(t), r * math.sin(t)), rotation=(0.0, math.pi / 2, 0.0))
+        nut = bpy.context.active_object
+        nut.data.materials.append(mats["trim"])
+        parts.append(nut)
+    parts.append(lathe("fan_hub", [(0.0, x_face + 0.012), (0.06 * radius, x_face + 0.010), (0.08 * radius, x_face + 0.004)], mats["trim"], 32))
     return parts
 
 
