@@ -293,6 +293,10 @@ pub struct HostStatus {
     /// Share of recent ticks (about the last second) in which the soft clip
     /// was compressing the output.
     pub clip_fraction: f64,
+    /// Share of the lap in progress spent clipping, percent.
+    pub clip_lap_percent: f64,
+    /// Share of the last finished lap spent clipping, percent.
+    pub clip_last_lap_percent: Option<f64>,
     /// Largest `|requested|` force over the last two seconds or so, as a
     /// fraction of the device's peak. Above the soft-clip knee the wheel is
     /// being compressed; above one it is saturated.
@@ -640,6 +644,7 @@ struct SimThread {
     last_sample: FfbSample,
     last_error: Option<String>,
     clip_fraction: f64,
+    clip_lap: crate::lap_telemetry::LapClipMeter,
     // Peak requested force: the current and previous one-second windows.
     peak_now: f64,
     peak_before: f64,
@@ -710,6 +715,7 @@ impl SimThread {
             last_sample: FfbSample::default(),
             last_error: None,
             clip_fraction: 0.0,
+            clip_lap: Default::default(),
             peak_now: 0.0,
             peak_before: 0.0,
             peak_ticks: 0,
@@ -986,6 +992,11 @@ impl SimThread {
             0.0
         };
         self.clip_fraction += (clipping - self.clip_fraction) / rate;
+        {
+            let t = self.session.timing();
+            self.clip_lap
+                .observe((t.runs, t.invalid_runs), t.running, sample.clipped);
+        }
         self.peak_now = self.peak_now.max(sample.requested.abs());
         self.peak_ticks += 1;
         if self.peak_ticks >= self.session.tick_rate_hz() {
@@ -1124,6 +1135,8 @@ impl SimThread {
                 s.ffb_enabled = self.ffb_enabled;
                 s.ffb = self.last_sample;
                 s.clip_fraction = self.clip_fraction;
+                s.clip_lap_percent = self.clip_lap.this_lap_percent();
+                s.clip_last_lap_percent = self.clip_lap.last_lap_percent;
                 s.peak_requested = self.peak_now.max(self.peak_before);
                 if let Some(log) = self.ffb_log.as_mut() {
                     self.ffb_log_status = log.status();

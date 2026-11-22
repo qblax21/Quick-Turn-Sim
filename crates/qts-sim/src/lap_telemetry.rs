@@ -8,6 +8,7 @@
 //! written on a background thread so the physics thread never waits on
 //! the disk.
 
+use crate::ffb_log::CLIP_THRESHOLD;
 use crate::session::Session;
 use crate::telemetry;
 use qts_core::input::InputFrame;
@@ -23,6 +24,57 @@ use std::thread::JoinHandle;
 /// Rows per second in a lap file.
 pub const LAP_SAMPLE_RATE_HZ: f64 = 100.0;
 
+/// Share of a lap's ticks, in percent, on which the force feedback was
+/// clipping (removed more than [`CLIP_THRESHOLD`] of full scale).
+pub fn clipped_percent(clip_ticks: u64, lap_ticks: u64) -> f64 {
+    if lap_ticks == 0 {
+        0.0
+    } else {
+        100.0 * clip_ticks as f64 / lap_ticks as f64
+    }
+}
+
+/// Live share of the lap in progress spent clipping, and the last lap's,
+/// for the force-feedback meter. Fed every tick with the session's lap
+/// counters, like [`LapRecorder`].
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct LapClipMeter {
+    seen: Option<(u32, u32)>,
+    ticks: u64,
+    clip_ticks: u64,
+    /// Clipped share of the last finished lap, percent.
+    pub last_lap_percent: Option<f64>,
+}
+
+impl LapClipMeter {
+    /// `finished` is the session's (runs, invalid runs); `running` whether
+    /// a lap is being timed; `clipped` the pipeline sample's `clipped`.
+    pub fn observe(&mut self, finished: (u32, u32), running: bool, clipped: f64) {
+        if let Some(before) = self.seen {
+            if finished != before && self.ticks > 0 {
+                self.last_lap_percent = Some(clipped_percent(self.clip_ticks, self.ticks));
+                self.ticks = 0;
+                self.clip_ticks = 0;
+            }
+        }
+        self.seen = Some(finished);
+        if !running {
+            self.ticks = 0;
+            self.clip_ticks = 0;
+            return;
+        }
+        self.ticks += 1;
+        if clipped > CLIP_THRESHOLD {
+            self.clip_ticks += 1;
+        }
+    }
+
+    /// Clipped share of the lap in progress so far, percent.
+    pub fn this_lap_percent(&self) -> f64 {
+        clipped_percent(self.clip_ticks, self.ticks)
+    }
+}
+
 /// Collects the rows of the lap in progress and writes each finished lap.
 #[derive(Debug)]
 pub struct LapRecorder {
@@ -33,6 +85,10 @@ pub struct LapRecorder {
     rows: Vec<Vec<f64>>,
     row: Vec<f64>,
     seen: Option<(u32, u32)>,
+    /// Ticks of the lap in progress, and how many of them the force
+    /// feedback was clipping (every tick, not only the sampled rows).
+    lap_ticks: u64,
+    clip_ticks: u64,
     laps_written: u32,
     writers: Vec<JoinHandle<Result<PathBuf, String>>>,
     last: Option<Result<PathBuf, String>>,
@@ -52,6 +108,8 @@ impl LapRecorder {
             rows: Vec::new(),
             row: Vec::new(),
             seen: None,
+            lap_ticks: 0,
+            clip_ticks: 0,
             laps_written: 0,
             writers: Vec::new(),
             last: None,
@@ -74,7 +132,13 @@ impl LapRecorder {
         if !t.running {
             self.rows.clear();
             self.counter = 0;
+            self.lap_ticks = 0;
+            self.clip_ticks = 0;
             return;
+        }
+        self.lap_ticks += 1;
+        if ffb.clipped > CLIP_THRESHOLD {
+            self.clip_ticks += 1;
         }
         if self.counter == 0 {
             telemetry::fill_row(session, frame, ffb, &mut self.row);
@@ -108,8 +172,14 @@ impl LapRecorder {
                 String::new()
             },
         ));
+        metadata.push((
+            "ffb_clipped_percent".into(),
+            format!("{:.2}", clipped_percent(self.clip_ticks, self.lap_ticks)),
+        ));
         let rows = std::mem::take(&mut self.rows);
         self.counter = 0;
+        self.lap_ticks = 0;
+        self.clip_ticks = 0;
         self.writers.push(std::thread::spawn(move || {
             let file = File::create(&path).map_err(|e| format!("{}: {e}", path.display()))?;
             let mut w = TelemetryWriter::new(

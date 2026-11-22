@@ -25,11 +25,16 @@ fn each_lap_is_written_with_its_time_and_recording_changes_nothing() {
     let mut recorder = LapRecorder::new(&dir, &a).unwrap();
     let mut lap_ticks = Vec::new();
     let mut runs = 0;
-    for _ in 0..330_000 {
+    for n in 0..330_000_u64 {
         let frame = driver.frame(&a);
         a.step(&frame);
         b.step(&frame);
-        recorder.observe(&a, &frame, &FfbSample::default());
+        // Clipping on one tick in four, to check the per-lap share.
+        let ffb = FfbSample {
+            clipped: if n % 4 == 0 { 0.5 } else { 0.0 },
+            ..FfbSample::default()
+        };
+        recorder.observe(&a, &frame, &ffb);
         if a.timing().runs > runs {
             runs = a.timing().runs;
             lap_ticks.push(a.timing().last_ticks);
@@ -49,6 +54,13 @@ fn each_lap_is_written_with_its_time_and_recording_changes_nothing() {
         assert_eq!(lap.file.meta("lap_counted"), Some("true"));
         let stated: f64 = lap.file.meta("lap_time_s").unwrap().parse().unwrap();
         assert!((stated - seconds).abs() < 1e-3);
+        let clipped: f64 = lap
+            .file
+            .meta("ffb_clipped_percent")
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert!((clipped - 25.0).abs() < 0.05, "clipped {clipped}%");
         // One row every 10 ms of the lap.
         let rows = lap.file.rows.len() as f64;
         assert!(
@@ -97,4 +109,28 @@ fn each_lap_is_written_with_its_time_and_recording_changes_nothing() {
         c.delta.last().unwrap()
     );
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_clip_meter_reports_this_lap_and_the_last() {
+    use qts_sim::lap_telemetry::LapClipMeter;
+    let mut m = LapClipMeter::default();
+    // Not timing: nothing counted.
+    for _ in 0..100 {
+        m.observe((0, 0), false, 1.0);
+    }
+    assert_eq!(m.this_lap_percent(), 0.0);
+    // A lap with one tick in ten clipping.
+    for n in 0..1000 {
+        m.observe((0, 0), true, if n % 10 == 0 { 0.5 } else { 0.0 });
+    }
+    assert!((m.this_lap_percent() - 10.0).abs() < 1e-9);
+    assert_eq!(m.last_lap_percent, None);
+    // The line: the lap counts, the next one starts clean.
+    m.observe((1, 0), true, 0.0);
+    assert!((m.last_lap_percent.unwrap() - 10.0).abs() < 1e-9);
+    assert_eq!(m.this_lap_percent(), 0.0);
+    // Clipping below the threshold is not counted.
+    m.observe((1, 0), true, 0.01);
+    assert_eq!(m.this_lap_percent(), 0.0);
 }

@@ -42,6 +42,8 @@ A file is UTF-8 text with `\n` line endings, in this order:
 | `content_hash` | Hash of the data files the session loaded. |
 | `surfaces` | Surface index to name, as `index:name` pairs. Decodes the `*_surface` columns. |
 | `note` | Reminder that parameters are placeholders unless marked measured. |
+| `lap`, `lap_counted`, `lap_time_s` | Per-lap files only: the lap's number, whether it counted, and its time (empty when not counted). |
+| `ffb_clipped_percent` | Per-lap files only: share of the lap's physics ticks, in percent, on which the force feedback was clipping (the soft clip removed more than 0.02 of full scale). Counted on every tick, not only the rows written. |
 
 Readers must ignore metadata keys they do not know.
 

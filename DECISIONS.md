@@ -1817,3 +1817,46 @@ are thinner: about 5 mm wide, where before they were 11 mm at the inner
 end and 14 mm at the outer. Each slot now widens toward the rim, so the
 bars keep that width all along. There are still 40 slots, and their
 length is unchanged. Drawing only.
+
+## D-104 Force-feedback grip-limit cue, checked; clipping per lap
+
+**What was checked.** The steering should go light before the front
+tires reach their peak lateral force, so the driver feels the limit
+coming. The code already works this way: in `qts-tire/src/magic.rs` the
+aligning moment is `-trail * Fy`, with a pneumatic trail from a
+cosine-shaped curve that shrinks as slip grows. The column torque
+(`qts-vehicle/src/car.rs`) adds the lateral force on the mechanical trail,
+which follows the force itself. Nothing in the physics was changed.
+
+`crates/qts-sim/tests/ffb_grip_cue.rs` holds it in place:
+
+- On every tire file, at half, one and one and a half times nominal load,
+  the aligning moment peaks at least 1 degree of slip before the lateral
+  force does. By the force peak, the moment has fallen below 80 percent
+  of its peak.
+- For every car (the LSD variant included) with every tire file, the
+  moment about the kingpin (aligning moment plus force on the mechanical
+  trail) peaks at least half a degree before the force.
+- On the moving car, with a slow steering ramp at a held 72 km/h, the
+  column torque peaks while the front axle's force is still building.
+  By the time the force is at its most, the torque has fallen below
+  85 percent of its peak. Measured: the Tern GT peaks at 10.5 N.m with
+  the front force at 91 percent of its maximum, and falls to 60 percent;
+  the LSD variant peaks at 84 percent and falls to 59; the Halden E4 peaks
+  at 91 percent and falls to 81. Near the limit the front force flattens
+  onto a plateau, so the test does not hinge on the exact tick of its
+  maximum.
+
+**Clipping display.** The F4 meter has a CLIP lamp at the right end of
+the bar. It lights red while the soft clip removes more than 0.02 of full
+scale (the existing threshold) and holds for half a second, so a short
+clip is not missed. A new line shows the share of this lap and of the
+last lap spent clipping, kept by `LapClipMeter` on the physics thread.
+
+**Clipping in the lap files.** Each per-lap CSV gains the metadata key
+`ffb_clipped_percent`: the share of the lap's physics ticks spent
+clipping, counted on every tick rather than only the rows written
+(`docs/TELEMETRY_FORMAT.md`).
+
+No gain or other force-feedback default was changed; that waits for the
+owner's F5 logs.

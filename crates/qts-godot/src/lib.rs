@@ -1391,6 +1391,8 @@ impl SimBridge {
             "ffb_output" => s.ffb.output,
             "ffb_clipped" => s.ffb.clipped,
             "clip_fraction" => s.clip_fraction,
+            "clip_lap_percent" => s.clip_lap_percent,
+            "clip_last_lap_percent" => s.clip_last_lap_percent.unwrap_or(-1.0),
             "peak_requested" => s.peak_requested,
             "ffb_log_state" => gstr(log_state),
             "ffb_log_seconds" => log_seconds,

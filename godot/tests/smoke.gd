@@ -156,6 +156,8 @@ func _run() -> void:
 				hud.update(sim.hud(), sim.status(), input, false, false)
 				await process_frame
 			var h: Dictionary = sim.hud()
+			var st: Dictionary = sim.status()
+			check(st.has("clip_lap_percent") and st.has("clip_last_lap_percent"), label + ": status reports the lap's clipping")
 			var moved: float = sim.car_transform().origin.distance_to(start.origin)
 			check(h.get("tick", 0) > 300, label + ": physics advanced (%d ticks)" % h.get("tick", 0))
 			check(h.get("speed", 0.0) > 1.0, label + ": car is moving (%.2f m/s)" % h.get("speed", 0.0))

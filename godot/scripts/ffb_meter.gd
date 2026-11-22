@@ -8,23 +8,28 @@
 #            end of the scale
 #   orange   largest request over the last two seconds
 #   lines    soft-clip knee (dashed) and full scale (solid)
+#   CLIP     lamp at the right end: lit red while the soft clip is removing
+#            force, held for half a second so a short clip is not missed
 extends Control
 
 # The bar spans this many times the wheel's peak torque each way, so an
 # overdriven request is still visible.
 const SCALE := 1.6
 const CLIP_THRESHOLD := 0.02
+const CLIP_HOLD_S := 0.5
+const LAMP_W := 56.0
 
 var output := 0.0
 var requested := 0.0
 var peak := 0.0
 var knee := 0.75
 var clipping := false
+var clip_hold := 0.0
 var text_label: Label
 
 
 func _ready() -> void:
-	custom_minimum_size = Vector2(520, 96)
+	custom_minimum_size = Vector2(520, 118)
 	text_label = Label.new()
 	text_label.add_theme_font_size_override("font_size", 14)
 	text_label.position = Vector2(0, 40)
@@ -37,9 +42,14 @@ func update_from(status: Dictionary, config: Dictionary) -> void:
 	peak = status.get("peak_requested", 0.0)
 	knee = config.get("soft_clip_knee", 0.75)
 	clipping = status.get("ffb_clipped", 0.0) > CLIP_THRESHOLD
+	if clipping:
+		clip_hold = CLIP_HOLD_S
 	var lines: Array = []
 	lines.append("FFB  out %+5.2f   asked %+5.2f   peak %4.2f   clipping %3.0f%% of the last second" % [
 		output, requested, peak, status.get("clip_fraction", 0.0) * 100.0])
+	var last_lap: float = status.get("clip_last_lap_percent", -1.0)
+	lines.append("clipped %4.1f%% of this lap   last lap %s" % [
+		status.get("clip_lap_percent", 0.0), "--" if last_lap < 0.0 else "%4.1f%%" % last_lap])
 	var wheel_nm: float = config.get("device_max_torque_nm", 0.0)
 	lines.append("column %+5.1f N·m  ->  wheel asked %+5.1f N·m, given %+5.1f N·m of %.1f N·m   (peak asked %.1f N·m)" % [
 		status.get("ffb_raw_nm", 0.0), requested * wheel_nm, output * wheel_nm, wheel_nm, peak * wheel_nm])
@@ -64,14 +74,31 @@ func update_from(status: Dictionary, config: Dictionary) -> void:
 	queue_redraw()
 
 
+func _process(delta: float) -> void:
+	if clip_hold > 0.0:
+		clip_hold = maxf(clip_hold - delta, 0.0)
+		if clip_hold == 0.0:
+			queue_redraw()
+
+
 func _x(value: float, width: float) -> float:
 	var v: float = clamp(value / SCALE, -1.0, 1.0)
 	return width * 0.5 * (1.0 + v)
 
 
 func _draw() -> void:
-	var w := size.x
 	var h := 30.0
+	# The clip lamp sits to the right of the bar.
+	var lamp := Rect2(size.x - LAMP_W, 0, LAMP_W, h)
+	var lit := clip_hold > 0.0
+	draw_rect(lamp, Color(0.85, 0.12, 0.1) if lit else Color(0.18, 0.05, 0.05, 0.8))
+	draw_rect(lamp, Color(1, 1, 1, 0.5), false, 1.0)
+	var font := get_theme_default_font()
+	var fs := 14
+	var tw := font.get_string_size("CLIP", HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	draw_string(font, Vector2(lamp.position.x + (LAMP_W - tw) * 0.5, h * 0.5 + fs * 0.35), "CLIP",
+		HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1, 1, 1) if lit else Color(1, 1, 1, 0.35))
+	var w := size.x - LAMP_W - 8.0
 	draw_rect(Rect2(0, 0, w, h), Color(0, 0, 0, 0.55))
 	var mid := _x(0.0, w)
 	var colour := Color(0.35, 0.85, 0.4)
