@@ -1793,3 +1793,12 @@ round base with a six-sided nut on it, and stands about 4.7 cm proud of
 the face, just past the tire's sidewall. Its base uses a two-sided
 material, because the lathed faces would otherwise be culled and show the
 white disc through. Drawing only.
+
+## D-101 Proud aero disc, sunken centre lock
+
+Following the owner's notes on D-100, the Tern GT's white disc now stands
+proud of the rim, its face level with the tire's sidewall and rolling down
+over its edge onto the rim lip. The black centre lock is reversed: it sits
+in a 42 mm deep well in the middle of the disc, which has white walls and
+a dark floor, so the top of its nut is about 12 mm below the face.
+Drawing only.

@@ -1181,13 +1181,19 @@ def build_wheel(name, radius, width, mats, style):
 
 
 def turbofan_face(radius, rim_r, hw, mats, slots=40):
-    """Flat aero disc: a solid painted face almost to the rim, a ring of
-    short radial slots just inside the rim, and a black centre lock that
-    stands slightly proud of the face."""
-    x_face = hw * 0.64
-    face = [(0.05 * radius, x_face + 0.002), (0.60 * rim_r, x_face + 0.001), (0.96 * rim_r, x_face),
-            (rim_r - 0.006, x_face + 0.008), (rim_r + 0.006, hw * 0.88)]
+    """Flat aero disc standing proud of the rim, out to the tire's
+    sidewall: a solid painted face, a ring of short radial slots just
+    inside the rim, and a black centre lock sunk in a well in the middle."""
+    x_face = hw * 0.98
+    rc = 0.17 * radius                  # centre lock's radius
+    rw, x_well = rc * 1.18, x_face - 0.042
+    # From the well's floor up its wall, across the face, then rolling
+    # down over the edge onto the rim lip.
+    face = [(rw, x_well + 0.002), (rw, x_face - 0.006), (rw + 0.006, x_face), (0.60 * rim_r, x_face),
+            (0.955 * rim_r, x_face), (rim_r - 0.004, x_face - 0.007), (rim_r + 0.004, x_face - 0.020),
+            (rim_r + 0.006, hw * 0.88)]
     parts = [lathe("fan_face", face, mats["alloy"], 96)]
+    parts.append(lathe("fan_well", [(0.0, x_well), (rw + 0.001, x_well)], mats["fan_slot"], 48))
     mesh = bpy.data.meshes.new("fan_slots")
     bm = bmesh.new()
 
@@ -1209,12 +1215,11 @@ def turbofan_face(radius, rim_r, hw, mats, slots=40):
     obj = bpy.data.objects.new("fan_slots", mesh)
     bpy.context.collection.objects.link(obj)
     parts.append(obj)
-    # Black centre lock standing proud of the face: a stepped round boss
-    # with a six-sided nut on it, its top just past the tire's sidewall.
-    rc = 0.17 * radius
-    parts.append(lathe("centre_lock_boss", [(rc * 1.05, x_face + 0.001), (rc, x_face + 0.010), (rc * 0.92, x_face + 0.022),
-                                            (rc * 0.70, x_face + 0.026), (rc * 0.62, x_face + 0.026)], mats["fan_slot"], 48))
-    bpy.ops.mesh.primitive_cylinder_add(vertices=6, radius=rc * 0.62, depth=0.022, location=(x_face + 0.036, 0.0, 0.0),
+    # Black centre lock in the well: a stepped round boss with a six-sided
+    # nut on it, the nut's top about 12 mm below the face.
+    parts.append(lathe("centre_lock_boss", [(rc * 1.05, x_well + 0.001), (rc, x_well + 0.007), (rc * 0.92, x_well + 0.014),
+                                            (rc * 0.70, x_well + 0.016), (rc * 0.62, x_well + 0.016)], mats["fan_slot"], 48))
+    bpy.ops.mesh.primitive_cylinder_add(vertices=6, radius=rc * 0.62, depth=0.014, location=(x_well + 0.023, 0.0, 0.0),
                                         rotation=(0.0, math.pi / 2, 0.0))
     nut = bpy.context.active_object
     bev = nut.modifiers.new("bevel", "BEVEL")
