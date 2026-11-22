@@ -1699,3 +1699,19 @@ grille or lamp graphic is reproduced.
 The overhangs stay equal, as the simulation's body box (D-091); the real
 car's are not, so the drawn nose is a little shorter and the tail a
 little longer than the real car's. About 13 000 faces.
+
+## D-095 A softer, rounder Tern GT
+
+The owner asked for the Tern GT to look more organic and closer to its
+comparable car. The "small" style in `tools/blender/make_car.py` now has:
+a rounder cross-section, where the side bulges, tucks in hard underneath
+and rolls over a soft shoulder into glass that leans in further; softer
+creases at the belt and sill; ends rounded in plan view (the nose and
+tail are narrower than the body); a bonnet that falls further to the
+nose; and flared arches. The flares are made by pulling the doors and
+bumpers in by up to 35 mm away from the wheels, so the widest point is
+still the data's overall width. The black arch trims sit on the flares
+and are cast in several rows so they follow its curve. The headlamps and
+grille are larger, and the tail lamps move inboard for the rounder tail.
+The other cars are unchanged. The overhangs stay equal (D-094). About
+14 500 faces.

@@ -180,7 +180,7 @@ understeer data was found for either car.
   strip, cones that tip when hit, timing gates, painted markers.
 - Car models built in Blender by a script from each car's data file
   (`tools/make_car_models.ps1`, D-091), each styled after its type (small
-  three-door, electric sport sedan; D-092, D-094) with panel gaps, handles, grilles,
+  three-door, electric sport sedan; D-092, D-094, D-095) with panel gaps, handles, grilles,
   lamps, spoilers, brake calipers; the generated low-poly body (D-055)
   remains for a car without a model. Chase and driver's-seat cameras.
 - Track map with three modes (N), painted edge lines, distance boards

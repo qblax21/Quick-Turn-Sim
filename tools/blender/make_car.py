@@ -192,26 +192,27 @@ def body_design(d):
         sb, st_ = eye - 0.95, eye - 0.42
         rear_top, rear_base = L - 0.30, L - 0.07
         st = [
-            (0.00, 0.17, 0.84, 0.47, 0.50),
-            (0.05, 0.06, 0.95, 0.52, 0.55),
-            (0.16, 0.01, 0.99, 0.56, 0.59),
-            (fa, 0.00, 1.00, 0.59, 0.615),
+            (0.00, 0.18, 0.70, 0.45, 0.47),
+            (0.05, 0.07, 0.85, 0.51, 0.535),
+            (0.16, 0.015, 0.945, 0.555, 0.58),
+            (0.34, 0.00, 0.985, 0.58, 0.605),
+            (fa, 0.00, 1.00, 0.595, 0.62),
             (sb, 0.00, 1.00, 0.62, 0.645),
             (0.5 * (sb + st_), 0.00, 1.00, 0.63, 0.84),
             (st_, 0.00, 1.00, 0.635, 0.985),
             (eye + 0.30, 0.00, 1.00, 0.64, 1.00),
             (ra - 0.15, 0.00, 1.00, 0.645, 0.995),
-            (rear_top, 0.00, 0.995, 0.65, 0.98),
-            (L - 0.16, 0.03, 0.98, 0.655, 0.83),
-            (rear_base, 0.08, 0.96, 0.65, 0.68),
-            (L - 0.02, 0.15, 0.93, 0.63, 0.65),
-            (L, 0.24, 0.86, 0.59, 0.61),
+            (rear_top, 0.00, 0.985, 0.65, 0.975),
+            (L - 0.16, 0.03, 0.955, 0.655, 0.83),
+            (rear_base, 0.08, 0.91, 0.65, 0.68),
+            (L - 0.02, 0.15, 0.85, 0.63, 0.65),
+            (L, 0.24, 0.74, 0.59, 0.61),
         ]
         b = eye + 0.32
         q = None
         windows = [
             [(sb + 0.12, 0.04), (b - 0.04, 0.04), (b - 0.04, 0.93), (st_ + 0.05, 0.93)],
-            [(b + 0.04, 0.04), (rear_top - 0.08, 0.04), (rear_top - 0.16, 0.93), (b + 0.04, 0.93)],
+            [(b + 0.04, 0.04), (rear_top - 0.05, 0.04), (rear_top - 0.26, 0.93), (b + 0.04, 0.93)],
         ]
     elif d["style"] == "hatch":
         # Hot hatch: upright nose, near-horizontal bonnet, long flat roof
@@ -279,7 +280,7 @@ def body_design(d):
               "floating_roof": d["style"] == "small"}
     # Side glass leaning in toward the roof: the share of the half-width at
     # the glass top and at the roof edge.
-    d["tumble"] = (0.86, 0.80) if d["style"] == "small" else (0.77, 0.70)
+    d["tumble"] = (0.82, 0.72) if d["style"] == "small" else (0.77, 0.70)
     return st, places
 
 
@@ -308,6 +309,21 @@ def section(d, station):
     def lerp(a, b, t):
         return a + (b - a) * t
 
+    tg, tr = d.get("tumble", (0.77, 0.70))
+    if d["style"] == "small":
+        low = max(zl + 0.16, zf + 0.16)
+        return [
+            (0.0, zl),
+            (0.72 * hw, zl),
+            (0.93 * hw, zl + 0.045),
+            (0.985 * hw, low),
+            (1.000 * hw, lerp(low, zb, 0.6)),
+            (0.965 * hw, zb - 0.05),
+            (0.915 * hw, zb),
+            (lerp(0.90, tg, k) * hw, zb + 0.80 * g * H),
+            (lerp(0.84, tr, k) * hw, zb + 0.93 * g * H),
+            (0.0, zr),
+        ]
     return [
         (0.0, zl),
         (0.78 * hw, zl),
@@ -414,8 +430,9 @@ def build_body(d, mats, frame, stations, places):
     # Crease the belt line and the sill so the subdivided body keeps a
     # shoulder and a rocker edge instead of rounding into a blob.
     crease = bm.edges.layers.float.get("crease_edge") or bm.edges.layers.float.new("crease_edge")
+    creases = ((6, 0.35), (5, 0.1), (3, 0.15)) if d["style"] == "small" else ((6, 0.75), (5, 0.45), (3, 0.5))
     for r in range(n_front, n_front + len(rings) - 1):
-        for j, c in ((6, 0.75), (5, 0.45), (3, 0.5)):
+        for j, c in creases:
             e = bm.edges.get((verts[r][j], verts[r + 1][j]))
             if e is not None:
                 e[crease] = c
@@ -444,6 +461,32 @@ def apply_modifiers(obj):
     bpy.context.view_layer.objects.active = obj
     for m in list(obj.modifiers):
         bpy.ops.object.modifier_apply(modifier=m.name)
+
+
+def flare_arches(d, body, frame, inset=0.035):
+    """Pulls the body sides in away from the wheels, so the arches stand
+    proud of the doors and bumpers as flares. The widest point stays at the
+    data's overall width."""
+    hw = frame.hw
+    wells = [(ax["y"], ax["z"], ax["r"] + ARCH_GAP) for ax in axles(d)]
+
+    def smooth(t):
+        t = max(0.0, min(1.0, t))
+        return t * t * (3 - 2 * t)
+
+    for v in body.data.vertices:
+        x, y, z = v.co
+        side = abs(x) / hw
+        if side < 0.6:
+            continue
+        near = max(1.0 - smooth((math.hypot(y - ay, z - az) - R - 0.05) / 0.17) for ay, az, R in wells)
+        s = frame.y_nose - y
+        zb = frame.belt(s)
+        zw = wells[0][1] + 0.05
+        height = 1.0 - 0.75 * smooth((z - zw) / max(zb - zw, 0.05))
+        pull = inset * (1.0 - near) * height * ((side - 0.6) / 0.4) ** 3
+        v.co.x = x - math.copysign(pull, x)
+    body.data.update()
 
 
 def axles(d):
@@ -715,17 +758,18 @@ def add_details(d, body, mats, frame, stations, places):
             arch.append((side * hw, frame.y(q + 0.02), frame.belt(q + 0.02) - 0.01))
             det.line("door_gap", arch, sdir)
         if places["floating_roof"]:
-            # Black arch trims round both wheels.
+            # Black arch trims round both wheels, on the flares: strips cast
+            # in several rows so they follow the flare's curve.
             for i in range(2):
-                r = R[i] + 0.03
-                pts = []
-                for k in range(15):
-                    t = math.radians(-12 + 204 * k / 14)
-                    z = ax[i]["z"] + r * math.sin(t)
-                    if z < frame.zf + 0.01:
+                r0, r1 = R[i] + 0.004, R[i] + 0.072
+                for k in range(24):
+                    t0, t1 = (math.radians(-12 + 204 * (k + e) / 24) for e in (0, 1))
+                    if min(ax[i]["z"] + r1 * math.sin(t) for t in (t0, t1)) < frame.zf + 0.01:
                         continue
-                    pts.append((side * hw, ax[i]["y"] + r * math.cos(t), z))
-                det.line("arch_trim", pts, sdir, width=0.05, mat="trim", lift=0.005)
+
+                    def at(r, t):
+                        return (side * hw, ax[i]["y"] + r * math.cos(t), ax[i]["z"] + r * math.sin(t))
+                    det.panel("arch_trim", "trim", [at(r0, t0), at(r0, t1), at(r1, t1), at(r1, t0)], sdir, nu=3, nv=4, lift=0.004)
 
         # Door handles: body-coloured pulls on the hatch, flush bars on
         # the sedan.
@@ -861,14 +905,14 @@ def add_small_ends(det, d, frame, places, front_belt, rear_belt):
     zf = frame.zf
     zb = front_belt
     # Heights on the face, from the floor line.
-    z_lamp = zb - 0.10
-    z_shut = zb - 0.205
+    z_lamp = zb - 0.095
+    z_shut = zb - 0.225
     for side in (1.0, -1.0):
-        c = (side * 0.60 * hw, yn, z_lamp)
-        det.ring("headlamp_bezel", "chrome", c, 0.104, 0.090, fwd, lift=0.006)
-        det.ring("headlamp", "housing", c, 0.090, 0.0, fwd, lift=0.005)
-        det.ring("headlamp_drl", "head", c, 0.080, 0.064, fwd, lift=0.008)
-        det.ring("headlamp_lens", "lens", c, 0.032, 0.0, fwd, lift=0.009)
+        c = (side * 0.58 * hw, yn, z_lamp)
+        det.ring("headlamp_bezel", "chrome", c, 0.122, 0.106, fwd, lift=0.006)
+        det.ring("headlamp", "housing", c, 0.106, 0.0, fwd, lift=0.005)
+        det.ring("headlamp_drl", "head", c, 0.095, 0.078, fwd, lift=0.008)
+        det.ring("headlamp_lens", "lens", c, 0.038, 0.0, fwd, lift=0.009)
         det.ring("indicator", "amber", (side * 0.86 * hw, yn, z_shut - 0.05), 0.022, 0.0, fwd, lift=0.006)
     # Bonnet shut line: across the face under the lamps, then back along
     # each side just under the belt to the screen.
@@ -877,13 +921,13 @@ def add_small_ends(det, d, frame, places, front_belt, rear_belt):
     for side in (1.0, -1.0):
         det.line("bonnet_gap", [(side * hw, frame.y(s), frame.belt(s) - 0.03) for s in (0.07, 0.3, 0.6, sb - 0.03)], (-side, 0.0, 0.0))
     # Grille under the shut line, with chrome bars.
-    g0, g1 = z_shut - 0.115, z_shut - 0.02
-    det.panel("grille", "gloss_black", [(-0.34 * hw, yn, g0), (0.34 * hw, yn, g0), (0.38 * hw, yn, g1), (-0.38 * hw, yn, g1)], fwd)
-    det.line("grille_surround", [(-0.34 * hw, yn, g0), (0.34 * hw, yn, g0), (0.38 * hw, yn, g1), (-0.38 * hw, yn, g1), (-0.34 * hw, yn, g0)],
+    g0, g1 = z_shut - 0.135, z_shut - 0.015
+    det.panel("grille", "gloss_black", [(-0.38 * hw, yn, g0), (0.38 * hw, yn, g0), (0.43 * hw, yn, g1), (-0.43 * hw, yn, g1)], fwd)
+    det.line("grille_surround", [(-0.38 * hw, yn, g0), (0.38 * hw, yn, g0), (0.43 * hw, yn, g1), (-0.43 * hw, yn, g1), (-0.38 * hw, yn, g0)],
              fwd, width=0.012, mat="chrome", lift=0.007)
-    for k in (1, 2):
-        z = g0 + (g1 - g0) * k / 3
-        det.line("grille_bar", [(-0.35 * hw, yn, z), (0.35 * hw, yn, z)], fwd, width=0.008, mat="chrome", lift=0.007)
+    for k in (1, 2, 3):
+        z = g0 + (g1 - g0) * k / 4
+        det.line("grille_bar", [(-0.39 * hw, yn, z), (0.39 * hw, yn, z)], fwd, width=0.008, mat="chrome", lift=0.007)
     det.panel("front_plate", "plate", [(-0.24, yn, g0 - 0.125), (0.24, yn, g0 - 0.125), (0.24, yn, g0 - 0.015), (-0.24, yn, g0 - 0.015)], fwd, lift=0.008)
     # Wide lower intake with a mesh and round fog lamps at its ends.
     zi = frame.lift(0.05) + 0.03
@@ -925,21 +969,21 @@ def add_small_ends(det, d, frame, places, front_belt, rear_belt):
     det.line("wiper", [(0.0, yt, zw), (-0.30 * hw, yt, zw + 0.08)], back, width=0.012, mat="trim", lift=0.01)
     zt0, zt1 = rear_belt - 0.27, rear_belt - 0.02
     for side in (1.0, -1.0):
-        x0, x1 = side * 0.64 * hw, side * 0.84 * hw
+        x0, x1 = side * 0.57 * hw, side * 0.77 * hw
         det.panel("taillamp_bezel", "chrome", [(x0 - side * 0.012, yt, zt0 - 0.012), (x1 + side * 0.012, yt, zt0 - 0.012),
                                                (x1 + side * 0.012, yt, zt1 + 0.012), (x0 - side * 0.012, yt, zt1 + 0.012)], back, lift=0.004)
         det.panel("taillamp", "tail", [(x0, yt, zt0), (x1, yt, zt0), (x1, yt, zt1), (x0, yt, zt1)], back, lift=0.006)
         det.line("taillamp_ring", [(x0 + side * 0.03, yt, zt0 + 0.03), (x1 - side * 0.03, yt, zt0 + 0.03), (x1 - side * 0.03, yt, zt1 - 0.03),
                                    (x0 + side * 0.03, yt, zt1 - 0.03), (x0 + side * 0.03, yt, zt0 + 0.03)], back, width=0.014, mat="tail_bright", lift=0.008)
-        det.line("tailgate_gap", [(side * 0.58 * hw, yt, rear_belt - 0.36), (side * 0.58 * hw, yt, rear_belt + 0.03)], back, lift=0.009)
-        det.panel("reflector", "tail", [(side * 0.62 * hw, yt, frame.lift(L - 0.02) + 0.10), (side * 0.82 * hw, yt, frame.lift(L - 0.02) + 0.10),
-                                        (side * 0.82 * hw, yt, frame.lift(L - 0.02) + 0.13), (side * 0.62 * hw, yt, frame.lift(L - 0.02) + 0.13)], back)
-    det.line("tailgate_gap", [(-0.58 * hw, yt, rear_belt - 0.36), (0.58 * hw, yt, rear_belt - 0.36)], back, lift=0.009)
+        det.line("tailgate_gap", [(side * 0.51 * hw, yt, rear_belt - 0.36), (side * 0.51 * hw, yt, rear_belt + 0.03)], back, lift=0.009)
+        det.panel("reflector", "tail", [(side * 0.56 * hw, yt, frame.lift(L - 0.02) + 0.10), (side * 0.76 * hw, yt, frame.lift(L - 0.02) + 0.10),
+                                        (side * 0.76 * hw, yt, frame.lift(L - 0.02) + 0.13), (side * 0.56 * hw, yt, frame.lift(L - 0.02) + 0.13)], back)
+    det.line("tailgate_gap", [(-0.51 * hw, yt, rear_belt - 0.36), (0.51 * hw, yt, rear_belt - 0.36)], back, lift=0.009)
     det.panel("rear_plate", "plate", [(-0.24, yt, rear_belt - 0.33), (0.24, yt, rear_belt - 0.33), (0.24, yt, rear_belt - 0.22), (-0.24, yt, rear_belt - 0.22)],
               back, lift=0.008)
     det.line("tailgate_handle", [(-0.16, yt, rear_belt - 0.19), (0.16, yt, rear_belt - 0.19)], back, width=0.02, mat="chrome", lift=0.008)
     zv = frame.lift(L - 0.02) + 0.01
-    det.panel("valance", "trim", [(-0.82 * hw, yt, zv), (0.82 * hw, yt, zv), (0.82 * hw, yt, zv + 0.09), (-0.82 * hw, yt, zv + 0.09)], back)
+    det.panel("valance", "trim", [(-0.74 * hw, yt, zv), (0.74 * hw, yt, zv), (0.74 * hw, yt, zv + 0.09), (-0.74 * hw, yt, zv + 0.09)], back)
     loc, _ = det.hit((0.0, yt, zv + 0.045), back)
     if loc is not None:
         for x in (-0.075, 0.075):
@@ -1226,6 +1270,8 @@ def main():
     stations, places = body_design(d)
     frame = Frame(d, stations)
     body = build_body(d, mats, frame, stations, places)
+    if d["style"] == "small":
+        flare_arches(d, body, frame)
     cut_arches(d, body)
     bpy.context.view_layer.objects.active = body
     body.select_set(True)
