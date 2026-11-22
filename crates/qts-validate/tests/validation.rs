@@ -13,12 +13,14 @@ fn data() -> DataRoot {
     DataRoot::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../data"))
 }
 
-const ALL_METRICS: [Metric; 5] = [
-    Metric::SkidpadLateralG,
-    Metric::BrakingDistance70To0,
-    Metric::Accel0To60Rollout,
-    Metric::TopSpeed,
-    Metric::UndersteerGradient,
+/// Every car is checked on one metric of each kind; which braking speed
+/// and whether the 0-60 time subtracts a rollout follows its source.
+const METRIC_KINDS: [&[Metric]; 5] = [
+    &[Metric::SkidpadLateralG],
+    &[Metric::BrakingDistance60To0, Metric::BrakingDistance70To0],
+    &[Metric::Accel0To60, Metric::Accel0To60Rollout],
+    &[Metric::TopSpeed],
+    &[Metric::UndersteerGradient],
 ];
 
 fn run(id: &str) {
@@ -33,12 +35,12 @@ fn run(id: &str) {
         "manoeuvres failed: {:?}",
         report.failures
     );
-    for metric in ALL_METRICS {
+    for kind in METRIC_KINDS {
         let c = report
             .comparisons
             .iter()
-            .find(|c| c.target.metric == metric)
-            .unwrap_or_else(|| panic!("{id}: no target for {}", metric.name()));
+            .find(|c| kind.contains(&c.target.metric))
+            .unwrap_or_else(|| panic!("{id}: no target for {}", kind[0].name()));
         assert!(c.simulated.is_finite() && c.error_percent.is_finite());
         assert!(!c.method.is_empty());
     }

@@ -109,18 +109,20 @@ sees in the demo is described in `DEMO.md`.
 - Validation harness, five metrics per car, against published road-test
   figures of the closest real cars (D-077, `docs/VALIDATION_SOURCES.md`):
 
-| Metric | Tern GT vs Golf GTI Mk7 | error | Halden E4 vs Model 3 Performance | error | tolerance |
+| Metric | Tern GT vs 2011 MINI Cooper S | error | Halden E4 vs Model 3 Performance | error | tolerance |
 | --- | --- | --- | --- | --- | --- |
-| Skidpad lateral | 0.923 g vs 0.94 | -1.9% | 0.943 g vs 0.96 | -1.8% | 10% |
-| 70-0 mph distance | 46.6 m vs 46.9 | -0.7% | 46.6 m vs 44.8 | +3.9% | 10% |
-| 0-60 mph, 1 ft rollout | 6.08 s vs 5.9 | +3.0% | 2.91 s vs 3.1 | -6.3% | 10% |
-| Top speed | 70.0 m/s vs 69.4 | +0.8% | 71.7 m/s vs 72.4 | -1.0% | 6% |
-| Understeer gradient | 2.23 deg/g vs 2.5 (guess) | -10.8% | 1.88 deg/g vs 2.0 (guess) | -6.0% | 40% |
+| Skidpad lateral | 0.931 g vs 0.87 | +7.0% | 0.943 g vs 0.96 | -1.8% | 10% |
+| Braking | 60-0 mph: 34.6 m vs 34.6 | -0.1% | 70-0 mph: 46.6 m vs 44.8 | +3.9% | 10% |
+| 0-60 mph | no rollout: 7.17 s vs 6.6 | +8.6% | 1 ft rollout: 2.90 s vs 3.1 | -6.4% | 10% |
+| Top speed | 64.6 m/s vs 63.3 | +2.1% | 71.7 m/s vs 72.4 | -1.0% | 6% |
+| Understeer gradient | 1.92 deg/g vs 2.5 (guess) | -23.4% | 1.88 deg/g vs 2.0 (guess) | -6.0% | 40% |
 
 These figures measure the comparable real cars, not ours, so they are
-labelled estimated. The gaps were closed with published specifications
-(D-078): the sedan's motor output, the hatch's torque curve, weight and
-tire size. No understeer data was found.
+labelled estimated. The Tern GT has been based on the 2011 MINI Cooper S
+three-door since D-093 (it was compared with the Golf GTI before); no
+instrumented test of the 2011 hatch was found, so its targets come from
+Edmunds tests of the same generation and the maker's figures. No
+understeer data was found for either car.
 
 ### Front end
 - First-run wheel and pedal wizard: steering axis, centre and rotation
@@ -202,7 +204,8 @@ tire size. No understeer data was found.
 - Telemetry recording from the keyboard; F3 saves the replay so far.
 
 ### Content
-- Tern GT, a fictional front-drive hot hatch, with a limited-slip variant.
+- Tern GT, a fictional small three-door turbocharged hatch (based on the
+  2011 MINI Cooper S, D-093), with a limited-slip variant.
 - Halden E4, a fictional dual-motor electric sedan.
 - Lot Autocross (412 m cone course, 69 cones: slalom, sweeper, offset, hairpin), Proving Ground (timed
   quarter-mile strip, 30 m skidpad, kerb strip, gravel patch), Quarry Road

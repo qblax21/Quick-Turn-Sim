@@ -153,19 +153,21 @@ fn the_limiter_holds_a_free_revving_engine_and_harms_nothing() {
     assert_eq!(d.engine_damage, 0.0);
 }
 
-/// Up to speed in fourth, then clutch down, first gear, clutch dropped:
-/// the classic money shift. Returns the car just after.
+/// Up to 26 m/s (about 58 mph), then clutch down, first gear, clutch
+/// dropped: the classic money shift. First gear at that speed is far past
+/// the failure speed, whatever gear the run-up ended in. Returns the car
+/// just after.
 fn missed_downshift(assists: &Assists) -> qts_vehicle::Car {
     let mut car = build(car_engine_manual(false));
     let c = controls(0.0, 1.0, 0.0);
     let (g, e) = (ground(), env());
     for _ in 0..30_000 {
         car.step(&c, &AUTO, &g, &e, DT);
-        if car.output().speed > 24.0 {
+        if car.output().speed > 26.0 {
             break;
         }
     }
-    assert!(car.output().speed > 24.0);
+    assert!(car.output().speed > 26.0);
     let mut c = DriverControls {
         clutch: 1.0,
         gear_request: Some(1),

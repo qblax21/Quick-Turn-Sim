@@ -28,33 +28,61 @@ are right.
   are not exactly the same measure; the difference is not corrected.
 - **Top speed**: US test cars are often electronically limited. Where they
   are, a manufacturer's figure is used and labelled as such.
-- **Understeer gradient**: neither source publishes one. Both targets stay
+- **Edmunds** reports braking from 60 mph and 0-60 mph without a rollout;
+  the harness metrics `braking_distance_60_0` and `accel_0_60` match. A
+  maker's 0-60 claim is taken as timed without rollout.
+- **Understeer gradient**: no source publishes one. Both targets stay
   `placeholder`.
 
-## Tern GT and the Volkswagen Golf GTI (seventh generation)
+## Tern GT and the MINI Cooper S (2011, R56)
 
-Comparable: Golf GTI Mk7, six-speed manual, with the Performance Pack
-(limited-slip front differential, larger brakes).
+Since D-093 the Tern GT is based on the owner's choice, the 2011 MINI
+Cooper S three-door hatch (R56 after its 2010 update): 1.6 litre turbo
+(N18), 135 kW, six-speed manual, front-wheel drive. Before D-093 it was
+compared with the seventh-generation Volkswagen Golf GTI; those figures
+remain in the history sections below.
 
-| | Tern GT (data) | Golf GTI as tested |
+No instrumented road test of the 2011 hatch itself was found online
+(Car and Driver, Motor Trend and Edmunds archives were searched; Car and
+Driver's online tests of the hatch start with the 2014 model, a different
+generation). The targets therefore come from Edmunds tests of R56 Cooper S
+cars and from the maker, as labelled.
+
+| | Tern GT (data) | Cooper S |
 | --- | --- | --- |
-| Layout | front engine, front drive, 6-speed manual | same |
-| Engine | 2.0 turbo, 350 N.m from 1500 to 4400 rpm, 169 kW from 4700 to 6200 rpm (since D-078; was a 320 N.m plateau) | 2.0 turbo, 258 lb-ft (350 N.m) at 1500 rpm, 220 hp (164 kW) US; 230 PS (169 kW), 350 N.m from 1500 to 4400 rpm in Europe |
-| Differential | open (the `hatch_tern_gt_lsd` variant has a limited-slip) | electronically controlled limited-slip |
-| Kerb weight | 1413 kg (since D-078; was 1300 kg) | 3116 lb (1413 kg) (2017 test) |
-| Tires | 225/40R18 summer placeholder (since D-078; was 205/45R17) | 225/40R18 Bridgestone Potenza S001 (2015 test) |
+| Layout | front transverse engine, front drive, 6-speed manual | same |
+| Engine | 260 N.m from 1700 to 4500 rpm, 135 kW at 5500 rpm | 240 N.m from 1600 to 5000 rpm, 260 N.m on overboost (1700 to 4500 rpm), 135 kW at 5500 rpm |
+| Gearbox | 3.308, 2.130, 1.483, 1.139, 0.949, 0.816; reverse 3.231; final drive 3.706 | same |
+| Differential | open (the `hatch_tern_gt_lsd` variant has a limited-slip) | open; limited-slip optional |
+| Mass | 1265 kg with driver | 2623 lb (1190 kg) measured, 2007 car; 1205 to 1215 kg quoted at the kerb |
+| Size | 3729 x 1683 mm, 2467 mm wheelbase, tracks 1453 / 1461 mm | same |
+| Tires | 195/55 R16 summer placeholder | 195/55 R16 standard; 17 inch optional |
+| Aero | 0.72 m2 drag area | Cd 0.36, 1.99 m2 |
+| Steering | 2.4 turns lock to lock, ratio 13.40 derived (D-083 method) | 2.4 turns; 10.7 m turning circle |
 
-Figures:
+Sources of the car data:
+
+| Figures | Source |
+| --- | --- |
+| Length 3729 mm, width 1683, height 1407, ground clearance 149, wheelbase 2467, tracks 1453 / 1461, kerb 1215 kg, Cd 0.36 x 1.99 m2, 260 N.m at 1700 to 4500 rpm, 135 kW at 5500 rpm, 2.4 turns lock to lock, 195/55 R16 87V on 6.5J x 16, discs 294 / 259 mm, 228 km/h, 0-100 km/h 7 s | [Carfolio, 2010 MINI Cooper S R56](https://www.carfolio.com/mini-cooper-s-216579), read 2026-11-22 (maker's figures as compiled there) |
+| Gear ratios, final drive 3.706, reverse 3.231, wheelbase, 10.7 m turning circle, length 3714 mm before the update | BMW Group press technical data for the MINI Cooper S, January 2010 and March 2012, seen as search-result excerpts of press.bmwgroup.com attachments; the attachment links now redirect to the newsroom home page, so the sheets were not read first-hand |
+| 240 N.m, 192 lb-ft (260 N.m) on overboost, 181 hp | [Edmunds, 2011 MINI Cooper review](https://www.edmunds.com/mini/cooper/2011/review/), read 2026-11-22 |
+| 2623 lb as tested, optional limited-slip differential, 0-60 in 6.5 s (2007 Cooper S, 172 hp) | [Edmunds, 2007 MINI Cooper S long-term road test](https://www.edmunds.com/mini/cooper/2007/long-term-road-test/), read 2026-11-22 |
+
+Targets:
 
 | Metric | Value | Source |
 | --- | --- | --- |
-| Skidpad | 0.94 g, 300-ft circle | [Car and Driver, "2017 Volkswagen Golf GTI Manual", Joseph Capparella, 30 March 2017](https://autos.yahoo.com/2017-volkswagen-golf-gti-manual-224500478.html) |
-| 70-0 mph | 154 ft (46.94 m) | same |
-| 0-60 mph | 5.9 s | same |
-| Top speed | 250 km/h (GTI Performance, 230 PS); 246 km/h (220 PS) | [Volkswagen, New Golf GTI international press presentation, 2013](https://www.volkswagen-newsroom.com/en/new-golf-gti-international-press-presentation-2976) (manufacturer figures; the US cars tested were governed at 125 to 126 mph) |
-| Cross-check | 0.93 g; 70-0 in 156 ft; 0-60 in 6.1 s (new), 6.2 s at 40,000 miles | [Car and Driver, 2015 Volkswagen GTI long-term test, K.C. Colwell and Tony Quiroga, November 2016 issue](https://autos.yahoo.com/2015-volkswagen-gti-223500648.html) |
+| 60-0 mph | 113.5 ft (34.59 m), the middle of 112 to 115 ft | [Edmunds, 2011 MINI Cooper review](https://www.edmunds.com/mini/cooper/2011/review/): "various Mini Cooper S models with 17-inch wheels" |
+| 0-60 mph | 6.6 s, no rollout | the maker's estimate for the manual, quoted in the same Edmunds review; Edmunds measured 6.5 s on its 2007 car |
+| Top speed | 228 km/h (63.33 m/s) | maker's figure, as listed by Carfolio |
+| Skidpad | 0.87 g | [Edmunds, 2009 BMW 128i Convertible vs. 2009 MINI Cooper S Convertible](https://www.edmunds.com/car-reviews/track-tests/track-tested-2009-bmw-128i-convertible-vs-2009-mini-cooper-s-convertible.html) (seen in search results, not read first-hand): the convertible of the same generation; no hatch figure was found |
 
 The understeer target (2.5 deg/g) is a guess; no source was found.
+
+Not found: weight distribution (62 % front is a placeholder), rev limit
+(6500 rpm placeholder), the hatch's own skidpad figure, and the
+construction of the optional limited-slip differential.
 
 ## Halden E4 and the Tesla Model 3 Performance (2018 to 2020)
 
@@ -86,12 +114,12 @@ is the qualitative "moderate understeer".
 
 | Car | Figure | Value | Source |
 | --- | --- | --- | --- |
-| Tern GT | turns lock to lock | 2.1 (378 degrees each way) | [Volkswagen newsroom, Golf GTI Mk7 running gear](https://www.volkswagen-newsroom.com/en/new-golf-gti-international-press-presentation-2976/new-golf-gti-running-gear-layout-and-electronics-2988) ("just over two full turns", read first-hand); 2.1 turns / 380 degrees in another Volkswagen release, quoted in search results |
-| Tern GT | turning circle | 10.9 m | [Volkswagen newsroom, Golf GTI facts in key words](https://www.volkswagen-newsroom.com/en/new-golf-gti-international-press-presentation-2976/new-golf-gti-overview-facts-in-key-words-3015) |
+| Tern GT | turns lock to lock | 2.4 (432 degrees each way) | [Carfolio, 2010 MINI Cooper S R56](https://www.carfolio.com/mini-cooper-s-216579) (since D-093; was 2.1 turns from the Golf GTI) |
+| Tern GT | turning circle | 10.7 m | BMW Group press technical data, January 2010, seen as a search-result excerpt (since D-093; was 10.9 m) |
 | Halden E4 | turns lock to lock, turning circle | 2.00; 11.6 m curb to curb | [Tesla Model 3 owner's manual 2017-2023, Subsystems](https://www.tesla.com/ownersmanual/2017_2023_model3/en_ae/GUID-E414862C-CFA1-4A0B-9548-BE21C32CAA58.html) (newer manuals give 2.14 turns and 11.7 m) |
 
-Ratios are derived from these (D-083): 11.73 and 10.30. Driven at full
-lock, the cars trace 11.12 m and 11.81 m.
+Ratios are derived from these (D-083): 13.40 (since D-093; was 11.73)
+and 10.30.
 
 ## Tire sanity (D-086)
 
@@ -117,7 +145,8 @@ curves.
 
 | Tire | Peak slip angle at 0.5 / 1 / 1.5 x load | Peak Fy/Fz | Load exponent | Combined slip, worst | Result |
 | --- | --- | --- | --- | --- | --- |
-| summer_225_40r18 (Tern GT) | 8.65 / 9.45 / 10.95 deg | 1.20 / 1.12 / 1.04 | 0.84 | 0.9997 of the ellipse | inside every range |
+| summer_195_55r16 (Tern GT since D-093) | 8.65 / 9.45 / 10.95 deg | 1.20 / 1.12 / 1.04 | 0.84 | the same coefficients | inside every range |
+| summer_225_40r18 (Tern GT before D-093) | 8.65 / 9.45 / 10.95 deg | 1.20 / 1.12 / 1.04 | 0.84 | 0.9997 of the ellipse | inside every range |
 | performance_235_40r19 (Halden E4) | 8.65 / 9.45 / 10.95 deg | 1.20 / 1.12 / 1.04 | 0.84 | 0.9997 | inside every range |
 | street_205_45r17 (unused since D-078) | 9.05 / 9.65 / 11.15 deg | 1.17 / 1.09 / 1.01 | 0.83 | 0.9998 | inside every range |
 
@@ -136,7 +165,29 @@ D-086 found two gaps, closed in D-087 with the owner's approval:
 Effect on validation: skidpad 0.934 to 0.923 g (Tern GT) and 0.955 to
 0.953 g (Halden E4); everything else unchanged; all targets pass.
 
+## Results since D-093
+
+`cargo run --release -p qts-validate`, with the Tern GT on the Cooper S
+data and the torque curve read as net output (D-093):
+
+| Car | Metric | Simulated | Target | Error |
+| --- | --- | --- | --- | --- |
+| Tern GT | skidpad | 0.931 g | 0.87 g | +7.0 % |
+| Tern GT | 60-0 mph | 34.57 m | 34.59 m | -0.1 % |
+| Tern GT | 0-60 mph | 7.17 s | 6.6 s | +8.6 % |
+| Tern GT | top speed | 64.65 m/s | 63.33 m/s | +2.1 % |
+| Tern GT | understeer (guess) | 1.92 deg/g | 2.5 | -23.4 % |
+
+The Halden E4 is unchanged (electric, so the torque-curve change does not
+touch it). The Tern GT's 0-60 is the closest to its tolerance: traction
+control holds the launch near the front tires' limit and two shifts fall
+before 60 mph. Its skidpad is above a figure taken from the heavier,
+softer convertible, as expected. Nothing was tuned to the targets.
+
 ## Results, before and after closing the gaps (D-078)
+
+History: these are the Tern GT's figures against the Golf GTI, before
+D-093.
 
 `cargo run --release -p qts-validate`. "Before" is D-077, "after" D-078.
 
@@ -181,6 +232,8 @@ Still open:
 - **Understeer**: no published data for either car.
 
 ## What was proposed before the changes
+
+History, before D-078 and D-093.
 
 `cargo run --release -p qts-validate`, after D-077 and with no physics
 change:

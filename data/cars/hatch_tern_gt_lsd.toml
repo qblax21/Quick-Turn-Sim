@@ -8,7 +8,8 @@ name = "Tern GT (limited-slip differential)"
 description = "Car A with a clutch-pack limited-slip differential."
 
 [drivetrain.differential]
-# The comparable GTI Performance's lock is electronically controlled
-# multiplate, not a ramp unit; this variant fits a ramp-type clutch pack
-# with the base file's placeholder settings (D-084).
+# The comparable car offered a limited-slip differential as an option
+# (docs/VALIDATION_SOURCES.md); its construction was not found, so this
+# variant fits a ramp-type clutch pack with the base file's placeholder
+# settings (D-084).
 kind = "clutch_pack"

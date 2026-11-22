@@ -1,55 +1,57 @@
 # SPDX-License-Identifier: CC-BY-4.0
-# Validation targets for the Tern GT (fictional compact FWD hot hatch).
+# Validation targets for the Tern GT (fictional small three-door FWD
+# turbocharged hatch).
 #
-# The Tern GT is fictional. These targets are published road-test figures
-# of a REAL comparable car, chosen as the closest match in layout, power,
-# torque, mass and gearbox: the seventh-generation Volkswagen Golf GTI with
-# the six-speed manual and the Performance Pack (169 kW / 230 PS in Europe,
-# 220 hp in the US, 350 N.m, front-wheel drive, limited-slip front
-# differential). Sources and differences from the Tern GT are listed in
-# docs/VALIDATION_SOURCES.md. The real name appears only here and there,
-# never in the game or the car data.
+# The Tern GT is fictional. These targets are published figures of a REAL
+# comparable car, the one its data is based on (D-093): the 2011 MINI
+# Cooper S three-door hatch (R56 after its 2010 update), 1.6 litre turbo,
+# 135 kW, 240 N.m (260 N.m with overboost), six-speed manual, front-wheel
+# drive. No instrumented road test of the 2011 car itself was found online;
+# the figures below come from Edmunds tests of R56 Cooper S cars and from
+# the maker, as each source says. Sources and differences from the Tern GT
+# are listed in docs/VALIDATION_SOURCES.md. The real name appears only here
+# and there, never in the game.
 #
-# confidence = "estimated": each value is a measurement of the comparable
-# car, used as an estimate of what the Tern GT should do. None is a
-# measurement of the Tern GT. The understeer target has no published
-# source and stays a placeholder.
+# confidence = "estimated": each value is a figure for the comparable car,
+# used as an estimate of what the Tern GT should do. None is a measurement
+# of the Tern GT. The understeer target has no published source and stays a
+# placeholder.
 
 car = "hatch_tern_gt"
 track = "test_track"
 tire_temp_c = 60.0
-note = "Targets are published road-test figures of a comparable real car (see docs/VALIDATION_SOURCES.md), not measurements of this car."
+note = "Targets are published figures of a comparable real car (see docs/VALIDATION_SOURCES.md), not measurements of this car."
 
 [[target]]
 metric = "skidpad_lateral_g"
-value = 0.94
+value = 0.87
 unit = "g"
 tolerance_percent = 10.0
-source = "Car and Driver, 2017 Volkswagen Golf GTI Sport manual (Performance Pack), test by Joseph Capparella, 30 March 2017: roadholding, 300-ft-dia skidpad, 0.94 g (a 2015 GTI manual with the same pack: 0.93 g)"
+source = "Edmunds track test, 2009 MINI Cooper S Convertible (R57, the convertible of the same generation and drivetrain) against a BMW 128i Convertible: skid pad 0.87 g. No figure for the R56 hatch was found; the hatch is lighter and stiffer, so this is a conservative estimate"
 confidence = "estimated"
 
 [[target]]
-metric = "braking_distance_70_0"
-value = 46.94
+metric = "braking_distance_60_0"
+value = 34.59
 unit = "m"
 tolerance_percent = 10.0
-source = "Car and Driver, 2017 Volkswagen Golf GTI Sport manual, 30 March 2017: braking, 70-0 mph, 154 ft (2015 GTI manual new: 156 ft)"
+source = "Edmunds, 2011 MINI Cooper review: 'various Mini Cooper S models with 17-inch wheels stopped from 60 mph between 112 and 115 feet'; the middle, 113.5 ft. The Tern GT runs the standard 16-inch size"
 confidence = "estimated"
 
 [[target]]
-metric = "accel_0_60_rollout"
-value = 5.9
+metric = "accel_0_60"
+value = 6.6
 unit = "s"
 tolerance_percent = 10.0
-source = "Car and Driver, 2017 Volkswagen Golf GTI Sport manual, 30 March 2017: zero to 60 mph, 5.9 s (2015 GTI manual new: 6.1 s). Car and Driver times with a one-foot rollout subtracted, per its published test method (not restated on the page); the harness measures this metric the same way"
+source = "MINI's estimate for the 2011 Cooper S manual, 0-60 mph in 6.6 s, quoted by Edmunds' 2011 MINI Cooper review (a maker's figure, no rollout). Cross-check: Edmunds measured 6.5 s for a 2007 Cooper S manual (172 hp) in its long-term test"
 confidence = "estimated"
 
 [[target]]
 metric = "top_speed"
-value = 69.44
+value = 63.33
 unit = "m/s"
 tolerance_percent = 6.0
-source = "Volkswagen press presentation of the Golf GTI, 22 April 2013: GTI Performance (230 PS) top speed 250 km/h, a manufacturer figure (220 PS GTI: 246 km/h). US cars are governed at 125 to 126 mph, which says nothing about drag and power"
+source = "Maker's top speed for the 135 kW Cooper S manual, 228 km/h, as listed by Carfolio (2010 MINI Cooper S R56)"
 confidence = "estimated"
 
 [[target]]
@@ -57,5 +59,5 @@ metric = "understeer_gradient"
 value = 2.5
 unit = "deg/g"
 tolerance_percent = 40.0
-source = "no published understeer gradient or steering data found for the comparable car; rough expectation for a nose-heavy front-drive road car, a guess"
+source = "no published understeer gradient found for the comparable car; rough expectation for a nose-heavy front-drive road car, a guess"
 confidence = "placeholder"

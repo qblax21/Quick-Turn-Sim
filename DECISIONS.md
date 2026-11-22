@@ -1624,3 +1624,56 @@ Not changed: the dimensions. The Tern GT's placeholder size (3.95 m long,
 2.50 m wheelbase) is shorter than its comparable, and the overhangs stay
 equal (D-091); both are simulation parameters, left as they are.
 
+
+## D-093 The Tern GT is based on the 2011 MINI Cooper S three-door
+
+The owner asked for the hatch to be based on a 2011 MINI Cooper S
+three-door, in its physics and its look. The Tern GT keeps its fictional
+name and id; its data now follows that car where a figure was found
+(sources in docs/VALIDATION_SOURCES.md), and its comparable for
+validation changes from the Golf GTI Mk7 to the Cooper S.
+
+From published figures (`estimated`): length 3.729 m, width 1.683 m,
+height 1.258 m above a 149 mm ground clearance, wheelbase 2.467 m, tracks
+1.453 / 1.461 m, mass from Edmunds' measured 1190 kg plus a driver, Cd
+0.36 x 1.99 m2, the six-speed gearbox (3.308 to 0.816, final drive
+3.706), 260 N.m from 1700 to 4500 rpm (the overboost figure; full
+throttle is what the short validation runs use) and 135 kW at 5500 rpm,
+195/55 R16 tires (a new placeholder file derived from the 225/40 R18 by
+size), 294 / 259 mm discs, 2.4 turns lock to lock and a 10.7 m turning
+circle, from which the ratio is derived as in D-083: 13.40. Scaled from
+the old values, keeping ride frequencies and balance (`placeholder`):
+springs, dampers, anti-roll bars, inertias, unsprung masses, brake
+torques and disc heat capacities. Not found, left as placeholders: weight
+distribution (62 % front), centre-of-gravity height (0.53 m), rev limit
+(6500 rpm).
+
+No instrumented road test of the 2011 hatch was found online, so its
+targets mix sources, each labelled: 60-0 mph 113.5 ft (Edmunds, Cooper S
+models on 17 inch wheels), 0-60 mph 6.6 s (the maker's estimate, no
+rollout), 228 km/h (maker), skidpad 0.87 g (Edmunds, the 2009 convertible
+of the same generation). The validation test now asks each car for one
+metric of each kind, so the hatch can use 60-0 and 0-60 without rollout
+where the sedan uses Car and Driver's 70-0 and rollout times.
+
+**Torque curves are net output.** The first run had the 0-60 at 7.28 s,
+just outside tolerance. The cause was in the engine model, not the data:
+the torque curve is the published figure, which is measured at the crank
+and so is already net of the engine's own friction, but the model
+subtracted the friction terms again at full throttle, about 27 N.m on this
+engine at 5000 rpm, 10 % of its output. The engine now gives
+`throttle x (curve + friction) - friction`: the curve at full throttle,
+the same engine braking as before with the throttle shut. This applies to
+every engine car (the electric sedan is untouched). The hatch's 0-60
+became 7.17 s (+8.6 %, inside tolerance), its top speed 64.6 m/s. Two
+vehicle tests that sat at a threshold moved with it and were made
+decisive without changing what they check: the bump-start test drops the
+clutch at 3 m/s rather than 4 (sixth then turns the engine well under the
+stall speed), and the missed-downshift test does its money shift at
+26 m/s rather than 24 (the run-up now ends in third, not second).
+
+Results: skidpad 0.931 g against 0.87 (+7.0 %), 60-0 34.57 m against 34.59
+(-0.1 %), 0-60 7.17 s against 6.6 (+8.6 %), top speed 64.65 m/s against
+63.33 (+2.1 %), understeer 1.92 deg/g against a 2.5 guess. Nothing was
+tuned to the targets. Replays and ghosts recorded with an engine car
+before this change will not reproduce: the engine makes more torque.

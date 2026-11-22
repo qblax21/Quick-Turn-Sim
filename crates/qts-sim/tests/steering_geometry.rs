@@ -12,7 +12,7 @@ use qts_sim::Session;
 
 /// Published turning circle, curb to curb, m, per car (see
 /// docs/VALIDATION_SOURCES.md).
-const TURNING_CIRCLE_M: [(&str, f64); 2] = [("hatch_tern_gt", 10.9), ("sedan_halden_e4", 11.6)];
+const TURNING_CIRCLE_M: [(&str, f64); 2] = [("hatch_tern_gt", 10.7), ("sedan_halden_e4", 11.6)];
 
 fn hold(s: &mut Session, steer: f64, throttle: f64, seconds: f64) {
     let frame = InputFrame::from_analog(steer, throttle, 0.0, 0.0, 0.0);

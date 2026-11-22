@@ -247,7 +247,10 @@ fn a_stalled_engine_bump_starts_when_the_wheels_turn_it() {
     let (g, e) = (ground(), env());
     for _ in 0..5000 {
         car.step(&c, &MANUAL, &g, &e, DT);
-        if car.output().speed < 4.0 {
+        // At 3 m/s sixth turns the engine at about 250 rpm, well under the
+        // stall speed, so it stalls however fast it was spinning when the
+        // clutch bit.
+        if car.output().speed < 3.0 {
             break;
         }
     }

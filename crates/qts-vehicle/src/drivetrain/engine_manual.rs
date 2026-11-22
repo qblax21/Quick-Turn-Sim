@@ -303,10 +303,20 @@ impl Drivetrain for EngineManual {
             clamp(c.throttle, 0.0, 1.0)
         };
         let full = self.full_throttle_torque(rpm) * (1.0 - DAMAGE_TORQUE_LOSS * self.damage);
-        let mut engine_torque = if self.stalled { 0.0 } else { throttle * full };
-        if self.engine_omega > 0.0 {
-            engine_torque -= e.friction_torque_nm + e.friction_nm_per_rad_s * self.engine_omega;
-        }
+        // The torque curve is the published one, net of the engine's own
+        // friction (what a dynamometer reads at the crank), so at full
+        // throttle the engine gives the curve; friction is what it gives
+        // with the throttle shut, the engine braking (D-093).
+        let friction = if self.engine_omega > 0.0 {
+            e.friction_torque_nm + e.friction_nm_per_rad_s * self.engine_omega
+        } else {
+            0.0
+        };
+        let mut engine_torque = if self.stalled {
+            -friction
+        } else {
+            throttle * (full + friction) - friction
+        };
         if rpm < e.idle_rpm && !self.stalled {
             let idle_limit = 0.6 * self.full_throttle_torque(e.idle_rpm);
             engine_torque += (IDLE_GAIN_NM_PER_RPM * (e.idle_rpm - rpm)).min(idle_limit);
