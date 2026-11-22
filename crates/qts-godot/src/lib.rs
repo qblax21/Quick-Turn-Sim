@@ -118,13 +118,82 @@ fn setup_to_dict(setup: &Setup) -> VarDictionary {
     vd! { "name" => gstr(&setup.name), "values" => values }
 }
 
+/// A number from a Variant holding a float or an int. gdext converts to
+/// `f64` only from a float, and GDScript and config files hand over whole
+/// numbers (an axis index, `axis=1`) as ints; read strictly, those fall
+/// back to a default and every pedal read the steering axis.
+fn number(v: &Variant) -> Option<f64> {
+    v.try_to::<f64>()
+        .ok()
+        .or_else(|| v.try_to::<i64>().ok().map(|i| i as f64))
+}
+
+/// The front end's map of directly read controls, as bindings.
+fn parse_direct_map(map: &VarDictionary) -> DirectInputMap {
+    {
+        let get_f = |d: &VarDictionary, k: &str, default: f64| -> f64 {
+            d.get(k).and_then(|v| number(&v)).unwrap_or(default)
+        };
+        let get_s = |d: &VarDictionary, k: &str| -> String {
+            d.get(k)
+                .and_then(|v| v.try_to::<GString>().ok())
+                .map(|s| s.to_string())
+                .unwrap_or_default()
+        };
+        let list = |k: &str| -> Vec<VarDictionary> {
+            map.get(k)
+                .and_then(|v| v.try_to::<VarArray>().ok())
+                .map(|a| {
+                    a.iter_shared()
+                        .filter_map(|v| v.try_to::<VarDictionary>().ok())
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        let mut parsed = DirectInputMap::default();
+        for d in list("axes") {
+            let Some(action) = AxisAction::from_name(&get_s(&d, "action")) else {
+                continue;
+            };
+            parsed.axes.push(AxisBinding {
+                action,
+                device: get_s(&d, "device"),
+                axis: get_f(&d, "axis", 0.0).max(0.0) as usize,
+                min: get_f(&d, "min", -1.0) as f32,
+                center: get_f(&d, "center", 0.0) as f32,
+                max: get_f(&d, "max", 1.0) as f32,
+                invert: d
+                    .get("invert")
+                    .and_then(|v| v.try_to::<bool>().ok())
+                    .unwrap_or(false),
+                shape: PedalShape {
+                    deadzone_low: get_f(&d, "deadzone_low", 0.0) as f32,
+                    deadzone_high: get_f(&d, "deadzone_high", 0.0) as f32,
+                    curve: get_f(&d, "curve", 1.0) as f32,
+                },
+            });
+        }
+        for d in list("buttons") {
+            let Some(action) = ButtonAction::from_name(&get_s(&d, "action")) else {
+                continue;
+            };
+            parsed.buttons.push(ButtonBinding {
+                action,
+                device: get_s(&d, "device"),
+                button: get_f(&d, "button", 0.0).max(0.0) as usize,
+            });
+        }
+        parsed
+    }
+}
+
 fn setup_from_dict(name: &str, values: &VarDictionary) -> Setup {
     let mut setup = Setup {
         name: name.trim().to_string(),
         ..Setup::default()
     };
     for (k, v) in values.iter_shared() {
-        if let (Ok(key), Ok(value)) = (k.try_to::<GString>(), v.try_to::<f64>()) {
+        if let (Ok(key), Some(value)) = (k.try_to::<GString>(), number(&v)) {
             setup.values.insert(key.to_string(), value);
         }
     }
@@ -1621,60 +1690,7 @@ impl SimBridge {
     /// controls that did open are still used.
     #[func]
     fn set_direct_inputs(&mut self, map: VarDictionary) -> bool {
-        let get_f = |d: &VarDictionary, k: &str, default: f64| -> f64 {
-            d.get(k)
-                .and_then(|v| v.try_to::<f64>().ok())
-                .unwrap_or(default)
-        };
-        let get_s = |d: &VarDictionary, k: &str| -> String {
-            d.get(k)
-                .and_then(|v| v.try_to::<GString>().ok())
-                .map(|s| s.to_string())
-                .unwrap_or_default()
-        };
-        let list = |k: &str| -> Vec<VarDictionary> {
-            map.get(k)
-                .and_then(|v| v.try_to::<VarArray>().ok())
-                .map(|a| {
-                    a.iter_shared()
-                        .filter_map(|v| v.try_to::<VarDictionary>().ok())
-                        .collect()
-                })
-                .unwrap_or_default()
-        };
-        let mut parsed = DirectInputMap::default();
-        for d in list("axes") {
-            let Some(action) = AxisAction::from_name(&get_s(&d, "action")) else {
-                continue;
-            };
-            parsed.axes.push(AxisBinding {
-                action,
-                device: get_s(&d, "device"),
-                axis: get_f(&d, "axis", 0.0).max(0.0) as usize,
-                min: get_f(&d, "min", -1.0) as f32,
-                center: get_f(&d, "center", 0.0) as f32,
-                max: get_f(&d, "max", 1.0) as f32,
-                invert: d
-                    .get("invert")
-                    .and_then(|v| v.try_to::<bool>().ok())
-                    .unwrap_or(false),
-                shape: PedalShape {
-                    deadzone_low: get_f(&d, "deadzone_low", 0.0) as f32,
-                    deadzone_high: get_f(&d, "deadzone_high", 0.0) as f32,
-                    curve: get_f(&d, "curve", 1.0) as f32,
-                },
-            });
-        }
-        for d in list("buttons") {
-            let Some(action) = ButtonAction::from_name(&get_s(&d, "action")) else {
-                continue;
-            };
-            parsed.buttons.push(ButtonBinding {
-                action,
-                device: get_s(&d, "device"),
-                button: get_f(&d, "button", 0.0).max(0.0) as usize,
-            });
-        }
+        let parsed = parse_direct_map(&map);
         if parsed.axes.is_empty() && parsed.buttons.is_empty() {
             self.send(HostCommand::SetDirectInputs(None));
             return true;
@@ -1691,6 +1707,42 @@ impl SimBridge {
             self.last_error = errors.join("; ");
             false
         }
+    }
+
+    /// The bindings `set_direct_inputs` would use for `map`, without
+    /// opening any device: `axes` as {action, axis, min, center, max,
+    /// invert, curve} and `buttons` as {action, button}. For checking that
+    /// the front end's map arrives as written.
+    #[func]
+    fn parse_direct_inputs(&self, map: VarDictionary) -> VarDictionary {
+        let parsed = parse_direct_map(&map);
+        let mut axes = VarArray::new();
+        for a in &parsed.axes {
+            axes.push(
+                &vd! {
+                    "action" => gstr(&format!("{:?}", a.action).to_lowercase()),
+                    "device" => gstr(&a.device),
+                    "axis" => a.axis as i64,
+                    "min" => f64::from(a.min),
+                    "center" => f64::from(a.center),
+                    "max" => f64::from(a.max),
+                    "invert" => a.invert,
+                    "curve" => f64::from(a.shape.curve),
+                }
+                .to_variant(),
+            );
+        }
+        let mut buttons = VarArray::new();
+        for b in &parsed.buttons {
+            buttons.push(
+                &vd! {
+                    "action" => gstr(&format!("{:?}", b.action).to_lowercase()),
+                    "button" => b.button as i64,
+                }
+                .to_variant(),
+            );
+        }
+        vd! { "axes" => axes, "buttons" => buttons }
     }
 
     // ----- recording ------------------------------------------------------

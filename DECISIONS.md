@@ -1513,3 +1513,22 @@ Tests (`tests/drive_feel.rs`): every car pulls away above 5 m/s in 4 s at
 half and full lock; the sedan's lift-off slide stays under 10 degrees;
 the torsion bar passes steady load to 1 % and cuts tick-to-tick roughness
 to under 35 % of the rack side's.
+
+## D-089 Directly read pedals followed the steering wheel
+
+With the wheel, pedals and shifter read on the physics thread (D-070,
+`use_direct`), throttle, brake and clutch all moved with the steering
+wheel. The bridge read every number in the front end's map with gdext's
+`try_to::<f64>()`, which accepts only a float Variant. Axis and button
+numbers arrive as ints (from `input.cfg`, `axis=5`), so each fell back to
+its default of 0: every pedal read axis 0, the steering axis, and every
+shifter gate read button 0. Steering itself was right only because it is
+axis 0.
+
+Fix: one `number()` helper in the bridge reads a float or an int, used for
+the direct-input map and for setup values (which had the same strict read).
+`parse_direct_inputs` returns the bindings the bridge would use without
+opening a device; `godot/tests/direct_map.gd` feeds it a map built from a
+config file in the saved format and checks the axes (0, 1, 5, 6), the
+pedal curves and a gate button. Built with the old strict read, the test
+fails on throttle, brake, clutch and the gate, as reported.
