@@ -1677,3 +1677,25 @@ Results: skidpad 0.931 g against 0.87 (+7.0 %), 60-0 34.57 m against 34.59
 63.33 (+2.1 %), understeer 1.92 deg/g against a 2.5 guess. Nothing was
 tuned to the targets. Replays and ghosts recorded with an engine car
 before this change will not reproduce: the engine makes more torque.
+
+## D-094 The Tern GT drawn as a small upright three-door
+
+With the Tern GT based on the 2011 MINI Cooper S (D-093), its model is
+redrawn to read as that kind of car without copying it: a new "small"
+style in `tools/blender/make_car.py`. The body follows the new
+dimensions; the shape has an upright face and screen, a level belt
+line, tall flat sides with little tumblehome, a flat roof running nearly
+to a near-vertical tailgate, and one long door each side. Cues of the
+type, all original in their drawing: round headlamps with chrome bezels
+and light rings set into a bonnet whose shut line runs under them and
+back along the sides, a small chrome-barred grille and a wide mesh intake
+in the bumper with round fog lamps, a bonnet scoop, black pillars under a
+roof (and mirror caps) in a contrasting white, black arch trims, upright
+corner tail lamps with chrome surrounds, a roof spoiler, twin pipes in the
+middle, silver split five-spoke wheels on the 16 inch tire, and dark
+calipers in place of the hot hatch's red. No badge, name or the maker's
+grille or lamp graphic is reproduced.
+
+The overhangs stay equal, as the simulation's body box (D-091); the real
+car's are not, so the drawn nose is a little shorter and the tail a
+little longer than the real car's. About 13 000 faces.
