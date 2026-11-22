@@ -72,7 +72,9 @@ fn a_log_covers_one_lap_and_reads_back() {
     assert!(column.iter().zip(&raw).all(|(c, r)| (c - r).abs() < 0.002));
     let summary = summarize(&parsed).unwrap();
     assert!(summary.peak_column_nm > 1.0);
-    assert!(report(&text).unwrap().contains("autocross_lot"));
+    let r = report(&text).unwrap();
+    assert!(r.contains("autocross_lot"));
+    assert!(r.contains("puts it at the knee of this"), "{r}");
     let _ = std::fs::remove_dir_all(dir);
 }
 

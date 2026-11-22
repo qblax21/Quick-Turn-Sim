@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: CC-BY-4.0
+# Wheel-base model: what the hardware can deliver (D-079).
+
+id = "fanatec_clubsport_dd"
+name = "Fanatec ClubSport DD (15 N.m)"
+verified = true
+note = "Earlier firmware gives less."
+
+peak_torque_nm = { value = 15.0, source = "same Fanatec support article: ClubSport DD up to 15 Nm, after a torque increase in May 2026 that needs the current Fanatec app", confidence = "estimated" }

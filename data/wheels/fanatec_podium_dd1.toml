@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: CC-BY-4.0
+# Wheel-base model: what the hardware can deliver (D-079).
+
+id = "fanatec_podium_dd1"
+name = "Fanatec Podium DD1 (20 N.m)"
+verified = true
+note = ""
+
+peak_torque_nm = { value = 20.0, source = "same Fanatec support article: Podium DD1 up to 20 Nm", confidence = "estimated" }

@@ -235,6 +235,36 @@ impl SimBridge {
         }
     }
 
+    /// Every wheel-base model in `data/wheels`: `id`, `name`,
+    /// `peak_torque_nm`, `verified` and `note`.
+    #[func]
+    fn wheel_models(&mut self) -> Array<VarDictionary> {
+        let mut out = Array::new();
+        let Some(root) = self.root() else {
+            return out;
+        };
+        let ids = match root.list("wheels") {
+            Ok(ids) => ids,
+            Err(e) => {
+                self.last_error = e.to_string();
+                return out;
+            }
+        };
+        for id in ids {
+            match root.load_wheel(&id) {
+                Ok(w) => out.push(&vd! {
+                    "id" => gstr(&w.value.id),
+                    "name" => gstr(&w.value.name),
+                    "peak_torque_nm" => w.value.peak_torque_nm,
+                    "verified" => w.value.verified,
+                    "note" => gstr(&w.value.note),
+                }),
+                Err(e) => self.last_error = e.to_string(),
+            }
+        }
+        out
+    }
+
     /// Identifiers of one kind of data file: `cars`, `tracks`, `ffb`.
     #[func]
     fn list_ids(&mut self, kind: GString) -> PackedStringArray {

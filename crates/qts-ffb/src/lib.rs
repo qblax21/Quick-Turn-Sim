@@ -18,9 +18,11 @@
 pub mod device;
 pub mod pipeline;
 pub mod platform;
+pub mod wheel;
 
 pub use device::{
     DeviceInfo, FfbDevice, FfbError, InputSource, NullDevice, RawInputState, ScriptedInput,
     AXIS_NAMES, INPUT_AXES, INPUT_BUTTONS,
 };
 pub use pipeline::{apply_min_force, soft_clip, FfbConfig, FfbInput, FfbPipeline, FfbSample};
+pub use wheel::{suggest_gain, wheel_torque_nm, WheelModel};

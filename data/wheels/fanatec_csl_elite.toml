@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: CC-BY-4.0
+# Wheel-base model: what the hardware can deliver (D-079).
+
+id = "fanatec_csl_elite"
+name = "Fanatec CSL Elite (belt drive)"
+verified = false
+note = "Unverified: 6 N.m is Fanatec's figure as quoted, not read from a live Fanatec page. Set your own figure if you know better."
+
+peak_torque_nm = { value = 6.0, source = "Fanatec's own product pages for the CSL Elite Wheel Base, as quoted in search results on 2026-11-20, state up to 6 Nm at the steering axis; the base is discontinued and those pages now redirect, so the figure could not be read first-hand", confidence = "placeholder" }

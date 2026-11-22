@@ -452,6 +452,23 @@ impl DataRoot {
         Ok(loaded)
     }
 
+    /// Loads a wheel-base model from `data/wheels`.
+    pub fn load_wheel(&self, id: &str) -> Result<Loaded<qts_ffb::WheelModel>, DataError> {
+        let loaded: Loaded<qts_ffb::WheelModel> = self.load_parameters("wheels", id)?;
+        let path = self.file("wheels", id);
+        if loaded.value.id != id {
+            return Err(DataError::Invalid {
+                path,
+                message: format!("`id` is `{}` but the file is `{id}`", loaded.value.id),
+            });
+        }
+        loaded
+            .value
+            .validate()
+            .map_err(|message| DataError::Invalid { path, message })?;
+        Ok(loaded)
+    }
+
     /// Loads a column-mapping profile for the telemetry importer.
     pub fn load_import_profile(&self, id: &str) -> Result<ImportProfile, DataError> {
         Ok(self.load_plain::<ImportProfile>("import", id)?.0)

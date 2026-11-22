@@ -127,6 +127,13 @@ largest request of the last two seconds, the dashed lines the soft-clip
 knee and the solid lines the wheel's full force. Red means clipping: the
 wheel cannot give more, and a change in tire grip there is not felt.
 
+Strength is in real units (D-079): gain is the torque at your wheel per
+N·m at the car's steering column, the same on every base, and gain 1 is the
+car's real torque. Pick your wheel base on the Controls screen to set its
+peak torque (the CSL Elite's 6 N·m is unverified; any figure can be typed
+over). `qts-sim ffb-gain` prints the gain that puts hard cornering at the
+soft-clip knee of each base.
+
 F5 arms a log of the next full lap: every stage of the force-feedback
 signal at 1000 Hz, the steering torque from the physics and the front tire
 state, about 20 MB of CSV per lap. Summarise one with

@@ -28,6 +28,7 @@ const DEFAULTS := {
 	"menu/traction_control": true,
 	"menu/engine_damage": false,
 	"menu/ffb_preset": "",
+	"ffb/wheel_model": "",
 }
 
 var values := {}

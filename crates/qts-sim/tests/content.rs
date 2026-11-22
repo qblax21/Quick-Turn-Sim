@@ -43,6 +43,20 @@ fn every_data_file_loads() {
     for id in root.list("import").unwrap() {
         root.load_import_profile(&id).unwrap();
     }
+    // Wheel models: every figure sourced, and an unverified one says so.
+    let wheels = root.list("wheels").unwrap();
+    assert!(wheels.contains(&"fanatec_csl_elite".to_string()));
+    for id in &wheels {
+        let w = root.load_wheel(id).unwrap();
+        assert!(!w.provenance.is_empty());
+        if !w.value.verified {
+            assert!(
+                !w.value.note.trim().is_empty(),
+                "{id}: an unverified figure needs a note"
+            );
+        }
+    }
+    assert!(!root.load_wheel("fanatec_csl_elite").unwrap().value.verified);
     for car in CARS {
         for track in TRACKS {
             SessionAssets::load(&root, car, track).unwrap();

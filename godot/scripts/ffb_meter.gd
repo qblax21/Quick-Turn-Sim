@@ -40,8 +40,11 @@ func update_from(status: Dictionary, config: Dictionary) -> void:
 	var lines: Array = []
 	lines.append("FFB  out %+5.2f   asked %+5.2f   peak %4.2f   clipping %3.0f%% of the last second" % [
 		output, requested, peak, status.get("clip_fraction", 0.0) * 100.0])
-	lines.append("gain %.2f  [ ]     min force %.2f  ; '     knee %.2f     wheel %.1f N·m" % [
-		config.get("gain", 0.0), config.get("min_force", 0.0), knee, config.get("device_max_torque_nm", 0.0)])
+	var wheel_nm: float = config.get("device_max_torque_nm", 0.0)
+	lines.append("column %+5.1f N·m  ->  wheel asked %+5.1f N·m, given %+5.1f N·m of %.1f N·m   (peak asked %.1f N·m)" % [
+		status.get("ffb_raw_nm", 0.0), requested * wheel_nm, output * wheel_nm, wheel_nm, peak * wheel_nm])
+	lines.append("gain %.2f (wheel N·m per column N·m)  [ ]     min force %.2f  ; '     knee %.2f" % [
+		config.get("gain", 0.0), config.get("min_force", 0.0), knee])
 	var log_line := "F5 logs the next full lap"
 	match status.get("ffb_log_state", "off"):
 		"waiting":

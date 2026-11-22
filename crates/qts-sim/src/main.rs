@@ -47,6 +47,9 @@ Commands:
   steering-compare [--csv FILE]          column torque against speed on a
                                          Ridgeline lap and the skidpad, with
                                          the steering model before D-075 and now
+  ffb-gain [--wheel ID] [--knee K]       column torque over scripted Ridgeline
+                                         laps of every car, and the gain that
+                                         puts it at the knee of a wheel base
   ffb-devices                            list steering devices
   input-read [--device ID] [--reads N]   read every axis and button of the
                                          attached controllers and time the reads
@@ -774,15 +777,68 @@ fn steer_row(s: &Session) -> SteerRow {
     }
 }
 
+fn cmd_ffb_gain(args: &Args) -> Result<(), String> {
+    let root = data_root()?;
+    let knee: f64 = args
+        .text("knee")
+        .map_or(Ok(0.75), |k| k.parse().map_err(|_| "bad --knee"))?;
+    let wheels: Vec<String> = match args.text("wheel") {
+        Some(w) => vec![w.to_string()],
+        None => root.list("wheels").map_err(|e| e.to_string())?,
+    };
+    let mut worst: f64 = 0.0;
+    println!("Column torque over a scripted Ridgeline lap (hand-limited steering), N.m:");
+    for car in root.list("cars").map_err(|e| e.to_string())? {
+        for (label, lateral) in [("0.7 g", 7.0), ("0.85 g", 8.5)] {
+            let rows = steering_lap_at(&root, &car, None, lateral)?;
+            let mut t: Vec<f64> = rows.iter().map(|r| r.column_nm.abs()).collect();
+            t.sort_by(f64::total_cmp);
+            let at = |p: f64| t[((t.len() - 1) as f64 * p).round() as usize];
+            let p99 = at(0.99);
+            worst = worst.max(p99);
+            println!(
+                "  {car:20} planned {label:6}  median {:5.1}  p95 {:5.1}  p99 {:5.1}  max {:5.1}",
+                at(0.5),
+                at(0.95),
+                p99,
+                t[t.len() - 1]
+            );
+        }
+    }
+    println!("Gain that puts the highest 99th percentile ({worst:.1} N.m) at a knee of {knee}:");
+    for id in wheels {
+        let w = root.load_wheel(&id).map_err(|e| e.to_string())?.value;
+        let g = qts_ffb::suggest_gain(worst, knee, w.peak_torque_nm);
+        println!(
+            "  {:34} {:5.1} N.m{}  gain {:.2}",
+            w.name,
+            w.peak_torque_nm,
+            if w.verified { "" } else { " (unverified)" },
+            g
+        );
+    }
+    Ok(())
+}
+
 /// A scripted lap of Ridgeline, sampled every 50 ms.
 fn steering_lap(root: &DataRoot, car: &str, legacy: Option<f64>) -> Result<Vec<SteerRow>, String> {
+    steering_lap_at(root, car, legacy, 7.0)
+}
+
+/// A scripted lap of Ridgeline planned for `lateral` m/s², every 50 ms.
+fn steering_lap_at(
+    root: &DataRoot,
+    car: &str,
+    legacy: Option<f64>,
+    lateral: f64,
+) -> Result<Vec<SteerRow>, String> {
     let mut s = steering_session(root, car, "ridgeline_circuit", legacy)?;
     let path = s.track().path("circuit").ok_or("no circuit path")?.clone();
     let mut driver = PathFollower::new(
         &path,
         PathFollowerConfig {
             max_speed: 45.0,
-            lateral_accel: 7.0,
+            lateral_accel: lateral,
             closed: true,
             ..PathFollowerConfig::default()
         },
@@ -1080,6 +1136,7 @@ fn main() -> ExitCode {
         "ffb-report" => cmd_ffb_report(&args).map(|()| true),
         "kerb-ffb" => cmd_kerb_ffb(&args).map(|()| true),
         "steering-compare" => cmd_steering_compare(&args).map(|()| true),
+        "ffb-gain" => cmd_ffb_gain(&args).map(|()| true),
         "ffb-devices" => cmd_ffb_devices().map(|()| true),
         "input-read" => cmd_input_read(&args).map(|()| true),
         "ffb-test" => cmd_ffb_test(&args).map(|()| true),

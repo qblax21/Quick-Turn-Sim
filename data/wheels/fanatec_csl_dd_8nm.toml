@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: CC-BY-4.0
+# Wheel-base model: what the hardware can deliver (D-079).
+
+id = "fanatec_csl_dd_8nm"
+name = "Fanatec CSL DD / GT DD Pro with Boost Kit 180 (8 N.m)"
+verified = true
+note = ""
+
+peak_torque_nm = { value = 8.0, source = "same Fanatec support article: 8 Nm with the Boost Kit 180", confidence = "estimated" }

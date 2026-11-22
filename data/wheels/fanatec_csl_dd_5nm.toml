@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: CC-BY-4.0
+# Wheel-base model: what the hardware can deliver (D-079).
+
+id = "fanatec_csl_dd_5nm"
+name = "Fanatec CSL DD / GT DD Pro (5 N.m)"
+verified = true
+note = ""
+
+peak_torque_nm = { value = 5.0, source = "Fanatec support, 'What is the maximum FFB strength of the wheel bases you offer?' (https://help.fanatec.com/hc/en-us/articles/30312115418897), read 2026-11-20: CSL DD Series up to 5 Nm", confidence = "estimated" }

@@ -504,6 +504,8 @@ pub struct FfbLogSummary {
     pub p99_requested: f64,
     /// Largest `|column_torque_nm|`.
     pub peak_column_nm: f64,
+    /// 99th percentile of `|column_torque_nm|`.
+    pub p99_column_nm: f64,
     /// Clipping stretches, longest first.
     pub stretches: Vec<ClipStretch>,
     /// Torque against front slip angle, 1° bands from zero, while the car
@@ -549,6 +551,10 @@ pub fn summarize(data: &FfbLogData) -> Result<FfbLogSummary, String> {
             0.99,
         ),
         peak_column_nm: column.iter().fold(0.0_f64, |m, r| m.max(r.abs())),
+        p99_column_nm: percentile(
+            &mut column.iter().map(|r| r.abs()).collect::<Vec<_>>(),
+            0.99,
+        ),
         ..FfbLogSummary::default()
     };
 
@@ -645,6 +651,20 @@ pub fn report(text: &str) -> Result<String, String> {
         s.p99_requested,
         s.peak_column_nm
     );
+    // Strength in real units: what gain puts this lap's hard cornering at
+    // the knee of this base.
+    let num = |k: &str| data.meta(k).and_then(|v| v.parse::<f64>().ok());
+    if let (Some(knee), Some(peak)) = (num("soft_clip_knee"), num("device_max_torque_nm")) {
+        let suggested = qts_ffb::suggest_gain(s.p99_column_nm, knee, peak);
+        let _ = writeln!(
+            r,
+            "Column torque 99th percentile {:.1} N.m. Gain {:.2} puts it at the knee of this {:.1} N.m base ({:.1} N.m at the wheel); gain 1 would be the car's real torque.",
+            s.p99_column_nm,
+            suggested,
+            peak,
+            s.p99_column_nm * suggested
+        );
+    }
     if s.stretches.is_empty() {
         let _ = writeln!(r, "No clipping.");
     } else {

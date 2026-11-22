@@ -1159,3 +1159,35 @@ the sedan's launch; earlier drives that set its steering and balance were
 on the old values. The gravel soak's random driver now resets the car
 after 15 s without moving, as a person would, instead of searching for a
 seed that does not pin it against a tree; seed 1 is back.
+
+## D-079 Force feedback in real units; wheel-base models
+
+The pipeline already worked in newton-metres (output = gain × column
+torque ÷ the base's peak torque); this makes that explicit and separates
+the hardware from the feel. `data/wheels` holds wheel-base models with a
+sourced peak torque and a `verified` flag. Picking one on the Controls
+screen sets the peak torque, which stays adjustable for any other base.
+Gain is now described as what it is: N·m at the driver's wheel per N·m at
+the car's steering column, the same on every base; gain 1 is the car's
+real torque. The Controls screen spells out what hard cornering asks of
+the chosen base, and the F4 meter shows column torque, the torque asked
+of the wheel and the torque given, in N·m.
+
+Sources. The Fanatec direct-drive figures (CSL DD 5 N·m or 8 N·m with the
+Boost Kit 180, ClubSport DD 15, DD+ 18, Podium DD1 20, DD2 25) were read
+from Fanatec's support article on 2026-11-20. The CSL Elite's 6 N·m comes
+from Fanatec's own product pages as quoted in search results; the base is
+discontinued, the pages redirect, and an attempt to read an archived copy
+was stopped, so it is marked unverified with a note, here and in the FFB
+preset. Other makers' figures were only found in third-party tables and
+are not preset; a "custom" model covers them.
+
+Default gain. `qts-sim ffb-gain` drives scripted Ridgeline laps of every
+car (hand-limited steering, planned at 0.7 and 0.85 g) on the current
+physics and takes the 99th percentile of column torque: 12.5 to 14.8 N·m,
+the highest the Halden E4's. The default gain puts that at the soft-clip
+knee: 0.75 × peak / 14.8. For the 6 N·m CSL Elite that is 0.30, the same
+as the earlier guess (which had been reasoned from the heavier unassisted
+torque before D-075); for the 5 N·m generic preset 0.25, from 0.20. The F5
+log report now prints the same figure from a real lap, so the CSL Elite
+gain can be confirmed from the owner's logs.

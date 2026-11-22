@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: CC-BY-4.0
+# Wheel-base model: what the hardware can deliver (D-079).
+
+id = "custom"
+name = "Other wheel (enter its peak torque)"
+verified = false
+note = "Other makers' figures were found only in third-party tables and are not preset. Set the peak torque on the Controls screen."
+
+peak_torque_nm = { value = 5.0, source = "a starting value only; enter the peak torque your wheel's maker states", confidence = "placeholder" }

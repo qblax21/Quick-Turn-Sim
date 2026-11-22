@@ -53,6 +53,12 @@ var listen_is_axis := true
 var baseline := {}       # device -> [axis values] when listening started
 var calibrating := ""    # axis action being calibrated
 var clutch_curve := {}
+var strength_label: Label
+var wheel_note: Label
+var ffb_sliders := {}
+# Column torque of hard cornering: the 99th percentile over scripted
+# Ridgeline laps of every car (`qts-sim ffb-gain`, D-079).
+const HARD_CORNER_NM := 14.8
 var clutch_label: Label
 var clutch_strip: Control
 var clutch_travel := 0.0
@@ -173,8 +179,14 @@ func _ready() -> void:
 	sign_help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	sign_help.add_theme_font_size_override("font_size", 13)
 	right.add_child(sign_help)
+	_wheel_model_row(right, config)
 	for entry in FFB_SLIDERS:
 		_ffb_slider(right, entry, config)
+	strength_label = Label.new()
+	strength_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	strength_label.add_theme_font_size_override("font_size", 13)
+	right.add_child(strength_label)
+	_update_strength_label()
 	var note := Label.new()
 	note.text = "Changes apply at once and are remembered for this preset when you save. The preset file in data/ffb is not changed."
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -350,8 +362,61 @@ func _ffb_slider(parent: Control, entry: Array, config: Dictionary) -> void:
 		if sim.ffb_set(key, v):
 			settings.set_ffb(preset_id, key, v)
 		else:
-			status.text = sim.last_error())
+			status.text = sim.last_error()
+		_update_strength_label())
 	parent.add_child(row)
+	ffb_sliders[key] = slider
+
+
+# The wheel base: picking a model sets its published peak torque, which
+# stays adjustable on the slider below.
+func _wheel_model_row(parent: Control, config: Dictionary) -> void:
+	var row := HBoxContainer.new()
+	var label := Label.new()
+	label.text = "Wheel base"
+	label.custom_minimum_size = Vector2(230, 0)
+	row.add_child(label)
+	var pick := OptionButton.new()
+	pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var models: Array = sim.wheel_models()
+	var chosen: String = settings.get_value("ffb/wheel_model")
+	for i in models.size():
+		var m: Dictionary = models[i]
+		pick.add_item("%s%s" % [m.name, "" if m.verified else " (unverified)"])
+		if m.id == chosen:
+			pick.select(i)
+	if chosen == "":
+		pick.select(-1)
+		pick.text = "Choose your wheel base (sets its peak torque)"
+	row.add_child(pick)
+	parent.add_child(row)
+	wheel_note = Label.new()
+	wheel_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	wheel_note.add_theme_font_size_override("font_size", 13)
+	parent.add_child(wheel_note)
+	pick.item_selected.connect(func(i: int) -> void:
+		var m: Dictionary = models[i]
+		settings.set_value("ffb/wheel_model", m.id)
+		wheel_note.text = m.note
+		if ffb_sliders.has("device_max_torque_nm"):
+			ffb_sliders["device_max_torque_nm"].value = m.peak_torque_nm)
+	for m in models:
+		if m.id == chosen:
+			wheel_note.text = m.note
+
+
+# Strength in real units: what the car's column torque becomes at the wheel.
+func _update_strength_label() -> void:
+	if strength_label == null:
+		return
+	var c: Dictionary = sim.ffb_config()
+	var gain: float = c.get("gain", 0.0)
+	var peak: float = maxf(c.get("device_max_torque_nm", 1.0), 0.01)
+	var knee: float = c.get("soft_clip_knee", 0.75)
+	var hard := HARD_CORNER_NM * gain
+	var advice := "inside the knee" if hard <= knee * peak else ("past the knee: compressed" if hard < peak else "beyond full force: clipping")
+	strength_label.text = "Gain %.2f: 1 N·m at the car's steering column is %.2f N·m at your wheel, on any wheel base. Hard cornering (about %.0f N·m at the column) asks %.1f N·m of your %.1f N·m: %s. Gain %.2f puts it at the knee; gain 1 is the car's real torque." % [
+		gain, gain, HARD_CORNER_NM, hard, peak, advice, minf(knee * peak / HARD_CORNER_NM, 1.0)]
 
 
 func _snapshot_axes() -> Dictionary:
