@@ -114,6 +114,7 @@ wheel setup** first: assign and calibrate the axes, choose the wheel under
 | While the meter shows: gain down, up / minimum force down, up | [ ] / ; ' |
 | Log the force feedback for the next full lap | F5 |
 | Starter (engine stalled: clutch down first) | I |
+| Photo mode: free camera, depth of field, high-res stills | F8 |
 | Hide everything on screen | H |
 
 Recordings go to the `recordings` folder in Godot's user data directory for

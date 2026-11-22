@@ -115,6 +115,10 @@ labelled estimated. The gaps were closed with published specifications
 tire size. No understeer data was found.
 
 ### Front end
+- Photo mode (F8, or O in a replay): paused free camera, field of view,
+  depth of field, stills at up to 4x the window; a trailer director that
+  renders a marked replay stretch to a PNG sequence with automatic cuts
+  (D-082). Video encoding is left to ffmpeg.
 - Title screen with the circuit flown over behind it; car and track
   selection with assists, wheel and preset; the last choices are
   remembered. Pause menu (resume, restart, end, quit) and end-of-session

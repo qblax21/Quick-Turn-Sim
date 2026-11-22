@@ -8,6 +8,7 @@ const Menu := preload("res://scripts/menu.gd")
 const InputSetup := preload("res://scripts/input_setup.gd")
 const InputReader := preload("res://scripts/input_reader.gd")
 const World := preload("res://scripts/world.gd")
+const PhotoMode := preload("res://scripts/photo_mode.gd")
 const CarView := preload("res://scripts/car_view.gd")
 const Hud := preload("res://scripts/hud.gd")
 const SkidMarks := preload("res://scripts/skid_marks.gd")
@@ -43,6 +44,7 @@ var pause_menu
 var results
 # The last drive request, so a session can be restarted or driven again.
 var last_drive: Array = []
+var photo_mode
 # Highest hot tire pressure per wheel this session, Pa absolute, for the garage.
 var hot_pressure_peak: Array = [0.0, 0.0, 0.0, 0.0]
 var cold_pressure_set: Array = [0.0, 0.0, 0.0, 0.0]
@@ -528,7 +530,7 @@ func _update_camera(car_xform: Transform3D, delta: float) -> void:
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
-	if not event.pressed or event.echo or sim == null or not sim.is_running():
+	if not event.pressed or event.echo or sim == null or not sim.is_running() or photo_mode:
 		return
 	match event.physical_keycode:
 		KEY_ESCAPE:
@@ -563,6 +565,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			hud.visible = not hud.visible
 		KEY_F4:
 			hud.toggle_ffb_meter()
+		KEY_F8:
+			_open_photo_mode()
 		KEY_F5:
 			var state: String = sim.status().get("ffb_log_state", "off")
 			if state == "waiting" or state == "recording":
@@ -591,6 +595,25 @@ func _nudge_ffb(name: String, step: float, lowest: float, highest: float) -> voi
 		settings.set_ffb(config.get("id", ""), name, value)
 		settings.save()
 		hud.flash("%s %.2f" % [name.replace("_", " "), value])
+
+
+# Photo mode: the session is paused while it is open and resumes after,
+# unless it was paused already.
+func _open_photo_mode() -> void:
+	if photo_mode:
+		return
+	var was_paused := paused
+	sim.set_paused(true)
+	var hud_was_visible: bool = hud.visible
+	hud.visible = false
+	photo_mode = PhotoMode.new()
+	photo_mode.setup(camera)
+	photo_mode.closed.connect(func() -> void:
+		photo_mode = null
+		hud.visible = hud_was_visible
+		if not was_paused:
+			sim.set_paused(false))
+	add_child(photo_mode)
 
 
 func _open_pause_menu() -> void:

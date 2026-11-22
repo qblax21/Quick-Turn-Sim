@@ -1241,3 +1241,38 @@ a track-position channel would be the improvement.
 
 The headless `path` driver now laps a closed circuit instead of stopping
 at the end of its path.
+
+## D-082 Photo mode and a trailer director
+
+Both live in the front end and only read poses and move a camera, so
+neither touches the physics or replay determinism (a test checks that the
+replay used still reproduces exactly after an export).
+
+**Photo mode** (F8 while driving, O in a replay): the session or the
+replay is paused (and resumes afterwards unless it was paused already),
+the HUD is hidden, and a free camera takes over from the current view:
+WASD to move, Q/E down and up, Shift faster, right mouse to look, the
+wheel or a slider for field of view, and depth of field (Godot's
+practical camera attributes) with focus distance and blur amount; the
+sharp band widens with the focus distance as a lens's does. Enter or F12
+captures through an off-screen viewport sharing the scene's world at 1,
+2 or 4 times the window size (up to 16384 px a side), without any
+overlay, to `photos/photo_<time>_<w>x<h>.png`.
+
+**Trailer director** (replay viewer): `[` and `]` mark a stretch, D
+exports it. The director cuts between five shot kinds in a fixed order
+(trackside posts, low chase, slow orbit, side tracking, helicopter) with
+shot lengths of 3 to 5 s, and renders the stretch frame by frame at a
+fixed rate (30 fps by default) through the same off-screen capture, so
+the sequence is smooth whatever the machine's frame rate, to
+`trailer/sequence_<time>/frame_00001.png...` with `shots.json` (the cut
+list) and a README giving the ffmpeg command for a video. Encoding is
+left to ffmpeg; nothing is bundled. The same replay and marks give the
+same sequence.
+
+`godot/tests/photo_trailer.gd` drives a session, checks photo mode
+freezes it and hides the HUD, captures a 2x still with depth of field,
+then exports 2 s of the replay at 15 fps and checks frame count, size,
+cut list and replay exactness. It saves its replay to a temporary file
+rather than the player's replays folder (where saving trims the oldest)
+and removes what it wrote.

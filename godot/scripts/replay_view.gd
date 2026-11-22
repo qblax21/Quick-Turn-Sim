@@ -10,8 +10,26 @@
 #   C            next camera
 #   H            hide or show everything on screen except the scene
 #   Home         back to the start
+#   O            photo mode (free camera, depth of field, high-res stills)
+#   [ ]          mark the start and end of a trailer sequence
+#   D            export it: an automatic camera director renders it frame
+#                by frame to a PNG sequence with a shot list (D-082)
 #   Esc          leave
 extends Node
+
+const PhotoMode := preload("res://scripts/photo_mode.gd")
+const Capture := preload("res://scripts/capture.gd")
+
+# Trailer director: shot kinds it cuts between, and shot lengths in turn.
+const SHOTS := ["trackside", "chase_low", "orbit", "side_track", "helicopter"]
+const SHOT_LENGTHS := [4.0, 3.0, 5.0, 3.5, 4.5]
+var mark_in := 0.0
+var mark_out := -1.0
+var exporting := false
+var export_fps := 30
+var export_scale := 1.0
+var export_dir := ""
+var photo_mode
 
 const World := preload("res://scripts/world.gd")
 const CarView := preload("res://scripts/car_view.gd")
@@ -111,7 +129,7 @@ func _build_overlay() -> void:
 	layer.add_child(notice_label)
 	help_label = Label.new()
 	help_label.add_theme_font_size_override("font_size", 14)
-	help_label.text = "Space play/pause   Left/Right -5/+5 s (Shift: 0.5 s)   Up/Down speed   C camera   drag: turn orbit camera   H hide all   Home start   Esc leave"
+	help_label.text = "Space play/pause   Left/Right -5/+5 s (Shift: 0.5 s)   Up/Down speed   C camera   drag: turn orbit camera   H hide all   Home start   O photo mode   [ ] mark trailer in/out   D export trailer   Esc leave"
 	help_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE, Control.PRESET_MODE_MINSIZE, 24)
 	help_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	help_label.grow_vertical = Control.GROW_DIRECTION_BEGIN
@@ -134,6 +152,8 @@ func _build_overlay() -> void:
 
 
 func _process(delta: float) -> void:
+	if exporting or photo_mode:
+		return
 	if not prepared:
 		var began := Time.get_ticks_msec()
 		var progress := 0.0
@@ -243,7 +263,17 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey) or not event.pressed:
 		return
 	var step := 0.5 if event.shift_pressed else 5.0
+	if exporting or photo_mode:
+		return
 	match event.physical_keycode:
+		KEY_O:
+			_open_photo_mode()
+		KEY_BRACKETLEFT:
+			mark_in = time
+		KEY_BRACKETRIGHT:
+			mark_out = time
+		KEY_D:
+			export_sequence()
 		KEY_SPACE:
 			if time >= duration:
 				time = 0.0
@@ -266,6 +296,115 @@ func _unhandled_input(event: InputEvent) -> void:
 		KEY_ESCAPE:
 			closed.emit()
 	get_viewport().set_input_as_handled()
+
+
+func _open_photo_mode() -> void:
+	playing = false
+	layer.visible = false
+	photo_mode = PhotoMode.new()
+	photo_mode.setup(camera)
+	photo_mode.closed.connect(func() -> void:
+		photo_mode = null
+		layer.visible = true)
+	add_child(photo_mode)
+
+
+# The director's shot list for a stretch: `[kind, start, end]`, cutting
+# between kinds in a fixed order so an export is the same every time.
+func shot_list(from: float, to: float) -> Array:
+	var shots: Array = []
+	var t := from
+	var k := 0
+	while t < to - 0.05:
+		var length: float = SHOT_LENGTHS[k % SHOT_LENGTHS.size()]
+		shots.append([SHOTS[k % SHOTS.size()], t, minf(t + length, to)])
+		t += length
+		k += 1
+	return shots
+
+
+# Places the camera for one shot, `shot_t` seconds into it. Only
+# positions from the replay are read.
+func _shot_camera(kind: String, xform: Transform3D, shot_t: float) -> void:
+	var target := xform.origin + Vector3.UP * 0.6
+	var heading := -xform.basis.z
+	heading.y = 0.0
+	heading = heading.normalized() if heading.length() > 0.01 else Vector3.FORWARD
+	var side := heading.cross(Vector3.UP).normalized()
+	camera.attributes = null
+	match kind:
+		"trackside":
+			_trackside(target)
+		"chase_low":
+			camera.global_position = xform.origin - heading * 5.5 + Vector3.UP * 1.0
+			camera.look_at(target + heading * 6.0, Vector3.UP)
+			camera.fov = 55.0
+		"orbit":
+			var a := 0.45 * shot_t
+			var offset := (heading * cos(a) + side * sin(a)) * 6.5
+			camera.global_position = xform.origin + offset + Vector3.UP * 1.6
+			camera.look_at(target, Vector3.UP)
+			camera.fov = 50.0
+		"side_track":
+			camera.global_position = xform.origin + side * 6.0 + Vector3.UP * 0.8 + heading * (1.5 - 0.3 * shot_t)
+			camera.look_at(target, Vector3.UP)
+			camera.fov = 45.0
+		"helicopter":
+			camera.global_position = xform.origin - heading * 20.0 + side * 8.0 + Vector3.UP * 25.0
+			camera.look_at(target + heading * 10.0, Vector3.UP)
+			camera.fov = 40.0
+
+
+# Renders the marked stretch (or the whole replay) frame by frame at a
+# fixed rate, cutting between director shots, into a PNG sequence with a
+# shot list and the command that turns it into a video. Returns the
+# directory, or "" if nothing was written.
+func export_sequence(fps: int = export_fps, scale: float = export_scale) -> String:
+	if exporting:
+		return ""
+	var to := mark_out if mark_out > mark_in else duration
+	var from := clampf(mark_in, 0.0, to)
+	exporting = true
+	playing = false
+	layer.visible = false
+	# The whole stretch must be prepared before rendering it.
+	while not prepared and sim.replay_info().get("prepared", 0.0) < to:
+		sim.replay_prepare(5000)
+		await get_tree().process_frame
+	var stamp := Time.get_datetime_string_from_system().replace(":", "-")
+	export_dir = ProjectSettings.globalize_path("user://trailer").path_join("sequence_%s" % stamp)
+	DirAccess.make_dir_recursive_absolute(export_dir)
+	var shots := shot_list(from, to)
+	var frames := int(floor((to - from) * fps)) + 1
+	var shot := 0
+	for k in frames:
+		var t := from + float(k) / fps
+		while shot < shots.size() - 1 and t >= shots[shot][2]:
+			shot += 1
+			post_index = -1
+		time = t
+		var frame: Dictionary = sim.replay_frame(t)
+		if frame.is_empty():
+			continue
+		var xform: Transform3D = frame.transform
+		car_view.set_seat_view(false)
+		car_view.update(xform, frame.wheels, frame.steering_wheel_angle)
+		world.update_cones(sim.replay_cones(t))
+		_shot_camera(shots[shot][0], xform, t - shots[shot][1])
+		var image: Image = await Capture.render(self, camera, scale)
+		image.save_png(export_dir.path_join("frame_%05d.png" % (k + 1)))
+	var list := []
+	for s in shots:
+		list.append({"shot": s[0], "start_s": s[1], "end_s": s[2]})
+	var json := FileAccess.open(export_dir.path_join("shots.json"), FileAccess.WRITE)
+	json.store_string(JSON.stringify({"fps": fps, "from_s": from, "to_s": to, "frames": frames, "shots": list}, "  "))
+	json.close()
+	var readme := FileAccess.open(export_dir.path_join("README.txt"), FileAccess.WRITE)
+	readme.store_string("Trailer sequence: %d frames at %d fps from %.2f s to %.2f s of the replay, %d shots (shots.json).\nTo make a video:\n  ffmpeg -framerate %d -i frame_%%05d.png -c:v libx264 -pix_fmt yuv420p -crf 16 trailer.mp4\n" % [frames, fps, from, to, shots.size(), fps])
+	readme.close()
+	exporting = false
+	layer.visible = true
+	return export_dir
 
 
 func close() -> void:
