@@ -384,3 +384,92 @@ fn a_replay_carries_its_setup_and_reproduces() {
     let mut plain = Session::for_replay(&data(), &header).unwrap();
     assert!(!replay.verify(&mut plain).unwrap().is_exact());
 }
+
+#[test]
+fn a_setup_sheet_reads_back_as_the_same_setup() {
+    use qts_sim::setup::setup_sheet;
+    let root = data();
+    for car_id in CARS {
+        let car = root.load_car(car_id).unwrap().value;
+        let tf = root.load_tire(&car.tire_front).unwrap().value;
+        let tr = root.load_tire(&car.tire_rear).unwrap().value;
+        let mut setup = Setup {
+            name: "Ridgeline dry".into(),
+            ..Setup::default()
+        };
+        setup.values.insert("front.camber_deg".into(), -2.3);
+        let rear_spring = setup_items(&car, &tf, &tr)
+            .into_iter()
+            .find(|i| i.key == "rear.spring_n_per_mm")
+            .unwrap()
+            .default;
+        setup
+            .values
+            .insert("rear.spring_n_per_mm".into(), (1.2 * rear_spring).round());
+        setup.values.insert("brake_bias_pct".into(), 70.0);
+        let sheet = setup_sheet(&car, &tf, &tr, &setup, "ridgeline_circuit").unwrap();
+        assert_eq!(
+            Setup::from_text(&sheet).unwrap(),
+            setup,
+            "{car_id}:\n{sheet}"
+        );
+        // The changed values show the car's own beside them.
+        assert!(sheet.contains("-2.3 deg   (car:"), "{sheet}");
+        // A sheet for the car as delivered is an empty setup.
+        let plain = setup_sheet(&car, &tf, &tr, &Setup::default(), "").unwrap();
+        assert_eq!(Setup::from_text(&plain).unwrap(), Setup::default());
+    }
+}
+
+#[test]
+fn the_setup_summary_is_physically_plausible() {
+    use qts_sim::setup::setup_summary;
+    let root = data();
+    for car_id in CARS {
+        let car = root.load_car(car_id).unwrap().value;
+        let tf = root.load_tire(&car.tire_front).unwrap().value;
+        let tr = root.load_tire(&car.tire_rear).unwrap().value;
+        let lines = setup_summary(&car, &tf, &tr, &Setup::default()).unwrap();
+        let find = |label: &str| {
+            lines
+                .iter()
+                .find(|(l, _)| l == label)
+                .map(|(_, v)| v.clone())
+                .unwrap_or_else(|| panic!("{car_id}: no {label}"))
+        };
+        let first_number = |text: String| -> f64 {
+            text.split(|c: char| !(c.is_ascii_digit() || c == '.' || c == '-'))
+                .find(|t| !t.is_empty())
+                .unwrap()
+                .parse()
+                .unwrap()
+        };
+        // Road cars ride at about 1 to 2 Hz.
+        for axle in ["Front", "Rear"] {
+            let hz = first_number(find(&format!("{axle} ride frequency")));
+            assert!((1.0..=2.5).contains(&hz), "{car_id} {axle}: {hz} Hz");
+        }
+        let split = first_number(find("Roll stiffness at the front"));
+        assert!((30.0..=75.0).contains(&split), "{car_id}: {split} %");
+    }
+    // The clutch pack's locking matches Drexler's lock-up table (D-107):
+    // about 60 percent at 40 degrees and 42 at 50.
+    let car = root.load_car("hatch_tern_gt_lsd").unwrap().value;
+    let qts_vehicle::params::DrivetrainParams::EngineManual(m) = &car.drivetrain else {
+        panic!("engine car");
+    };
+    let d = &m.differential;
+    for (deg, drexler) in [
+        (30.0, 0.88),
+        (40.0, 0.60),
+        (45.0, 0.51),
+        (50.0, 0.42),
+        (60.0, 0.29),
+    ] {
+        let lock = d.lock_per_input(deg);
+        assert!(
+            (lock - drexler).abs() < 0.02,
+            "{deg} deg: {lock:.3} against {drexler}"
+        );
+    }
+}

@@ -10,6 +10,7 @@ description = "Car A with a clutch-pack limited-slip differential."
 [drivetrain.differential]
 # The comparable car offered a limited-slip differential as an option
 # (docs/VALIDATION_SOURCES.md); its construction was not found, so this
-# variant fits a ramp-type clutch pack with the base file's placeholder
-# settings (D-084).
+# variant fits a ramp-type clutch pack, as Drexler builds for the comparable
+# car, with the base file's settings (D-084, sourced in D-107): 39 N.m
+# preload, 40 and 50 degree ramps.
 kind = "clutch_pack"

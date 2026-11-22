@@ -175,6 +175,7 @@ dependencies = [
  "qts-core",
  "qts-ffb",
  "qts-sim",
+ "qts-tire",
  "qts-vehicle",
 ]
 

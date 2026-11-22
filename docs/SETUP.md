@@ -22,8 +22,8 @@ from.
 | Brake bias to the front | 50 % to 85 % (or 5 % above the car's own, if higher) | Bias valve or balance bar adjustment; front-drive road cars run 75 to 80 % |
 | Brake duct opening, per axle | 0 to 100 % | From no duct to a fully open cooling duct; a fully open duct doubles the speed-dependent disc cooling (placeholder) |
 | Differential type | open, clutch pack, locked | An aftermarket clutch-pack unit or a competition spool can be fitted to an engine car (D-084) |
-| Differential preload | 0 to 200 N.m | Spring preload of clutch-pack units; acts only with a clutch pack |
-| Differential power and coast ramp angles | 30 to 90 deg | Ramp angles clutch-type units are sold with; lower locks harder, 90 gives none (one-way on coast) |
+| Differential preload | 0 to 200 N.m | Spring preload of clutch-pack units; acts only with a clutch pack. The car's own value, 39 N.m, is sourced (D-107, docs/VALIDATION_SOURCES.md) |
+| Differential power and coast ramp angles | 30 to 90 deg | Ramp angles clutch-type units are sold with; lower locks harder, 90 gives none (one-way on coast). Drexler's units come with 30 to 60 degree ramps; the car's own 40 / 50 is Drexler's basic position (D-107) |
 | Clutch bite point | 30 % to 65 % of pedal travel | Cable or master-cylinder pushrod adjustment; road cars bite from just above to a little below mid-travel |
 | Clutch bite zone width | 10 % to 40 % of pedal travel | A sharp competition clutch to a soft road clutch |
 | Final drive | 0.85 to 1.15 times the car's | Alternative final-drive sets |
@@ -31,6 +31,34 @@ from.
 
 The electric sedan has no gearbox or differential adjustment (one motor per axle, each with a fixed open differential); its motor
 reduction gears are fixed.
+
+## Real units and the setup sheet (D-107)
+
+Every value is shown and stored in physical units: pressure in kPa (and
+psi), camber and toe in degrees, springs in N/mm at the spring, dampers in
+N·s/m at the damper, anti-roll bars in N/mm at the wheel (force per metre
+of left-right travel difference), the differential in N·m and degrees.
+Steps are fine enough to show the car's own values exactly: 0.1 N/mm for
+springs and bars, 10 N·s/m for dampers, 1 N·m for preload.
+
+Under "What it does" the garage shows what the setup means physically,
+from the car with the setup applied (`setup_summary`):
+
+- **Wheel rate:** spring rate times the motion ratio squared.
+- **Ride frequency:** sqrt(wheel rate / corner sprung mass) / 2π.
+- **Damping ratio:** damper rate times the motion ratio squared, over
+  2 sqrt(wheel rate × corner sprung mass), in bump and in rebound.
+- **Roll stiffness per axle:** (wheel rate / 2 + bar rate) × track²,
+  and the share carried at the front.
+- **Toe** as millimetres across the tire's outside diameter.
+- **Differential locking** per N·m of input on each ramp.
+
+**Export sheet** writes all of it to `sheets/` in the setup folder: every
+adjustment with the car's own value beside any that are changed, the
+summary, and then the setup's own `key = value` lines. Every other line
+is a `#` comment, so a sheet is itself a setup file: **Load sheet...**
+reads one back, checked against the car's ranges. `qts-sim setup-sheet
+--car ID [--setup FILE] [--track ID]` prints the same sheet.
 
 A setup travels with every recording. Replays store it in their header
 (format version 2) and are rebuilt with it, so they reproduce exactly;

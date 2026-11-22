@@ -18,6 +18,8 @@ var name_edit: LineEdit
 var saved_list: OptionButton
 var saved_names: PackedStringArray
 var status: Label
+var summary: Label
+var sheet_dialog: FileDialog
 
 
 func setup(bridge, store, car: String, track: String) -> void:
@@ -86,7 +88,8 @@ func _ready() -> void:
 	name_edit.placeholder_text = "e.g. Ridgeline dry"
 	name_edit.max_length = 60
 	top.add_child(name_edit)
-	for entry in [["Save", _on_save], ["Delete", _on_delete], ["All to car values", _on_reset]]:
+	for entry in [["Save", _on_save], ["Delete", _on_delete], ["All to car values", _on_reset],
+			["Export sheet", _on_export], ["Load sheet...", _on_load_sheet]]:
 		var b := Button.new()
 		b.text = entry[0]
 		b.pressed.connect(entry[1])
@@ -120,6 +123,15 @@ func _ready() -> void:
 			heading.add_theme_font_size_override("font_size", 20)
 			column.add_child(heading)
 		_item_row(column, item)
+	# What the numbers do, in physical terms, from the core.
+	var heading := Label.new()
+	heading.text = "What it does"
+	heading.add_theme_font_size_override("font_size", 20)
+	left.add_child(heading)
+	summary = Label.new()
+	summary.add_theme_font_size_override("font_size", 14)
+	summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	left.add_child(summary)
 
 	var bottom := HBoxContainer.new()
 	bottom.add_theme_constant_override("separation", 12)
@@ -134,6 +146,14 @@ func _ready() -> void:
 	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bottom.add_child(status)
+
+	sheet_dialog = FileDialog.new()
+	sheet_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	sheet_dialog.access = FileDialog.ACCESS_FILESYSTEM
+	sheet_dialog.use_native_dialog = true
+	sheet_dialog.filters = PackedStringArray(["*.txt, *.setup ; Setup sheets"])
+	sheet_dialog.file_selected.connect(_on_sheet_chosen)
+	add_child(sheet_dialog)
 
 	_refresh_saved(settings.get_setup(car_id, track_id))
 	_on_pick(saved_list.selected)
@@ -195,6 +215,14 @@ func _show(key: String) -> void:
 		text += "   car: " + _format(item, item.default).split(" (")[0]
 	readouts[key].text = text
 	readouts[key].add_theme_color_override("font_color", Color(1.0, 0.8, 0.35) if values.has(key) else Color(0.85, 0.88, 0.9))
+	_update_summary()
+
+
+func _update_summary() -> void:
+	if summary == null:
+		return
+	var lines: PackedStringArray = sim.setup_summary(car_id, values)
+	summary.text = "\n".join(lines) if lines.size() > 0 else sim.last_error()
 
 
 func _refresh_saved(select_name: String) -> void:
@@ -251,6 +279,25 @@ func _on_delete() -> void:
 	_refresh_saved("")
 	_on_pick(0)
 	status.text = "Deleted."
+
+
+func _on_export() -> void:
+	var path: String = sim.setup_sheet_export(car_id, track_id, name_edit.text.strip_edges(), values)
+	status.text = ("Setup sheet written to " + path) if path != "" else sim.last_error()
+
+
+func _on_load_sheet() -> void:
+	sheet_dialog.popup_centered_ratio(0.6)
+
+
+func _on_sheet_chosen(path: String) -> void:
+	var loaded: Dictionary = sim.setup_from_sheet(car_id, path)
+	if loaded.is_empty():
+		status.text = sim.last_error()
+		return
+	name_edit.text = loaded.name
+	_apply_values(loaded.values)
+	status.text = "Loaded \"%s\" from the sheet; Save keeps it under that name." % loaded.name
 
 
 func _on_reset() -> void:

@@ -224,6 +224,31 @@ impl SimBridge {
         Some(self.setup_folder(car, track)?.join(setup_file_name(name)?))
     }
 
+    /// A car's parameters and tires from the data, for the setup sheet.
+    fn car_and_tires(
+        &mut self,
+        car_id: &str,
+    ) -> Result<
+        (
+            qts_vehicle::CarParams,
+            qts_tire::TireParams,
+            qts_tire::TireParams,
+        ),
+        String,
+    > {
+        let root = self.root().ok_or_else(|| self.last_error.clone())?;
+        let car = root.load_car(car_id).map_err(|e| e.to_string())?.value;
+        let front = root
+            .load_tire(&car.tire_front)
+            .map_err(|e| e.to_string())?
+            .value;
+        let rear = root
+            .load_tire(&car.tire_rear)
+            .map_err(|e| e.to_string())?
+            .value;
+        Ok((car, front, rear))
+    }
+
     fn check_setup(&mut self, car_id: &str, setup: &Setup) -> Result<(), String> {
         let root = self.root().ok_or_else(|| self.last_error.clone())?;
         let mut car = root.load_car(car_id).map_err(|e| e.to_string())?.value;
@@ -1465,6 +1490,86 @@ impl SimBridge {
     #[func]
     fn set_setup_dir(&mut self, path: GString) {
         self.setup_dir = Some(path.to_string().into());
+    }
+
+    /// What a setup does in physical terms (D-107): wheel rates, ride
+    /// frequencies, damping ratios, roll stiffness and split, differential
+    /// locking. One `label: value` string per line; empty with
+    /// `last_error` set if the setup is not valid.
+    #[func]
+    fn setup_summary(&mut self, car_id: GString, values: VarDictionary) -> PackedStringArray {
+        let setup = setup_from_dict("", &values);
+        let result = self
+            .car_and_tires(&car_id.to_string())
+            .and_then(|(c, f, r)| qts_sim::setup::setup_summary(&c, &f, &r, &setup));
+        match result {
+            Ok(lines) => lines
+                .iter()
+                .map(|(l, v)| GString::from(format!("{l}: {v}").as_str()))
+                .collect(),
+            Err(e) => {
+                self.last_error = e;
+                PackedStringArray::new()
+            }
+        }
+    }
+
+    /// Writes a setup sheet (D-107) to `sheets/` in the setup folder and
+    /// returns its path, or an empty string with `last_error` set.
+    #[func]
+    fn setup_sheet_export(
+        &mut self,
+        car_id: GString,
+        track_id: GString,
+        name: GString,
+        values: VarDictionary,
+    ) -> GString {
+        let (car, track) = (car_id.to_string(), track_id.to_string());
+        let setup = setup_from_dict(&name.to_string(), &values);
+        let file = setup_file_name(&setup.display_name())
+            .map(|f| f.replace(".setup", ".txt"))
+            .unwrap_or_else(|| "unnamed.txt".into());
+        let Some(dir) = self.setup_dir.clone() else {
+            self.last_error = "no setup folder".into();
+            return GString::new();
+        };
+        let safe = |s: &str| s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+        if !safe(&car) || !safe(&track) {
+            self.last_error = "bad car or track id".into();
+            return GString::new();
+        }
+        let path = dir.join("sheets").join(format!("{car}_{track}_{file}"));
+        let result = self.car_and_tires(&car).and_then(|(c, f, r)| {
+            let sheet = qts_sim::setup::setup_sheet(&c, &f, &r, &setup, &track)?;
+            std::fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())?;
+            std::fs::write(&path, sheet).map_err(|e| format!("{}: {e}", path.display()))
+        });
+        match result {
+            Ok(()) => GString::from(path.display().to_string().as_str()),
+            Err(e) => {
+                self.last_error = e;
+                GString::new()
+            }
+        }
+    }
+
+    /// Reads a setup sheet (or any setup file) for a car: `name` and
+    /// `values`, or an empty dictionary with `last_error` set if it cannot
+    /// be read or does not fit the car.
+    #[func]
+    fn setup_from_sheet(&mut self, car_id: GString, path: GString) -> VarDictionary {
+        let path = path.to_string();
+        let parsed = std::fs::read_to_string(&path)
+            .map_err(|e| format!("{path}: {e}"))
+            .and_then(|t| Setup::from_text(&t));
+        let checked = parsed.and_then(|s| self.check_setup(&car_id.to_string(), &s).map(|()| s));
+        match checked {
+            Ok(s) => setup_to_dict(&s),
+            Err(e) => {
+                self.last_error = e;
+                VarDictionary::new()
+            }
+        }
     }
 
     /// Every adjustment the garage offers for a car: `key`, `group`,

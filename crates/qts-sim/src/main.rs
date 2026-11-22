@@ -58,6 +58,10 @@ Commands:
   lap-compare A.csv B.csv [--svg FILE] [--step M]
                                          line two lap files up by distance:
                                          where B gains and loses time on A
+  setup-sheet --car ID [--setup FILE] [--track ID]
+                                         a setup in real units with its ride
+                                         frequencies, damping, roll split and
+                                         differential locking; loads back
   coach LAP.csv BEST.csv                  the lap corner by corner against the
                                          best: time lost per corner and why
   tire-plots [--out DIR]                 force against slip at three loads and
@@ -305,6 +309,34 @@ fn cmd_bench(args: &Args) -> Result<(), String> {
             ticks as f64 * dt / (total * 1e-6)
         );
     }
+    Ok(())
+}
+
+fn cmd_setup_sheet(args: &Args) -> Result<(), String> {
+    use qts_sim::setup::{setup_sheet, Setup};
+    let root = data_root()?;
+    let car = root
+        .load_car(args.required("car")?)
+        .map_err(|e| e.to_string())?
+        .value;
+    let tf = root
+        .load_tire(&car.tire_front)
+        .map_err(|e| e.to_string())?
+        .value;
+    let tr = root
+        .load_tire(&car.tire_rear)
+        .map_err(|e| e.to_string())?
+        .value;
+    let setup = match args.text("setup") {
+        Some(path) => {
+            Setup::from_text(&std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?)?
+        }
+        None => Setup::default(),
+    };
+    print!(
+        "{}",
+        setup_sheet(&car, &tf, &tr, &setup, args.text("track").unwrap_or(""))?
+    );
     Ok(())
 }
 
@@ -1357,6 +1389,7 @@ fn main() -> ExitCode {
         "ffb-gain" => cmd_ffb_gain(&args).map(|()| true),
         "lap-compare" => cmd_lap_compare(&args).map(|()| true),
         "coach" => cmd_coach(&args).map(|()| true),
+        "setup-sheet" => cmd_setup_sheet(&args).map(|()| true),
         "tire-plots" => cmd_tire_plots(&args).map(|()| true),
         "ffb-devices" => cmd_ffb_devices().map(|()| true),
         "input-read" => cmd_input_read(&args).map(|()| true),

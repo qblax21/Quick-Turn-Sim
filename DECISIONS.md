@@ -1969,3 +1969,43 @@ follower, written and read back as ordinary lap files.
   lower minimum speed, and two to no single cause.
 - The live recorder reports the second counted lap against the first,
   saves the best, and a new session reloads it for the same car only.
+
+## D-107 Sourced clutch-pack values; setup in real units with a sheet
+
+**Differential.** The clutch-pack placeholders (D-084) are replaced with
+sourced figures for this kind of car (docs/VALIDATION_SOURCES.md):
+
+- **Ramps: 40 / 50 degrees**, Drexler's basic position. Drexler builds
+  clutch-pack units for the comparable car to order.
+- **Locking:** Drexler's lock-up table, 88, 60, 51, 42 and 29 percent at
+  30, 40, 45, 50 and 60 degrees, is 0.51 / tan(ramp) at every angle. That
+  matches our model's `mu * n * (r_c / r_p) / (2 tan(ramp))` with the
+  product set to 0.51. The plate friction is set to 0.1275 (was 0.12),
+  with 8 faces and a radius ratio of 1. Each of those three on its own is
+  unverified; only the product is fitted.
+- **Preload: 39 N.m** (was 50), 4 kgf.m, the middle of Cusco's 3 to
+  5 kgf.m for its clutch-type front LSD for a front-drive hatch. That
+  figure was read on a retailer's listing, not Cusco's own sheet, so it is
+  marked not verified.
+
+With these values the LSD Tern GT locks 0.61 N.m per N.m of drive and
+0.43 on the overrun (was 0.48 and 0.28). The base Tern GT stays open. A
+test checks the locking against Drexler's table at all five angles.
+
+**Setup in real units.** The garage already showed physical units. Its
+steps are now fine enough to show the car's own values exactly (springs
+and bars 0.1 N/mm, dampers 10 N·s/m, preload 1 N.m), where before a
+sourced 39 N.m preload showed as 40 and 2360 N·s/m as 2350. "What it
+does" shows the wheel rates, ride frequencies, damping ratios, roll
+stiffness and its front share, toe in millimetres and the differential's
+locking, all from the car with the setup applied (docs/SETUP.md).
+
+**Setup sheet.** Export writes a text sheet. It holds every adjustment
+with the car's own value beside changed ones, the summary, and the setup's
+`key = value` lines; everything else is a comment, so the sheet loads
+back as a setup ("Load sheet...", checked against the car's ranges).
+`qts-sim setup-sheet` prints one. Saving and loading named setups is
+unchanged.
+
+Replays and ghosts recorded with the LSD variant before this change
+will not reproduce, because the differential's values changed.

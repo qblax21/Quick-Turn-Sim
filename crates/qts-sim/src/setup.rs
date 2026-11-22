@@ -141,7 +141,7 @@ pub fn setup_items(
             "N/mm",
             0.6 * k,
             2.5 * k,
-            1.0,
+            0.1,
             k,
         );
     }
@@ -156,7 +156,7 @@ pub fn setup_items(
             "N.s/m",
             0.5 * a.damper_bump_n_s_per_m,
             2.0 * a.damper_bump_n_s_per_m,
-            50.0,
+            10.0,
             a.damper_bump_n_s_per_m,
         );
         push(
@@ -166,7 +166,7 @@ pub fn setup_items(
             "N.s/m",
             0.5 * a.damper_rebound_n_s_per_m,
             2.0 * a.damper_rebound_n_s_per_m,
-            50.0,
+            10.0,
             a.damper_rebound_n_s_per_m,
         );
     }
@@ -182,7 +182,7 @@ pub fn setup_items(
             "N/mm",
             0.0,
             (2.5 * k).max(20.0),
-            0.5,
+            0.1,
             k,
         );
     }
@@ -235,7 +235,7 @@ pub fn setup_items(
             "N.m",
             0.0,
             200.0,
-            5.0,
+            1.0,
             d.preload_nm,
         );
         push(
@@ -487,6 +487,178 @@ impl Setup {
         }
         car.validate().map_err(|e| format!("setup: {e}"))
     }
+}
+
+/// One line of the derived summary: a label and its value in real units.
+pub type SummaryLine = (String, String);
+
+/// What a setup does in physical terms, from the car with the setup
+/// applied: wheel rates, ride frequencies, damping ratios, roll stiffness
+/// and its split, and the differential's locking. For the garage and the
+/// setup sheet.
+pub fn setup_summary(
+    car: &CarParams,
+    tire_front: &TireParams,
+    tire_rear: &TireParams,
+    setup: &Setup,
+) -> Result<Vec<SummaryLine>, String> {
+    let (mut car, mut tf, mut tr) = (car.clone(), tire_front.clone(), tire_rear.clone());
+    setup.apply(&mut car, &mut tf, &mut tr)?;
+    let b = &car.body;
+    let front_share = (b.wheelbase_m - b.cg_to_front_axle_m) / b.wheelbase_m;
+    let mut out = Vec::new();
+    let mut roll = [0.0; 2];
+    for (i, (name, a, share)) in [
+        ("Front", &car.suspension.front, front_share),
+        ("Rear", &car.suspension.rear, 1.0 - front_share),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mr2 = a.motion_ratio * a.motion_ratio;
+        let k_wheel = a.spring_rate_n_per_m * mr2;
+        let corner_mass = 0.5 * b.sprung_mass_kg * share;
+        let ride_hz = (k_wheel / corner_mass).sqrt() / std::f64::consts::TAU;
+        let critical = 2.0 * (k_wheel * corner_mass).sqrt();
+        let zeta_bump = a.damper_bump_n_s_per_m * mr2 / critical;
+        let zeta_rebound = a.damper_rebound_n_s_per_m * mr2 / critical;
+        // Roll stiffness of the axle: springs give k_wheel t^2 / 2, the bar
+        // (a force per metre of left-right difference) K t^2.
+        let t = a.track_m;
+        roll[i] = (0.5 * k_wheel + a.anti_roll_bar_n_per_m) * t * t;
+        out.push((
+            format!("{name} wheel rate"),
+            format!(
+                "{:.1} N/mm (spring {:.1} N/mm x motion ratio {:.2} squared)",
+                k_wheel / 1000.0,
+                a.spring_rate_n_per_m / 1000.0,
+                a.motion_ratio
+            ),
+        ));
+        out.push((format!("{name} ride frequency"), format!("{ride_hz:.2} Hz")));
+        out.push((
+            format!("{name} damping ratio"),
+            format!("bump {zeta_bump:.2}, rebound {zeta_rebound:.2} of critical"),
+        ));
+        out.push((
+            format!("{name} roll stiffness"),
+            format!(
+                "{:.0} N.m/deg (bar {:.0})",
+                roll[i].to_radians(),
+                (a.anti_roll_bar_n_per_m * t * t).to_radians()
+            ),
+        ));
+    }
+    out.push((
+        "Roll stiffness at the front".into(),
+        format!("{:.1} %", 100.0 * roll[0] / (roll[0] + roll[1])),
+    ));
+    for (name, tire, a) in [
+        ("Front", &tf, &car.suspension.front),
+        ("Rear", &tr, &car.suspension.rear),
+    ] {
+        // Toe as a length across the tire's outside diameter, as it is
+        // often read off a gauge.
+        let d = 2.0 * tire.geometry.unloaded_radius_m;
+        out.push((
+            format!("{name} toe per wheel"),
+            format!(
+                "{:+.2} deg ({:+.1} mm across the tire's {:.0} mm diameter)",
+                a.static_toe_rad.to_degrees(),
+                1000.0 * d * a.static_toe_rad.tan(),
+                1000.0 * d
+            ),
+        ));
+    }
+    if let DrivetrainParams::EngineManual(m) = &car.drivetrain {
+        let d = &m.differential;
+        let text = match d.kind {
+            DifferentialKind::Open => "open".to_string(),
+            DifferentialKind::Locked => "locked".to_string(),
+            DifferentialKind::ClutchPack => format!(
+                "clutch pack: {:.0} N.m preload, locks {:.2} N.m per N.m of drive ({:.0} deg ramp) and {:.2} on the overrun ({:.0} deg)",
+                d.preload_nm,
+                d.lock_per_input(d.power_ramp_deg),
+                d.power_ramp_deg,
+                d.lock_per_input(d.coast_ramp_deg),
+                d.coast_ramp_deg
+            ),
+        };
+        out.push(("Differential".into(), text));
+    }
+    Ok(out)
+}
+
+/// A setup sheet: every adjustment in real units with the car's own value
+/// beside any that are changed, the derived summary, then the setup itself
+/// as `key = value` lines. Every other line is a `#` comment, so the sheet
+/// reads back with [`Setup::from_text`].
+pub fn setup_sheet(
+    car: &CarParams,
+    tire_front: &TireParams,
+    tire_rear: &TireParams,
+    setup: &Setup,
+    track: &str,
+) -> Result<String, String> {
+    let summary = setup_summary(car, tire_front, tire_rear, setup)?;
+    let items = setup_items(car, tire_front, tire_rear);
+    let mode_name =
+        |v: f64| ["open", "clutch pack", "locked"][(v.round().max(0.0) as usize).min(2)];
+    let mut lines: Vec<String> = vec![
+        format!(
+            "# Setup sheet: {} on {}",
+            car.name,
+            if track.is_empty() { "any track" } else { track }
+        ),
+        format!("# Setup: {}", setup.display_name()),
+        "# Lines starting with # are notes; the lines at the end are the setup.".into(),
+        "#".into(),
+    ];
+    let mut group = "";
+    for item in &items {
+        if item.group != group {
+            group = item.group;
+            lines.push(format!("# {group}"));
+        }
+        let show = |v: f64| {
+            if item.unit == "mode" {
+                mode_name(v).to_string()
+            } else {
+                format!("{} {}", trim_number(v, item.step), item.unit)
+            }
+        };
+        let value = setup.values.get(&item.key).copied();
+        let shown = value.unwrap_or(item.default);
+        let mut text = show(shown);
+        if item.unit == "kPa" {
+            text.push_str(&format!(" ({:.1} psi)", shown * 0.145_038));
+        }
+        if value.is_some() {
+            text.push_str(&format!("   (car: {})", show(item.default)));
+        }
+        lines.push(format!("#   {:<44} {text}", item.label));
+    }
+    lines.push("#".into());
+    lines.push("# What it does".into());
+    for (label, value) in &summary {
+        lines.push(format!("#   {label:<44} {value}"));
+    }
+    lines.push("#".into());
+    let mut s = lines.join("\n");
+    s.push('\n');
+    s.push_str(&setup.to_text());
+    Ok(s)
+}
+
+fn trim_number(v: f64, step: f64) -> String {
+    let decimals = if step >= 1.0 {
+        0
+    } else if step >= 0.1 {
+        1
+    } else {
+        2
+    };
+    format!("{v:.decimals$}")
 }
 
 impl SessionAssets {

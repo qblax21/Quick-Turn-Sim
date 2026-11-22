@@ -161,12 +161,12 @@ shift_time_s = { value = 0.25, source = "quick manual shift", confidence = "plac
 # docs/VALIDATION_SOURCES.md). The clutch-pack values below apply when one
 # is fitted (the _lsd variant or the garage).
 kind = "open"
-preload_nm = { value = 50.0, source = "clutch-pack options only (D-084): spring preload in the usual range of aftermarket clutch-type units, 30 to 100 N.m; not measured", confidence = "placeholder" }
-power_ramp_deg = { value = 45.0, source = "clutch-pack options only: a middle drive-side ramp of the 30 to 60 degree range clutch-type units are sold with; not measured", confidence = "placeholder" }
-coast_ramp_deg = { value = 60.0, source = "clutch-pack options only: a gentler overrun ramp, the common 1.5-way arrangement; not measured", confidence = "placeholder" }
-friction_faces = { value = 8.0, source = "clutch-pack options only: four friction faces each side, order of magnitude", confidence = "placeholder" }
-plate_friction = { value = 0.12, source = "clutch-pack options only: oil-wetted steel-on-sintered plates, order of magnitude", confidence = "placeholder" }
-clutch_to_ramp_radius = { value = 1.0, source = "clutch-pack options only: packs and ramps at about the same radius, order of magnitude", confidence = "placeholder" }
+preload_nm = { value = 39.0, source = "clutch-pack options only (D-107): 4 kgf.m (39 N.m), the middle of the 3 to 5 kgf.m initial torque Cusco lists for its Type RS clutch-type front LSD for the front-drive Civic Type R FK8 (read on a retailer's listing, not Cusco's own sheet); inside the 0 to 75 N.m a Drexler unit can be set to (Drexler, Formula Student LSD assembly instructions 2017, read first-hand). docs/VALIDATION_SOURCES.md", confidence = "estimated" }
+power_ramp_deg = { value = 40.0, source = "clutch-pack options only (D-107): Drexler's basic ramp position, 40 degrees on the acceleration side (Formula Student LSD assembly instructions 2017, read first-hand); Drexler builds clutch-type units for this car's comparable (BMW MINI R52 to R57, manual) to order with a choice of ramps", confidence = "estimated" }
+coast_ramp_deg = { value = 50.0, source = "clutch-pack options only (D-107): Drexler's basic ramp position, 50 degrees on the deceleration side (same document)", confidence = "estimated" }
+friction_faces = { value = 8.0, source = "clutch-pack options only: four friction faces each side; only the product plate_friction x friction_faces x clutch_to_ramp_radius matters, and that product is fitted to Drexler's lock-up table (see plate_friction); the count itself is not sourced", confidence = "placeholder" }
+plate_friction = { value = 0.1275, source = "clutch-pack options only (D-107): with 8 faces and a radius ratio of 1, gives mu x n x (r_c/r_p) / 2 = 0.51, so the locking per N.m of input is 0.51 / tan(ramp): Drexler's theoretical lock-up table gives 88, 60, 51, 42 and 29 percent at 30, 40, 45, 50 and 60 degrees, which is 0.50 to 0.51 / tan(ramp) at every angle (Formula Student LSD assembly instructions 2017, read first-hand). The plate friction alone is not sourced", confidence = "estimated" }
+clutch_to_ramp_radius = { value = 1.0, source = "clutch-pack options only: packs and ramps at about the same radius; only the product with plate_friction and friction_faces matters (see plate_friction); not sourced on its own", confidence = "placeholder" }
 
 [traction_control]
 enabled = true

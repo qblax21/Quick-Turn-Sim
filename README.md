@@ -162,7 +162,10 @@ weak base; leave it at zero unless small forces disappear.
 **Garage...** on the car and track screen adjusts the car within ranges a
 club car of its class could run and saves the result by name for that car
 and track. The setup is stored in every replay (which is rebuilt with it)
-and every best lap. Ranges and their reasoning: [docs/SETUP.md](docs/SETUP.md).
+and every best lap. "What it does" shows the ride frequencies, damping
+ratios, roll split and differential locking the setup gives; **Export
+sheet** writes it all to a text sheet that **Load sheet...** reads back.
+Ranges and their reasoning: [docs/SETUP.md](docs/SETUP.md).
 
 ### Wheel and pedals read on the physics thread
 

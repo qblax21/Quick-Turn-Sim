@@ -85,6 +85,29 @@ Not found: weight distribution (62 % front is a placeholder), rev limit
 (6500 rpm placeholder), the hatch's own skidpad figure, and the
 construction of the optional limited-slip differential.
 
+## Clutch-pack limited-slip differential (D-107)
+
+Used by `hatch_tern_gt_lsd` and whenever a clutch pack is fitted in the
+garage. The comparable car offered a limited-slip differential as an
+option (Edmunds, above); its construction was not found. Drexler builds
+ramp-and-clutch-pack units for this car (BMW MINI R52 to R57, manual) to
+order, "custom-built to your specifications with numerous ramp angles"
+([Hack Engineering, Drexler limited slip differential (MINI)](https://www.hackengineering.co.uk/product/drexler-limited-slip-differential-mini/),
+read 2026-11-22; no figures given). The values come from Drexler's
+published instructions for another of its units, and from Cusco's front
+unit for a front-drive hatch.
+
+| Parameter | Value | Source | Status |
+| --- | --- | --- | --- |
+| Power / coast ramp | 40 / 50 deg | Drexler, *Assembly and disassembly instruction, Formula Student Adjustable Limited Slip Differential 2017* (autotech.com/pdf/183884, read first-hand 2026-11-22): "all differentials are assembled in the basic position 40 / 50"; options 45 / 60 and 30 / 45 | estimated: a Drexler unit's basic setting, not the MINI unit's (built to order) |
+| Locking per N.m of input | 0.51 / tan(ramp): 0.61 at 40 deg, 0.43 at 50 | same document: "theoretical lock-up torques" 88, 60, 51, 42 and 29 percent at 30, 40, 45, 50 and 60 degrees, which is 0.50 to 0.51 / tan(ramp) at every angle | estimated: matched through plate_friction = 0.1275 with 8 faces and radius ratio 1 |
+| Friction faces, plate friction, radius ratio (each) | 8, 0.1275, 1.0 | none: only their product is fitted to the table above | **unverified** |
+| Preload | 39 N.m | 4 kgf.m, the middle of the 3 to 5 kgf.m "initial torque" of Cusco's Type RS clutch-type front LSD for the front-drive Honda Civic Type R FK8 ([Evasive Motorsports listing](https://www.evasivemotorsports.com/store/product/cusco-lsd-type-rs-honda-civic-type-r-fk8-fl5-2017-15-way-45-degree-15-degree/), read 2026-11-22); inside Drexler's 0 to 75 N.m adjustment range and above the 30 to 35 N.m (25 to 30 run in) it sets its Formula Student unit to (same Drexler document) | estimated; the Cusco figure was read on a retailer's listing, **not verified** against Cusco's own sheet |
+
+Not used: Cusco's cam angles (45 / 15 for the FK8 unit), because Cusco
+quotes cam angle from a different reference from Drexler's ramp angle,
+and no conversion was found.
+
 ## Halden E4 and the Tesla Model 3 Performance (2018 to 2020)
 
 Comparable: Model 3 Dual Motor Performance with the Performance Upgrade
