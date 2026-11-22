@@ -95,6 +95,13 @@ pub struct DriveTelemetry {
     /// True while a gear is being forced in without the clutch: the box
     /// stays in neutral and grinds.
     pub grinding: bool,
+    /// Locking torque available in the differential this tick, N·m (zero
+    /// when open).
+    pub diff_lock_nm: f64,
+    /// Torque the differential moved from one side to the other, N·m.
+    pub diff_transfer_nm: f64,
+    /// Input torque at the differential case, N·m (negative on overrun).
+    pub diff_input_nm: f64,
     /// Difference between engine speed and the speed the requested gear
     /// would turn it at while grinding, rad/s.
     pub grind_speed_rad_s: f64,

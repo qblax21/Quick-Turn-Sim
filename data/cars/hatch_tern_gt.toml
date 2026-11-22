@@ -150,10 +150,17 @@ final_drive = { value = 3.94, source = "invented, typical of the class", confide
 shift_time_s = { value = 0.25, source = "quick manual shift", confidence = "placeholder" }
 
 [drivetrain.differential]
+# Open, as the comparable Golf GTI without the Performance Pack: Volkswagen's
+# facts sheet lists the front differential lock as standard on the GTI
+# Performance only (docs/VALIDATION_SOURCES.md). The clutch-pack values
+# below apply when one is fitted (the _lsd variant or the garage).
 kind = "open"
-preload_nm = { value = 40.0, source = "used only by the limited-slip variant", confidence = "placeholder" }
-lock_fraction_drive = { value = 0.30, source = "used only by the limited-slip variant", confidence = "placeholder" }
-lock_fraction_coast = { value = 0.10, source = "used only by the limited-slip variant", confidence = "placeholder" }
+preload_nm = { value = 50.0, source = "clutch-pack options only (D-084): spring preload in the usual range of aftermarket clutch-type units, 30 to 100 N.m; not measured", confidence = "placeholder" }
+power_ramp_deg = { value = 45.0, source = "clutch-pack options only: a middle drive-side ramp of the 30 to 60 degree range clutch-type units are sold with; not measured", confidence = "placeholder" }
+coast_ramp_deg = { value = 60.0, source = "clutch-pack options only: a gentler overrun ramp, the common 1.5-way arrangement; not measured", confidence = "placeholder" }
+friction_faces = { value = 8.0, source = "clutch-pack options only: four friction faces each side, order of magnitude", confidence = "placeholder" }
+plate_friction = { value = 0.12, source = "clutch-pack options only: oil-wetted steel-on-sintered plates, order of magnitude", confidence = "placeholder" }
+clutch_to_ramp_radius = { value = 1.0, source = "clutch-pack options only: packs and ramps at about the same radius, order of magnitude", confidence = "placeholder" }
 
 [traction_control]
 enabled = true

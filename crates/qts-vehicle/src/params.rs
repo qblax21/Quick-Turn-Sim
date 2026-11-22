@@ -387,9 +387,33 @@ pub enum DrivenAxle {
 pub enum DifferentialKind {
     /// Open differential: equal torque to both wheels.
     Open,
-    /// Clutch-type limited slip: locking torque from preload and input
-    /// torque.
-    LimitedSlip,
+    /// Clutch-pack (Salisbury) limited slip: locking torque from a spring
+    /// preload and from ramps that turn input torque into clutch clamping.
+    #[serde(alias = "limited_slip")]
+    ClutchPack,
+    /// Locked (a spool): both wheels turn together.
+    Locked,
+}
+
+impl DifferentialKind {
+    /// The garage's number for this mode: 0 open, 1 clutch pack, 2 locked.
+    pub fn code(self) -> f64 {
+        match self {
+            DifferentialKind::Open => 0.0,
+            DifferentialKind::ClutchPack => 1.0,
+            DifferentialKind::Locked => 2.0,
+        }
+    }
+
+    /// The mode for a garage number.
+    pub fn from_code(code: f64) -> Option<Self> {
+        match code.round() as i64 {
+            0 => Some(DifferentialKind::Open),
+            1 => Some(DifferentialKind::ClutchPack),
+            2 => Some(DifferentialKind::Locked),
+            _ => None,
+        }
+    }
 }
 
 /// Parameters of the engine, clutch, gearbox and differential module.
@@ -513,14 +537,67 @@ pub struct GearboxParams {
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct DifferentialParams {
-    /// Open or limited slip.
+    /// Open, clutch pack or locked.
     pub kind: DifferentialKind,
-    /// Locking torque present with no input torque, N·m. Ignored when open.
+    /// Clutch-pack spring preload: locking torque with no input torque,
+    /// N·m.
     pub preload_nm: f64,
-    /// Locking torque per unit input torque under power. Ignored when open.
-    pub lock_fraction_drive: f64,
-    /// Locking torque per unit input torque on overrun. Ignored when open.
-    pub lock_fraction_coast: f64,
+    /// Ramp angle on the drive side, degrees, as limited-slip makers quote
+    /// it: lower locks harder; 90 gives no locking from torque.
+    pub power_ramp_deg: f64,
+    /// Ramp angle on the overrun side, degrees.
+    pub coast_ramp_deg: f64,
+    /// Friction faces in the clutch packs, both sides together.
+    pub friction_faces: f64,
+    /// Friction coefficient of the oil-wetted plates.
+    pub plate_friction: f64,
+    /// Mean clutch radius over the radius at which the pinion shaft bears
+    /// on the ramps.
+    pub clutch_to_ramp_radius: f64,
+}
+
+impl DifferentialParams {
+    /// Locking torque per N·m of input torque for a ramp angle: the ramps
+    /// turn the input torque into a clamping force
+    /// `F = T / (r_p · tan θ)`, which the packs turn into
+    /// `μ · F · r_c · n / 2` of locking torque between the two sides.
+    pub fn lock_per_input(&self, ramp_deg: f64) -> f64 {
+        if ramp_deg >= 89.9 {
+            return 0.0;
+        }
+        let tan = qts_core::math::fm::tan(ramp_deg.clamp(1.0, 89.9).to_radians());
+        self.plate_friction * self.friction_faces * self.clutch_to_ramp_radius / (2.0 * tan)
+    }
+
+    /// Locking torque, N·m, for an input torque at the differential case
+    /// (positive driving, negative on overrun). Infinite when locked, zero
+    /// when open.
+    pub fn locking_torque(&self, input_nm: f64) -> f64 {
+        match self.kind {
+            DifferentialKind::Open => 0.0,
+            DifferentialKind::Locked => f64::INFINITY,
+            DifferentialKind::ClutchPack => {
+                let ramp = if input_nm >= 0.0 {
+                    self.power_ramp_deg
+                } else {
+                    self.coast_ramp_deg
+                };
+                self.preload_nm + self.lock_per_input(ramp) * input_nm.abs()
+            }
+        }
+    }
+
+    /// The ramp angle that gives a locking fraction, degrees (for setups
+    /// written as lock percentages before D-084).
+    pub fn ramp_for_lock(&self, fraction: f64) -> f64 {
+        if fraction <= 0.0 {
+            return 90.0;
+        }
+        let k = self.plate_friction * self.friction_faces * self.clutch_to_ramp_radius / 2.0;
+        qts_core::math::fm::atan(k / fraction)
+            .to_degrees()
+            .clamp(1.0, 90.0)
+    }
 }
 
 /// Parameters of the dual-motor electric module.
@@ -857,13 +934,22 @@ impl CarParams {
                     "drivetrain.differential.preload_nm",
                     d.differential.preload_nm,
                 )?;
-                non_negative(
-                    "drivetrain.differential.lock_fraction_drive",
-                    d.differential.lock_fraction_drive,
-                )?;
-                non_negative(
-                    "drivetrain.differential.lock_fraction_coast",
-                    d.differential.lock_fraction_coast,
+                let df = &d.differential;
+                for (name, ramp) in [
+                    ("power_ramp_deg", df.power_ramp_deg),
+                    ("coast_ramp_deg", df.coast_ramp_deg),
+                ] {
+                    if !(ramp.is_finite() && (10.0..=90.0).contains(&ramp)) {
+                        return Err(format!(
+                            "drivetrain.differential.{name} must be between 10 and 90 degrees, got {ramp}"
+                        ));
+                    }
+                }
+                non_negative("drivetrain.differential.friction_faces", df.friction_faces)?;
+                unit("drivetrain.differential.plate_friction", df.plate_friction)?;
+                positive(
+                    "drivetrain.differential.clutch_to_ramp_radius",
+                    df.clutch_to_ramp_radius,
                 )?;
             }
             DrivetrainParams::DualMotorElectric(d) => {

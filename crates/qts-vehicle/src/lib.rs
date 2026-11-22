@@ -172,13 +172,16 @@ pub mod test_support {
                 },
                 differential: DifferentialParams {
                     kind: if limited_slip {
-                        DifferentialKind::LimitedSlip
+                        DifferentialKind::ClutchPack
                     } else {
                         DifferentialKind::Open
                     },
                     preload_nm: 40.0,
-                    lock_fraction_drive: 0.35,
-                    lock_fraction_coast: 0.15,
+                    power_ramp_deg: 45.0,
+                    coast_ramp_deg: 60.0,
+                    friction_faces: 8.0,
+                    plate_friction: 0.12,
+                    clutch_to_ramp_radius: 1.0,
                 },
             }),
             "engine_manual",

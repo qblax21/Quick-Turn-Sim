@@ -14,6 +14,9 @@ const SOLVER_ITERATIONS: u32 = 10;
 const IDLE_GAIN_NM_PER_RPM: f64 = 0.6;
 /// Rev limiter hysteresis, rpm.
 const LIMITER_HYSTERESIS_RPM: f64 = 150.0;
+/// Torque a locked differential (a spool) can carry between the wheels,
+/// N·m: far beyond anything the tires can give.
+const LOCKED_DIFF_NM: f64 = 1.0e6;
 /// Pause between automatic shifts, s.
 const AUTO_SHIFT_COOLDOWN_S: f64 = 0.4;
 /// Speed below which reverse may be selected from a forward gear, m/s.
@@ -347,17 +350,16 @@ impl Drivetrain for EngineManual {
         } else {
             None
         };
-        if self.p.differential.kind == DifferentialKind::LimitedSlip {
-            let d = &self.p.differential;
-            let frac = if self.diff_input_torque >= 0.0 {
-                d.lock_fraction_drive
-            } else {
-                d.lock_fraction_coast
-            };
-            let lock = d.preload_nm + frac * self.diff_input_torque.abs();
-            solver.add_constraint(&[(left, 1.0), (right, -1.0)], lock);
-        }
+        // Differential: the packs (or a spool) carry torque between the two
+        // sides up to the locking torque, from last tick's input torque.
+        let diff_lock = self.p.differential.locking_torque(self.diff_input_torque);
+        let diff = if self.p.differential.kind == DifferentialKind::Open {
+            None
+        } else {
+            solver.add_constraint(&[(left, 1.0), (right, -1.0)], diff_lock.min(LOCKED_DIFF_NM))
+        };
         solver.solve(SOLVER_ITERATIONS);
+        let diff_transfer = diff.map_or(0.0, |idx| solver.constraint_torque(idx));
 
         let mut result = DriveResult::default();
         for i in 0..4 {
@@ -419,6 +421,13 @@ impl Drivetrain for EngineManual {
             stalled: self.stalled,
             grinding: self.grinding,
             grind_speed_rad_s: self.grind_speed,
+            diff_lock_nm: if diff.is_some() {
+                diff_lock.min(LOCKED_DIFF_NM)
+            } else {
+                0.0
+            },
+            diff_transfer_nm: diff_transfer,
+            diff_input_nm: self.diff_input_torque,
             clutch_slip_rad_s: clutch_slip,
             clutch_capacity_nm: self.p.clutch.max_torque_nm,
             peak_rpm: self.peak_omega * RAD_S_TO_RPM,

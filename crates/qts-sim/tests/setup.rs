@@ -64,6 +64,26 @@ fn far_end(item: &SetupItem) -> f64 {
     }
 }
 
+/// Hard acceleration with the wheel turned and the throttle lifted and
+/// reapplied: drive and overrun torque through the differential, with
+/// the inner wheel unloaded.
+fn split_launch(s: &mut Session) {
+    for t in 0..6000 {
+        let (steer, throttle) = match t {
+            0..=2999 => (0.08, 1.0),
+            3000..=3999 => (0.25, 0.0),
+            _ => (0.3, 1.0),
+        };
+        s.step(
+            &InputFrame::from_analog(steer, throttle, 0.0, 0.0, 0.0).with_gear(if t < 2000 {
+                1
+            } else {
+                2
+            }),
+        );
+    }
+}
+
 fn one(key: &str, value: f64) -> Setup {
     let mut s = Setup::default();
     s.values.insert(key.to_string(), value);
@@ -189,6 +209,26 @@ fn every_adjustment_changes_the_physics() {
                 );
                 continue;
             }
+            if item.key.starts_with("diff.") && item.key != "diff.mode" {
+                // Preload and ramps act only with a clutch pack fitted:
+                // compare against a clutch pack with the car's settings.
+                let pack = |extra: Option<(&str, f64)>| {
+                    let mut setup = one("diff.mode", 1.0);
+                    if let Some((k, v)) = extra {
+                        setup.values.insert(k.to_string(), v);
+                    }
+                    let mut s = manual(car, &setup);
+                    split_launch(&mut s);
+                    state_hash(&s)
+                };
+                assert_ne!(
+                    pack(Some((&item.key, value))),
+                    pack(None),
+                    "{car}: {} at {value} changed nothing",
+                    item.key
+                );
+                continue;
+            }
             standard_drive(&mut s);
             assert_ne!(
                 state_hash(&s),
@@ -289,8 +329,19 @@ fn values_outside_the_range_or_unknown_keys_are_refused() {
         .with_setup(&one("rear.pressure_kpa", 50.0))
         .is_err());
     assert!(assets().with_setup(&one("wing_angle", 3.0)).is_err());
-    // The open-differential car has no differential adjustment.
-    assert!(assets().with_setup(&one("diff.preload_nm", 50.0)).is_err());
+    // The open-differential car can be fitted with a clutch pack (D-084);
+    // the electric sedan has no mechanical differential to set.
+    assert!(assets().with_setup(&one("diff.preload_nm", 50.0)).is_ok());
+    assert!(assets().with_setup(&one("diff.mode", 3.0)).is_err());
+    let sedan = SessionAssets::load(&data(), "sedan_halden_e4", "test_track").unwrap();
+    assert!(sedan.with_setup(&one("diff.preload_nm", 50.0)).is_err());
+    // Setups written before D-084 as lock percentages still load.
+    assert!(assets()
+        .with_setup(&one("diff.lock_drive_pct", 30.0))
+        .is_ok());
+    assert!(assets()
+        .with_setup(&one("diff.lock_drive_pct", 95.0))
+        .is_err());
     let lsd = SessionAssets::load(&data(), "hatch_tern_gt_lsd", "test_track").unwrap();
     assert!(lsd.with_setup(&one("diff.preload_nm", 50.0)).is_ok());
     // Gears must stay in order.

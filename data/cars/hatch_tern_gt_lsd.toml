@@ -5,7 +5,10 @@
 inherits = "hatch_tern_gt"
 id = "hatch_tern_gt_lsd"
 name = "Tern GT (limited-slip differential)"
-description = "Car A with the clutch-type limited-slip differential option."
+description = "Car A with a clutch-pack limited-slip differential."
 
 [drivetrain.differential]
-kind = "limited_slip"
+# The comparable GTI Performance's lock is electronically controlled
+# multiplate, not a ramp unit; this variant fits a ramp-type clutch pack
+# with the base file's placeholder settings (D-084).
+kind = "clutch_pack"

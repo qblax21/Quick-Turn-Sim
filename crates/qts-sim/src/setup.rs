@@ -20,6 +20,9 @@ use qts_vehicle::params::{DifferentialKind, DrivetrainParams};
 use qts_vehicle::CarParams;
 use std::collections::BTreeMap;
 
+/// Keys of setups written before D-084, still read.
+const LEGACY_DIFF_KEYS: [&str; 2] = ["diff.lock_drive_pct", "diff.lock_coast_pct"];
+
 /// Standard atmosphere, Pa. Tire pressures are set as gauge pressure; the
 /// tire model uses absolute.
 pub const ATMOSPHERE_PA: f64 = 101_325.0;
@@ -213,38 +216,48 @@ pub fn setup_items(
     }
     if let DrivetrainParams::EngineManual(m) = &car.drivetrain {
         let d = &m.differential;
-        if d.kind == DifferentialKind::LimitedSlip {
-            push(
-                "diff.preload_nm",
-                "Differential",
-                "Preload",
-                "N.m",
-                0.0,
-                200.0,
-                5.0,
-                d.preload_nm,
-            );
-            push(
-                "diff.lock_drive_pct",
-                "Differential",
-                "Locking on power",
-                "%",
-                0.0,
-                80.0,
-                1.0,
-                100.0 * d.lock_fraction_drive,
-            );
-            push(
-                "diff.lock_coast_pct",
-                "Differential",
-                "Locking off power",
-                "%",
-                0.0,
-                80.0,
-                1.0,
-                100.0 * d.lock_fraction_coast,
-            );
-        }
+        // Any front-drive car of the class can be fitted with an aftermarket
+        // clutch-pack unit, or a spool for competition.
+        push(
+            "diff.mode",
+            "Differential",
+            "Type",
+            "mode",
+            0.0,
+            2.0,
+            1.0,
+            d.kind.code(),
+        );
+        push(
+            "diff.preload_nm",
+            "Differential",
+            "Preload (clutch pack)",
+            "N.m",
+            0.0,
+            200.0,
+            5.0,
+            d.preload_nm,
+        );
+        push(
+            "diff.power_ramp_deg",
+            "Differential",
+            "Power ramp angle (lower locks harder)",
+            "deg",
+            30.0,
+            90.0,
+            5.0,
+            d.power_ramp_deg,
+        );
+        push(
+            "diff.coast_ramp_deg",
+            "Differential",
+            "Coast ramp angle (90 = one-way)",
+            "deg",
+            30.0,
+            90.0,
+            5.0,
+            d.coast_ramp_deg,
+        );
         let cl = &m.clutch;
         push(
             "clutch.bite_point_pct",
@@ -364,6 +377,9 @@ impl Setup {
     ) -> Result<(), String> {
         let items = setup_items(car, tire_front, tire_rear);
         for (key, &value) in &self.values {
+            if LEGACY_DIFF_KEYS.contains(&key.as_str()) {
+                continue;
+            }
             let item = items
                 .iter()
                 .find(|i| &i.key == key)
@@ -423,11 +439,33 @@ impl Setup {
             if let Some(v) = get("diff.preload_nm") {
                 m.differential.preload_nm = v;
             }
-            if let Some(v) = get("diff.lock_drive_pct") {
-                m.differential.lock_fraction_drive = v / 100.0;
+            if let Some(v) = get("diff.mode") {
+                m.differential.kind = DifferentialKind::from_code(v)
+                    .ok_or_else(|| format!("setup: differential type {v} is not 0, 1 or 2"))?;
             }
-            if let Some(v) = get("diff.lock_coast_pct") {
-                m.differential.lock_fraction_coast = v / 100.0;
+            if let Some(v) = get("diff.power_ramp_deg") {
+                m.differential.power_ramp_deg = v;
+            }
+            if let Some(v) = get("diff.coast_ramp_deg") {
+                m.differential.coast_ramp_deg = v;
+            }
+            // Setups written before D-084 gave locking as percentages of
+            // input torque; they read as the ramp angles that give them.
+            for (key, power) in [
+                ("diff.lock_drive_pct", true),
+                ("diff.lock_coast_pct", false),
+            ] {
+                if let Some(v) = get(key) {
+                    if !(0.0..=80.0).contains(&v) {
+                        return Err(format!("setup: {key} = {v} is outside 0 to 80"));
+                    }
+                    let ramp = m.differential.ramp_for_lock(v / 100.0);
+                    if power {
+                        m.differential.power_ramp_deg = ramp;
+                    } else {
+                        m.differential.coast_ramp_deg = ramp;
+                    }
+                }
             }
             if let Some(v) = get("clutch.bite_point_pct") {
                 m.clutch.bite_point = v / 100.0;

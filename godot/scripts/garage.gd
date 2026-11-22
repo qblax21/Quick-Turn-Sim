@@ -182,6 +182,8 @@ func _format(item: Dictionary, v: float) -> String:
 	var text := ("%." + str(decimals) + "f %s") % [v, item.unit]
 	if item.unit == "kPa":
 		text += " (%.1f psi)" % (v * 0.145038)
+	if item.unit == "mode":
+		text = ["open", "clutch pack", "locked"][clampi(roundi(v), 0, 2)]
 	return text
 
 

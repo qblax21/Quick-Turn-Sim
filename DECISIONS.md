@@ -1325,3 +1325,45 @@ the simulation, like the rest of the pipeline.
 The quicker ratios raise column torque: the highest 99th percentile on
 scripted Ridgeline laps went from 14.8 to 17.0 N.m, and the derived
 default gains from 0.30 to 0.26 (CSL Elite) and 0.25 to 0.22 (generic).
+
+## D-084 Clutch-pack limited-slip differential, open and locked
+
+The differential of the engine car now has three modes. Open; locked (a
+spool: both wheels held together, as a constraint that can carry far more
+than the tires can give); and a clutch-pack (Salisbury) unit, which
+replaces the earlier "locking fraction" parameters. In the clutch pack,
+spring preload gives locking torque at no load, and the pinion shaft's
+ramps turn input torque `T` into a clamping force `T / (r_p tan θ)`,
+which the packs turn into `μ·F·r_c·n / 2` of locking torque, so
+
+    locking = preload + |T| · μ · n · (r_c / r_p) / (2 tan θ)
+
+with the power ramp angle on drive and the coast ramp angle on overrun,
+quoted as limited-slip makers quote them: lower locks harder, 90 degrees
+gives nothing (a one-way unit). Locking uses the input torque of the
+previous tick.
+
+Defaults. The Tern GT stays open: its comparable car, the Golf GTI, has a
+front differential lock only as part of the Performance Pack (Volkswagen
+facts sheet). The pack and ramp values (preload 50 N.m, 45 and 60 degree
+ramps, 8 faces, plate friction 0.12, radius ratio 1) are placeholders in
+the range aftermarket clutch-type units are sold with, used by the
+`hatch_tern_gt_lsd` variant and when a pack is fitted in the garage; the
+GTI Performance's own lock is electronically controlled, not a ramp unit,
+so there is nothing published to source them from. With them the drive
+side locks 0.48 N.m per N.m of input and the overrun side 0.28. The
+Halden E4 has one motor per axle with a fixed open differential each; it
+is not given a differential setting.
+
+Garage: type (open, clutch pack, locked), preload 0 to 200 N.m, power and
+coast ramps 30 to 90 degrees, for every engine car. Setups and replays
+written with the old lock percentages still load: the percentage reads as
+the ramp angle that gives it.
+
+Tests: the locking per N.m for given ramps and the conversion back from
+percentages; on a split surface with the manual clutch and traction
+control off, the locking torque equals preload plus the power-ramp share
+of the input torque at a quarter, half and three-quarter throttle (within
+3 %) and rises with it; on overrun the coast ramp sets it; open lets the
+ice-side wheel spin, locked holds both wheels together, and the clutch
+pack holds the ice wheel back.
