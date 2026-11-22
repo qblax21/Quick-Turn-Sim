@@ -1215,3 +1215,29 @@ the garage shows the cold settings against the hottest pressures of the
 last drive of that car. Tires starting at a road temperature above the
 20 degC the cold pressure is set at already read a little high at the
 start.
+
+## D-081 Per-lap telemetry export and lap comparison
+
+With "Save telemetry for every lap" on (Settings), or `qts-sim run
+--lap-telemetry DIR`, each lap driven is written to its own CSV in the
+existing telemetry format (all 116 channels: speed, inputs, rpm, gear,
+slip, loads and temperatures per wheel, brake temperatures, wear,
+steering torque and the FFB stages) at 100 rows per second, under
+`recordings/laps/<car>_<track>_<time>/lap_NNN_<time>.csv`. Lap
+boundaries come from the session's own run counters, so counted and
+uncounted laps are told apart (metadata `lap_counted`, `lap_time_s`).
+The recorder only reads the session after each tick, as the telemetry
+writer does, and files are written on a background thread; a test checks
+that the state hash is the same with and without it.
+
+`qts-sim lap-compare A.csv B.csv [--svg FILE]` lines two laps up by
+distance (speed integrated over time, accurate to about 1 % of a lap),
+prints the time difference and the 100 m stretches where B gains or loses
+most, and draws speed, throttle, brake, steering angle, steering torque
+and the running time delta (`docs/img/lap_compare.svg`: a scripted
+Tern GT lap against a scripted Halden E4 lap on Ridgeline). Lining up by
+integrated distance drifts slightly when two laps take different lines;
+a track-position channel would be the improvement.
+
+The headless `path` driver now laps a closed circuit instead of stopping
+at the end of its path.

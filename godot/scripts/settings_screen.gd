@@ -43,6 +43,7 @@ func _ready() -> void:
 	_check(box, "Start in the driver's seat (C switches while driving)", "driving/seat_view")
 	_slider(box, "Seat height adjustment (m)", "driving/seat_height", -0.15, 0.15, 0.01)
 	_check(box, "Show the ghost of the best lap (G switches while driving)", "driving/ghost")
+	_check(box, "Save telemetry for every lap (recordings/laps; compare two with qts-sim lap-compare)", "driving/lap_telemetry")
 	_choice(box, "Track map (N switches while driving)", "driving/map_mode", ["Off", "Whole track, north up", "Zoomed, north up", "Zoomed, heading up"])
 
 	box.add_child(HSeparator.new())

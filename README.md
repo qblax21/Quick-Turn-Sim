@@ -117,7 +117,10 @@ wheel setup** first: assign and calibrate the axes, choose the wheel under
 | Hide everything on screen | H |
 
 Recordings go to the `recordings` folder in Godot's user data directory for
-the project.
+the project. With "Save telemetry for every lap" on in Settings, every lap
+is written to its own CSV under `recordings/laps`; `qts-sim lap-compare
+A.csv B.csv --svg compare.svg` lines two of them up by distance and shows
+where the time went (D-081).
 
 ### Tuning a wheel preset
 

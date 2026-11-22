@@ -254,6 +254,8 @@ func update(hud: Dictionary, status: Dictionary, input: Dictionary, telemetry_on
 		notices.append("GRINDING: clutch down or match the revs to engage")
 	if status.get("paused", false):
 		notices.append("PAUSED")
+	if status.get("lap_telemetry", false) and status.get("lap_files", 0) > 0:
+		notices.append("lap telemetry: %d lap%s saved" % [status.lap_files, "" if status.lap_files == 1 else "s"])
 	if telemetry_on:
 		notices.append("telemetry recording (%d rows)" % status.get("telemetry_rows", 0))
 	if replay_on:

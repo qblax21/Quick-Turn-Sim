@@ -1290,6 +1290,9 @@ impl SimBridge {
             "dropped_time" => s.dropped_time_s,
             "telemetry_active" => s.telemetry_rows.is_some(),
             "telemetry_rows" => s.telemetry_rows.unwrap_or(0) as i64,
+            "lap_files" => i64::from(s.lap_files.unwrap_or(0)),
+            "lap_telemetry" => s.lap_files.is_some(),
+            "lap_file_last" => gstr(&s.lap_file_last),
             "replay_active" => s.replay_frames.is_some(),
             "replay_frames" => s.replay_frames.unwrap_or(0) as i64,
             "paused" => s.paused,
@@ -1659,6 +1662,16 @@ impl SimBridge {
     #[func]
     fn telemetry_stop(&self) {
         self.send(HostCommand::StopTelemetry);
+    }
+
+    /// Writes every lap to its own telemetry file in `dir`; an empty path
+    /// stops.
+    #[func]
+    fn set_lap_telemetry(&self, dir: GString) {
+        let dir = dir.to_string();
+        self.send(HostCommand::SetLapTelemetry(
+            (!dir.is_empty()).then(|| dir.into()),
+        ));
     }
 
     /// Logs the force-feedback signal for the next full lap into a CSV

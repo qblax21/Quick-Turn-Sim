@@ -35,6 +35,7 @@ Commands:
       --hash-log FILE      write `tick hash` every 100 ticks
       --ffb PRESET         force-feedback preset used for the FFB channels
       --ffb-log FILE       log the force-feedback signal for the first full lap
+      --lap-telemetry DIR  write every lap to its own telemetry file in DIR
   replay FILE                            re-simulate a replay and compare hashes
   provenance --car ID [--track ID]       where every parameter came from
   track-info ID                          length, bounds and surfaces of a track
@@ -50,6 +51,9 @@ Commands:
   ffb-gain [--wheel ID] [--knee K]       column torque over scripted Ridgeline
                                          laps of every car, and the gain that
                                          puts it at the knee of a wheel base
+  lap-compare A.csv B.csv [--svg FILE] [--step M]
+                                         line two lap files up by distance:
+                                         where B gains and loses time on A
   ffb-devices                            list steering devices
   input-read [--device ID] [--reads N]   read every axis and button of the
                                          attached controllers and time the reads
@@ -191,9 +195,15 @@ fn make_driver(name: &str, session: &Session, seed: u64) -> Result<Box<dyn Drive
                 .paths()
                 .first()
                 .ok_or("this track has no path for the path driver to follow")?;
+            // A circuit's path ends where it starts: keep lapping it.
+            let (first, last) = (path.points[0], path.points[path.points.len() - 1]);
+            let closed = (first[0] - last[0]).hypot(first[1] - last[1]) < 30.0;
             Ok(Box::new(PathFollower::new(
                 path,
-                PathFollowerConfig::default(),
+                PathFollowerConfig {
+                    closed,
+                    ..PathFollowerConfig::default()
+                },
             )))
         }
         other => Err(format!(
@@ -264,6 +274,13 @@ fn cmd_run(args: &Args) -> Result<(), String> {
     let mut ffb_log = args
         .text("ffb-log")
         .map(|path| qts_sim::ffb_log::FfbLogger::arm(path.into(), &session));
+    let mut laps = match args.text("lap-telemetry") {
+        Some(dir) => Some(qts_sim::lap_telemetry::LapRecorder::new(
+            dir.as_ref(),
+            &session,
+        )?),
+        None => None,
+    };
     let mut row = Vec::new();
     let mut max_speed: f64 = 0.0;
     let mut sample = FfbSample::default();
@@ -277,7 +294,7 @@ fn cmd_run(args: &Args) -> Result<(), String> {
             ));
         }
         max_speed = max_speed.max(session.car().output().speed);
-        if telemetry_out.is_some() || ffb_log.is_some() {
+        if telemetry_out.is_some() || ffb_log.is_some() || laps.is_some() {
             let input = ffb_input(&session, None);
             sample = pipeline.step(&input);
             if let Some(log) = ffb_log.as_mut() {
@@ -287,6 +304,9 @@ fn cmd_run(args: &Args) -> Result<(), String> {
         if let Some(writer) = telemetry_out.as_mut() {
             telemetry::fill_row(&session, &frame, &sample, &mut row);
             writer.sample(&row).map_err(|e| format!("telemetry: {e}"))?;
+        }
+        if let Some(l) = laps.as_mut() {
+            l.observe(&session, &frame, &sample);
         }
         if let Some(rec) = recorder.as_mut() {
             rec.record(frame, &session);
@@ -357,6 +377,14 @@ fn cmd_run(args: &Args) -> Result<(), String> {
     if let Some(mut log) = ffb_log {
         log.stop(&session, pipeline.config());
         println!("ffb log    {:?}", log.wait());
+    }
+    if let Some(mut l) = laps {
+        for written in l.wait() {
+            match written {
+                Ok(p) => println!("lap        {}", p.display()),
+                Err(e) => println!("lap        failed: {e}"),
+            }
+        }
     }
     if let Some(mut log) = hash_log {
         log.flush().map_err(|e| format!("hash log: {e}"))?;
@@ -777,6 +805,59 @@ fn steer_row(s: &Session) -> SteerRow {
     }
 }
 
+fn cmd_lap_compare(args: &Args) -> Result<(), String> {
+    use qts_sim::lap_telemetry::{compare, compare_svg, Lap};
+    let [a, b] = args
+        .positional
+        .get(1..3)
+        .ok_or("usage: lap-compare A.csv B.csv")?
+    else {
+        return Err("usage: lap-compare A.csv B.csv".into());
+    };
+    let a = Lap::read(a.as_ref())?;
+    let b = Lap::read(b.as_ref())?;
+    let step = args.number("step", 5.0)?.max(0.5);
+    let c = compare(&a, &b, step)?;
+    let time = |l: &Lap| {
+        l.file
+            .meta("lap_time_s")
+            .filter(|t| !t.is_empty())
+            .unwrap_or("not counted")
+            .to_string()
+    };
+    println!("A {} ({})  {:.0} m", a.label, time(&a), a.length());
+    println!("B {} ({})  {:.0} m", b.label, time(&b), b.length());
+    let end = *c.delta.last().unwrap_or(&0.0);
+    println!(
+        "B minus A over {:.0} m: {end:+.3} s",
+        c.distance.last().unwrap_or(&0.0)
+    );
+    // Where B loses and gains most, over 100 m stretches.
+    let window = (100.0 / step).round().max(1.0) as usize;
+    let mut stretches: Vec<(f64, f64)> = (0..c.delta.len().saturating_sub(window))
+        .step_by(window)
+        .map(|i| (c.distance[i], c.delta[i + window] - c.delta[i]))
+        .collect();
+    stretches.sort_by(|x, y| y.1.abs().total_cmp(&x.1.abs()));
+    println!("Biggest differences over 100 m (positive: B loses time):");
+    for (d, dt) in stretches.iter().take(6) {
+        let i = (d / step) as usize;
+        let speed = &c.channels[0];
+        println!(
+            "  {:5.0}-{:5.0} m  {dt:+.3} s   speed A {:5.1} B {:5.1} km/h",
+            d,
+            d + 100.0,
+            speed.0[i],
+            speed.1[i]
+        );
+    }
+    if let Some(path) = args.text("svg") {
+        std::fs::write(path, compare_svg(&a, &b, &c)).map_err(|e| format!("{path}: {e}"))?;
+        println!("svg {path}");
+    }
+    Ok(())
+}
+
 fn cmd_ffb_gain(args: &Args) -> Result<(), String> {
     let root = data_root()?;
     let knee: f64 = args
@@ -1137,6 +1218,7 @@ fn main() -> ExitCode {
         "kerb-ffb" => cmd_kerb_ffb(&args).map(|()| true),
         "steering-compare" => cmd_steering_compare(&args).map(|()| true),
         "ffb-gain" => cmd_ffb_gain(&args).map(|()| true),
+        "lap-compare" => cmd_lap_compare(&args).map(|()| true),
         "ffb-devices" => cmd_ffb_devices().map(|()| true),
         "input-read" => cmd_input_read(&args).map(|()| true),
         "ffb-test" => cmd_ffb_test(&args).map(|()| true),

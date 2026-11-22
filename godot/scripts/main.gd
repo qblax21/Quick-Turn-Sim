@@ -437,6 +437,10 @@ func _start_driving(car_id: String, track_id: String, auto_clutch: bool, auto_sh
 	session_car = car_id
 	session_track = track_id
 	sim.replay_start()
+	if settings.get_value("driving/lap_telemetry"):
+		var stamp := Time.get_datetime_string_from_system().replace(":", "-")
+		var lap_dir := ProjectSettings.globalize_path("user://recordings/laps").path_join("%s_%s_%s" % [car_id, track_id, stamp])
+		sim.set_lap_telemetry(lap_dir)
 	cockpit_view = settings.get_value("driving/seat_view")
 	show_ghost = settings.get_value("driving/ghost")
 	map_mode = clampi(settings.get_value("driving/map_mode"), 0, 3)

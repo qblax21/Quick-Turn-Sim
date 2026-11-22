@@ -10,7 +10,7 @@ says so.
 | Area | State |
 | --- | --- |
 | Workspace builds with one command on Windows | Verified (`tools\build.ps1`, GNU toolchain) |
-| Test suite | 227 tests pass in release |
+| Test suite | 228 tests pass in release |
 | Headless sim runs and replays exactly | Verified |
 | All cars drivable on all four tracks | Verified with scripted drivers and the front-end smoke test |
 | Front end renders, HUD and overlay work | Verified by screenshots |
@@ -94,6 +94,8 @@ sees in the demo is described in `DEMO.md`.
 ### Telemetry, import, validation
 - Telemetry CSV with 116 documented channels; a test keeps the document and
   the code in step.
+- Per-lap telemetry files and a two-lap comparison by distance with an SVG
+  chart (`qts-sim lap-compare`, D-081).
 - Logger CSV importer with column-mapping profiles and run summaries,
   tested against synthetic runs with known answers.
 - Validation harness, five metrics per car, against published road-test

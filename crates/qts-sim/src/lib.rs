@@ -21,6 +21,7 @@ pub mod drivers;
 pub mod ffb_log;
 pub mod ghost;
 pub mod host;
+pub mod lap_telemetry;
 pub mod playback;
 pub mod session;
 pub mod setup;

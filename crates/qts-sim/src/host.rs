@@ -14,6 +14,7 @@
 use crate::direct_input::DirectInputs;
 use crate::ffb_log::{FfbLogStatus, FfbLogger, CLIP_THRESHOLD};
 use crate::ghost::{GhostLap, GhostRecorder};
+use crate::lap_telemetry::LapRecorder;
 use crate::session::Session;
 use crate::telemetry;
 use qts_core::input::{InputFrame, AXIS_MAX};
@@ -307,6 +308,10 @@ pub struct HostStatus {
     pub dropped_time_s: f64,
     /// Rows written to the telemetry file, if one is open.
     pub telemetry_rows: Option<u64>,
+    /// Laps written to per-lap telemetry files, if lap telemetry is on.
+    pub lap_files: Option<u32>,
+    /// The newest lap file written, or what went wrong.
+    pub lap_file_last: String,
     /// Frames in the replay being recorded, if any.
     pub replay_frames: Option<usize>,
     /// True while the simulation is paused.
@@ -349,6 +354,9 @@ pub enum HostCommand {
     },
     /// Close the telemetry file.
     StopTelemetry,
+    /// Write every lap to its own telemetry file in this directory, or
+    /// stop with `None`.
+    SetLapTelemetry(Option<PathBuf>),
     /// Start recording a replay from the current state.
     StartReplay {
         /// Ticks between stored state hashes.
@@ -389,6 +397,7 @@ impl std::fmt::Debug for HostCommand {
             HostCommand::SetDirectSteering(_) => "SetDirectSteering",
             HostCommand::StartTelemetry { .. } => "StartTelemetry",
             HostCommand::StopTelemetry => "StopTelemetry",
+            HostCommand::SetLapTelemetry(_) => "SetLapTelemetry",
             HostCommand::StartReplay { .. } => "StartReplay",
             HostCommand::StopReplay { .. } => "StopReplay",
             HostCommand::SaveReplay { .. } => "SaveReplay",
@@ -602,6 +611,7 @@ struct SimThread {
     direct_steering: bool,
     paused: bool,
     telemetry: Option<TelemetryWriter<BufWriter<File>>>,
+    laps: Option<LapRecorder>,
     recorder: Option<ReplayRecorder>,
     ghost: GhostRecorder,
     row: Vec<f64>,
@@ -674,6 +684,7 @@ impl SimThread {
             direct_steering: false,
             paused: false,
             telemetry: None,
+            laps: None,
             recorder: None,
             row: Vec::new(),
             seen_sequence: 0,
@@ -757,6 +768,17 @@ impl SimThread {
                 }
             }
             HostCommand::StopTelemetry => self.close_telemetry(),
+            HostCommand::SetLapTelemetry(dir) => {
+                if let Some(mut old) = self.laps.take() {
+                    old.wait();
+                }
+                if let Some(dir) = dir {
+                    match LapRecorder::new(&dir, &self.session) {
+                        Ok(r) => self.laps = Some(r),
+                        Err(e) => self.last_error = Some(format!("lap telemetry: {e}")),
+                    }
+                }
+            }
             HostCommand::StartReplay { hash_interval } => {
                 let header = self.session.replay_header(hash_interval);
                 self.recorder = Some(ReplayRecorder::start(header, &self.session));
@@ -977,6 +999,9 @@ impl SimThread {
                 self.telemetry = None;
             }
         }
+        if let Some(laps) = self.laps.as_mut() {
+            laps.observe(&self.session, &frame, &sample);
+        }
         if let Some(recorder) = self.recorder.as_mut() {
             recorder.record(frame, &self.session);
         }
@@ -1087,6 +1112,13 @@ impl SimThread {
                 s.worst_wake_ticks = reported_worst;
                 s.dropped_time_s = driver.dropped_time();
                 s.telemetry_rows = self.telemetry.as_ref().map(|t| t.rows());
+                s.lap_files = self.laps.as_ref().map(|l| l.laps_written());
+                if let Some(last) = self.laps.as_mut().and_then(|l| l.poll()) {
+                    s.lap_file_last = match last {
+                        Ok(p) => p.display().to_string(),
+                        Err(e) => format!("failed: {e}"),
+                    };
+                }
                 s.replay_frames = self.recorder.as_ref().map(|r| r.len());
                 s.paused = self.paused;
                 s.direct_inputs = self.direct.is_some();
@@ -1110,6 +1142,9 @@ impl SimThread {
         }
         self.close_device();
         self.close_telemetry();
+        if let Some(mut laps) = self.laps.take() {
+            laps.wait();
+        }
         self.session
     }
 }
