@@ -1202,13 +1202,17 @@ def turbofan_face(radius, rim_r, hw, mats, slots=40):
         if f.normal.x < 0:
             f.normal_flip()
 
-    # Outer slots: short rectangles pointing at the centre.
-    r0, r1, half = 0.806 * rim_r, 0.945 * rim_r, 0.008
+    # Outer slots pointing at the centre, widening outward so the white
+    # bar left between neighbours is the same thin width all along.
+    r0, r1, bar = 0.806 * rim_r, 0.945 * rim_r, 0.005
+
+    def half(r):
+        return r * math.pi / slots - 0.5 * bar
     for k in range(slots):
         t = 2 * math.pi * k / slots
         d, n = (math.cos(t), math.sin(t)), (-math.sin(t), math.cos(t))
         face_up([bm.verts.new((x_face + 0.0025, d[0] * r + n[0] * e, d[1] * r + n[1] * e))
-                 for r, e in ((r0, -half), (r1, -half), (r1, half), (r0, half))])
+                 for r, e in ((r0, -half(r0)), (r1, -half(r1)), (r1, half(r1)), (r0, half(r0)))])
     bm.to_mesh(mesh)
     bm.free()
     mesh.materials.append(mats["fan_slot"])

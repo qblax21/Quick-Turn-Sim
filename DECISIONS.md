@@ -1809,3 +1809,11 @@ At the owner's request, the slots in the Tern GT's aero disc are cut to
 three quarters of their D-101 length. They keep their outer edge just
 inside the rim, and their inner edge moves out from 76 to 80.6 percent
 of the rim radius. Drawing only.
+
+## D-103 Thinner bars between the wheel slots
+
+At the owner's request, the white bars between the Tern GT's wheel slots
+are thinner: about 5 mm wide, where before they were 11 mm at the inner
+end and 14 mm at the outer. Each slot now widens toward the rim, so the
+bars keep that width all along. There are still 40 slots, and their
+length is unchanged. Drawing only.
