@@ -37,7 +37,7 @@ spring_rate_n_per_m = { value = 52000.0, source = "chosen for a 1.6 Hz front rid
 motion_ratio = { value = 0.90, source = "typical double-wishbone motion ratio", confidence = "placeholder" }
 damper_bump_n_s_per_m = { value = 3620.0, source = "about 0.35 of critical in bump", confidence = "placeholder" }
 damper_rebound_n_s_per_m = { value = 6200.0, source = "about 0.6 of critical in rebound", confidence = "placeholder" }
-anti_roll_bar_n_per_m = { value = 18000.0, source = "chosen with the rear bar for mild understeer", confidence = "placeholder" }
+anti_roll_bar_n_per_m = { value = 23000.0, source = "moved 5000 N/m from the rear bar to the front (D-088) after a drive found the car snap oversteery: the front share of roll stiffness goes from 49 to 55 percent, a few percent above the 48 percent front weight, as road cars are set for a stable limit; total roll stiffness unchanged; not measured", confidence = "placeholder" }
 bump_travel_m = { value = 0.07, source = "class-typical bump travel", confidence = "placeholder" }
 droop_travel_m = { value = 0.08, source = "class-typical droop travel", confidence = "placeholder" }
 bump_stop_rate_n_per_m = { value = 200000.0, source = "stiff progressive stop approximated as linear", confidence = "placeholder" }
@@ -55,7 +55,7 @@ spring_rate_n_per_m = { value = 71500.0, source = "chosen for a 1.8 Hz rear ride
 motion_ratio = { value = 0.90, source = "typical multi-link motion ratio", confidence = "placeholder" }
 damper_bump_n_s_per_m = { value = 4420.0, source = "about 0.35 of critical in bump", confidence = "placeholder" }
 damper_rebound_n_s_per_m = { value = 7580.0, source = "about 0.6 of critical in rebound", confidence = "placeholder" }
-anti_roll_bar_n_per_m = { value = 12000.0, source = "chosen with the front bar for mild understeer", confidence = "placeholder" }
+anti_roll_bar_n_per_m = { value = 7000.0, source = "moved 5000 N/m from the rear bar to the front (D-088) after a drive found the car snap oversteery: the front share of roll stiffness goes from 49 to 55 percent, a few percent above the 48 percent front weight, as road cars are set for a stable limit; total roll stiffness unchanged; not measured", confidence = "placeholder" }
 bump_travel_m = { value = 0.075, source = "class-typical bump travel", confidence = "placeholder" }
 droop_travel_m = { value = 0.085, source = "class-typical droop travel", confidence = "placeholder" }
 bump_stop_rate_n_per_m = { value = 220000.0, source = "stiff progressive stop approximated as linear", confidence = "placeholder" }
@@ -79,6 +79,9 @@ assist_gain = { value = [7.0, 4.5, 2.4, 1.5, 1.1], source = "electric power stee
 assist_threshold_nm = { value = 0.7, source = "on-centre torque below which the assist does nothing, typical EPAS tuning; not measured", confidence = "placeholder" }
 rack_friction_nm = { value = 0.9, source = "order of the steering-system friction felt at the rim of an EPAS car; not measured", confidence = "placeholder" }
 steering_inertia_kg_m2 = { value = 0.014, source = "two 19 inch road-wheel assemblies at about 1.0 kg.m2 each about their kingpins, divided by the 12:1 ratio squared, plus the rack", confidence = "estimated" }
+torsion_bar_nm_per_rad = { value = 115.0, source = "about 2 N.m per degree, the middle of the 1.5 to 2.5 N.m per degree electric power steering torsion bars are usually made at; not measured", confidence = "placeholder" }
+assist_side_inertia_kg_m2 = { value = 0.06, source = "assist motor through its reduction, rack and road wheels, referred to the column; order of magnitude, not measured. With the torsion bar it sets a twist frequency near 7 Hz, the range in which electric steering filters kerb and road shocks (D-088)", confidence = "placeholder" }
+torsion_damping_ratio = { value = 0.7, source = "assist motor and rack damping as a share of critical; chosen for a well-damped column, not measured", confidence = "placeholder" }
 
 [brakes]
 max_torque_front_nm = { value = 4200.0, source = "enough to exceed front grip at full pedal", confidence = "placeholder" }

@@ -202,6 +202,17 @@ pub struct SteeringParams {
     /// rack, referred to the column, kg·m². The steering wheel itself is
     /// not included: the driver holds a real one.
     pub steering_inertia_kg_m2: f64,
+    /// Stiffness of the torsion bar in the column that the power steering
+    /// senses the driver's torque with, N·m per rad. What the driver feels
+    /// is this bar's twist (D-088).
+    pub torsion_bar_nm_per_rad: f64,
+    /// Inertia on the far side of the torsion bar, referred to the column,
+    /// kg·m²: the assist motor through its gearing, the rack and the road
+    /// wheels about their kingpins.
+    pub assist_side_inertia_kg_m2: f64,
+    /// Damping of the twist, as a share of critical: the assist motor's
+    /// own damping and the rack's.
+    pub torsion_damping_ratio: f64,
 }
 
 impl SteeringParams {
@@ -865,6 +876,12 @@ impl CarParams {
         non_negative("steering.assist_threshold_nm", s.assist_threshold_nm)?;
         non_negative("steering.rack_friction_nm", s.rack_friction_nm)?;
         non_negative("steering.steering_inertia_kg_m2", s.steering_inertia_kg_m2)?;
+        positive("steering.torsion_bar_nm_per_rad", s.torsion_bar_nm_per_rad)?;
+        positive(
+            "steering.assist_side_inertia_kg_m2",
+            s.assist_side_inertia_kg_m2,
+        )?;
+        positive("steering.torsion_damping_ratio", s.torsion_damping_ratio)?;
         positive(
             "aero.air_density_kg_per_m3",
             self.aero.air_density_kg_per_m3,

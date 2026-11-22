@@ -224,6 +224,29 @@ impl Drivetrain for DualMotor {
         let coast = self.p.regen.coast_fraction
             * (1.0 - clamp(throttle / COAST_REGEN_PEDAL_SPAN, 0.0, 1.0));
         let intervening = ctx.abs_active.iter().any(|&x| x);
+        // Lift-off regeneration, shared between the axles in proportion to
+        // the load each carries, as a brake system's bias shares braking,
+        // so the lighter end is not over-braked (D-088). Each axle takes no
+        // more than its motor can; the other makes up what it can.
+        let cap_wheel = [
+            regen_cap[0] * motors[0].reduction_ratio,
+            regen_cap[1] * motors[1].reduction_ratio,
+        ];
+        let axle_load = |a: usize| {
+            let [l, r] = axle_wheels[a];
+            ctx.wheel_load[l].max(0.0) + ctx.wheel_load[r].max(0.0)
+        };
+        let loads = [axle_load(0), axle_load(1)];
+        let front_part = if loads[0] + loads[1] > 1.0 {
+            loads[0] / (loads[0] + loads[1])
+        } else {
+            0.5
+        };
+        let coast_total = coast * (cap_wheel[0] + cap_wheel[1]);
+        let mut coast_wheel = [0.0; 2];
+        coast_wheel[0] = (coast_total * front_part).min(cap_wheel[0]);
+        coast_wheel[1] = (coast_total - coast_wheel[0]).min(cap_wheel[1]);
+        coast_wheel[0] = (coast_total - coast_wheel[1]).min(cap_wheel[0]);
         let mut friction_cap = [0.0; 4];
         let mut regen_rotor = [0.0; 2];
         for a in 0..2 {
@@ -234,7 +257,7 @@ impl Drivetrain for DualMotor {
             let coast_rotor = if intervening {
                 0.0
             } else {
-                coast * regen_cap[a]
+                coast_wheel[a] / ratio
             };
             let service = ctx.service_brake_torque[l] + ctx.service_brake_torque[r];
             let handbrake = ctx.handbrake_torque[l] + ctx.handbrake_torque[r] > 0.0;

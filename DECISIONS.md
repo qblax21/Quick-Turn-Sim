@@ -1454,3 +1454,62 @@ is the expected one: at the limit the tires carry some longitudinal force
 too, and no longer exceed the ellipse doing it. Every target still
 passes. The tire test now asserts both bounds outright, with no gaps
 listed.
+
+## D-088 Fixes from a drive: title camera, steering column, traction control, the sedan's snap
+
+The owner's first drive after D-087 reported four things; each was
+measured before it was changed.
+
+**Title camera "bouncing".** Its height never moved (the scenery path is
+flat), but its aim snapped from one path point to the next: 0.0047 rad
+per frame squared of jerk. The look-ahead point is now interpolated, the
+height averaged along the path, and position and aim eased toward their
+goals; measured jerk 0.00000007 (`godot/tests/title_camera.gd`).
+
+**FFB kicks out of turns, a bumpy straight.** A hand-limited scripted
+Ridgeline lap showed every large kick (11 to 18 N.m at the column within
+20 ms) was a kerb strike: an inside front wheel landing hard or leaving
+the ground, the tire moment collapsing or jumping at once, plus up to
+7 N.m of gyroscopic moment. On straights the steering torque buzzed with
+rack friction flipping sign on every small correction, tire load and the
+gyroscopic term. All of it reached the driver instantly because the
+model handed the rack-side torque straight to the column. A car with
+electric power steering does not: the driver feels the twist of the
+column's torsion bar, with the assist motor, rack and road wheels behind
+it. That is now modelled: the felt torque is the bar's, following the
+rack-side torque as a second-order system set by the bar's stiffness
+(115 N.m/rad, about 2 N.m per degree), the inertia behind it (0.05 and
+0.06 kg.m2 at the column) and its damping (0.7 of critical), all
+placeholders, which put its frequency near 7 Hz. Steady load passes
+unchanged (to 1 % on the skidpad circle); tick-to-tick roughness on
+straights fell about five times (0.034 to 0.007 N.m per ms on the hatch,
+0.041 to 0.008 on the sedan) and the largest kerb kicks halved (14.9 to
+7.7 N.m, 18.3 to 7.9 N.m in 20 ms). What remains of a kerb strike is the
+wheel really unloading. The FFB pipeline is unchanged; the derived
+default gain stays 0.26 for the CSL Elite.
+
+**The car would not move from rest with the wheel turned.** Traction
+control measured slip against the body's forward speed; a steered front
+wheel rolls along a longer path, which read as wheelspin, so it cut the
+engine (the hatch crawled at 1.3 m/s after 4 s at full lock, its engine
+at 1127 rpm). It now measures each wheel against its own contact patch's
+speed along its heading: at full lock the hatch reaches 7.2 m/s in 4 s,
+as at half lock.
+
+**The electric sedan's snap oversteer.** A turn-in at 100 km/h and a lift
+slid its rear to 16 degrees (the hatch: 2.6). Lift-off regeneration
+added to it but was not the cause (it is about 0.05 g; without it the
+slide was still 7.6 degrees, and sharing it between the axles by load,
+now done, changed it only to 15.7). The cause was the roll stiffness: 49 %
+at the front for 48 % of the weight, so at the limit the lightly loaded
+inside rear lost grip first. 5000 N/m moved from the rear bar to the
+front, total unchanged, gives 55 % at the front, a few percent above the
+weight share as road cars are set: the same manoeuvre now slides 6.9
+degrees. Skidpad 0.953 to 0.943 g (published 0.96), understeer gradient
+1.83 to 1.88 deg/g. The front-drive hatch keeps its rear-biased roll
+stiffness, chosen for lift-off rotation; it does not snap.
+
+Tests (`tests/drive_feel.rs`): every car pulls away above 5 m/s in 4 s at
+half and full lock; the sedan's lift-off slide stays under 10 degrees;
+the torsion bar passes steady load to 1 % and cuts tick-to-tick roughness
+to under 35 % of the rack side's.

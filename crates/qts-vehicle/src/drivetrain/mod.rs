@@ -57,6 +57,8 @@ pub struct DriveContext {
     pub handbrake_torque: [f64; 4],
     /// True for wheels where the anti-lock system is intervening.
     pub abs_active: [bool; 4],
+    /// Vertical tire load per wheel this tick, N.
+    pub wheel_load: [f64; 4],
     /// Vehicle speed along its own x axis, m/s.
     pub speed: f64,
     /// Yaw rate, rad/s. Offered to the torque-vectoring hook.

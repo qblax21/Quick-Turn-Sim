@@ -41,6 +41,7 @@ var title
 var scenery
 var scenery_points := PackedVector3Array()
 var scenery_s := 0.0
+var scenery_aim := Vector3.ZERO
 var pause_menu
 var results
 # The last drive request, so a session can be restarted or driven again.
@@ -284,6 +285,7 @@ func _show_scenery() -> void:
 	var paths: Array = sim.track_paths()
 	scenery_points = paths[0].points if not paths.is_empty() else PackedVector3Array()
 	scenery_s = 0.0
+	scenery_aim = Vector3.ZERO
 
 
 func _hide_scenery() -> void:
@@ -299,16 +301,39 @@ func _fly_scenery(delta: float) -> void:
 	if n < 3:
 		return
 	scenery_s = fmod(scenery_s + delta * 9.0, float(n))
-	var i := int(scenery_s)
-	var at := scenery_points[i].lerp(scenery_points[(i + 1) % n], scenery_s - i)
-	var ahead := scenery_points[(i + 40) % n]
+	var at := _scenery_point(scenery_s)
+	var ahead := _scenery_point(scenery_s + 40.0)
 	var along := (ahead - at)
 	along.y = 0.0
 	along = along.normalized() if along.length() > 0.01 else Vector3.FORWARD
 	var side := Vector3(along.z, 0.0, -along.x)
-	camera.global_position = at + side * 25.0 + Vector3.UP * 22.0
-	camera.look_at(ahead + Vector3.UP * 2.0, Vector3.UP)
+	# Height from the road averaged over a long stretch, so the camera does
+	# not ride every bump and kerb of the track's profile.
+	var height := 0.0
+	for k in range(-30, 31, 3):
+		height += _scenery_point(scenery_s + k).y
+	height /= 21.0
+	var goal := Vector3(at.x, height, at.z) + side * 25.0 + Vector3.UP * 22.0
+	var aim := Vector3(ahead.x, height + 2.0, ahead.z)
+	# Ease toward the goal rather than snapping to it: a steady drone shot.
+	var blend := 1.0 - exp(-1.5 * delta)
+	if scenery_aim == Vector3.ZERO:
+		camera.global_position = goal
+		scenery_aim = aim
+	camera.global_position = camera.global_position.lerp(goal, blend)
+	scenery_aim = scenery_aim.lerp(aim, blend)
+	camera.look_at(scenery_aim, Vector3.UP)
 	camera.fov = 60.0
+
+
+# A point on the scenery path at a fractional index, interpolated and
+# wrapped round the loop.
+func _scenery_point(s_index: float) -> Vector3:
+	var n := scenery_points.size()
+	var s_wrapped := fposmod(s_index, float(n))
+	# Rounding can give exactly n: wrap the index as well.
+	var i := int(s_wrapped) % n
+	return scenery_points[i].lerp(scenery_points[(i + 1) % n], clampf(s_wrapped - int(s_wrapped), 0.0, 1.0))
 
 
 # Removes the title, selection, pause and results screens.

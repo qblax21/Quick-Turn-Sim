@@ -95,6 +95,9 @@ pub mod test_support {
                 assist_threshold_nm: 0.0,
                 rack_friction_nm: 0.0,
                 steering_inertia_kg_m2: 0.0,
+                torsion_bar_nm_per_rad: 115.0,
+                assist_side_inertia_kg_m2: 0.05,
+                torsion_damping_ratio: 0.7,
             },
             brakes: BrakeParams {
                 max_torque_front_nm: 2600.0,

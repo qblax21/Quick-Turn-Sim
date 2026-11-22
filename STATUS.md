@@ -10,7 +10,7 @@ says so.
 | Area | State |
 | --- | --- |
 | Workspace builds with one command on Windows | Verified (`tools\build.ps1`, GNU toolchain) |
-| Test suite | 238 tests pass in release |
+| Test suite | 241 tests pass in release |
 | Headless sim runs and replays exactly | Verified |
 | All cars drivable on all four tracks | Verified with scripted drivers and the front-end smoke test |
 | Front end renders, HUD and overlay work | Verified by screenshots |
@@ -111,11 +111,11 @@ sees in the demo is described in `DEMO.md`.
 
 | Metric | Tern GT vs Golf GTI Mk7 | error | Halden E4 vs Model 3 Performance | error | tolerance |
 | --- | --- | --- | --- | --- | --- |
-| Skidpad lateral | 0.923 g vs 0.94 | -1.9% | 0.953 g vs 0.96 | -0.7% | 10% |
+| Skidpad lateral | 0.923 g vs 0.94 | -1.9% | 0.943 g vs 0.96 | -1.8% | 10% |
 | 70-0 mph distance | 46.6 m vs 46.9 | -0.7% | 46.6 m vs 44.8 | +3.9% | 10% |
 | 0-60 mph, 1 ft rollout | 6.08 s vs 5.9 | +3.0% | 2.91 s vs 3.1 | -6.3% | 10% |
 | Top speed | 70.0 m/s vs 69.4 | +0.8% | 71.7 m/s vs 72.4 | -1.0% | 6% |
-| Understeer gradient | 2.23 deg/g vs 2.5 (guess) | -10.8% | 1.83 deg/g vs 2.0 (guess) | -8.4% | 40% |
+| Understeer gradient | 2.23 deg/g vs 2.5 (guess) | -10.8% | 1.88 deg/g vs 2.0 (guess) | -6.0% | 40% |
 
 These figures measure the comparable real cars, not ours, so they are
 labelled estimated. The gaps were closed with published specifications
@@ -155,6 +155,9 @@ tire size. No understeer data was found.
   physics (D-074). Peak engine speed and over-revs past the limiter are
   shown on the HUD; optional engine damage from over-revving, down to
   failure. Clutch shudder and gear grind reach the wheel as light FFB cues.
+- The column's torsion bar is modelled: the driver feels its twist, which
+  passes steady load and rounds off kerb strikes and road texture near
+  7 Hz (D-088).
 - Steering system in the physics (D-075): speed-sensitive power assist
   with an on-centre zone, rack friction and inertia, gyroscopic moments of
   the front wheels and weight moments through caster and kingpin

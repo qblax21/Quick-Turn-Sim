@@ -23,7 +23,6 @@ config/features=PackedStringArray("4.7")
 
 window/size/viewport_width=1600
 window/size/viewport_height=900
-; Scale the UI with the window so menus fit at any size.
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 

@@ -79,6 +79,9 @@ assist_gain = { value = [6.0, 4.0, 2.0, 1.2, 0.9], source = "electric power stee
 assist_threshold_nm = { value = 0.8, source = "on-centre torque below which the assist does nothing, typical EPAS tuning; not measured", confidence = "placeholder" }
 rack_friction_nm = { value = 0.8, source = "order of the steering-system friction felt at the rim of an EPAS car; not measured", confidence = "placeholder" }
 steering_inertia_kg_m2 = { value = 0.008, source = "two 17 inch road-wheel assemblies at about 0.85 kg.m2 each about their kingpins, divided by the steering ratio squared, plus the rack", confidence = "estimated" }
+torsion_bar_nm_per_rad = { value = 115.0, source = "about 2 N.m per degree, the middle of the 1.5 to 2.5 N.m per degree electric power steering torsion bars are usually made at; not measured", confidence = "placeholder" }
+assist_side_inertia_kg_m2 = { value = 0.05, source = "assist motor through its reduction, rack and road wheels, referred to the column; order of magnitude, not measured. With the torsion bar it sets a twist frequency near 7 Hz, the range in which electric steering filters kerb and road shocks (D-088)", confidence = "placeholder" }
+torsion_damping_ratio = { value = 0.7, source = "assist motor and rack damping as a share of critical; chosen for a well-damped column, not measured", confidence = "placeholder" }
 
 [brakes]
 max_torque_front_nm = { value = 3000.0, source = "enough to exceed front grip at full pedal", confidence = "placeholder" }

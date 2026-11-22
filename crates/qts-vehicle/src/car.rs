@@ -178,6 +178,12 @@ pub struct CarState {
     /// False until the column angle has been seen once since the car was
     /// placed, so a turned wheel at the start is not read as a fast turn.
     pub column_primed: bool,
+    /// Torque held in the column's torsion bar, N·m: what the driver feels.
+    pub torsion_torque_nm: f64,
+    /// False until the torsion bar has been started at the first load.
+    pub column_settled: bool,
+    /// Its rate of change, N·m/s.
+    pub torsion_rate_nm_s: f64,
 }
 
 /// The parts of the steering torque at the column, N·m, positive turning
@@ -455,6 +461,9 @@ impl Car {
             column_rate: 0.0,
             column_accel: 0.0,
             column_primed: false,
+            torsion_torque_nm: 0.0,
+            torsion_rate_nm_s: 0.0,
+            column_settled: false,
         };
         let mut car = Self {
             params,
@@ -524,6 +533,9 @@ impl Car {
             column_rate: 0.0,
             column_accel: 0.0,
             column_primed: false,
+            torsion_torque_nm: 0.0,
+            torsion_rate_nm_s: 0.0,
+            column_settled: false,
         };
         self.drivetrain.reset();
         self.refresh_static_output();
@@ -660,6 +672,9 @@ impl Car {
         // Wheels: kinematics, tire load and tire forces.
         let mut rho = [Vec3::ZERO; 4];
         let mut tire_force_body = [Vec3::ZERO; 4];
+        // Each contact patch's speed along its wheel's heading, m/s: the
+        // ground speed a driven wheel's rolling is measured against.
+        let mut wheel_ground_speed = [0.0; 4];
         let mut wheel_travel_force = [0.0; 4];
         let mut tire_torque = [0.0; 4];
         let mut resist_torque = [0.0; 4];
@@ -710,6 +725,7 @@ impl Car {
             let camber = -fm::asin(clamp(spin_axis.dot(n), -1.0, 1.0))
                 + corner.side * (ax.static_camber_rad + ax.camber_gain_rad_per_m * zeta);
 
+            wheel_ground_speed[i] = contact_vel_world.dot(x_w);
             let out = tire_model::step(
                 tire,
                 &mut self.state.tires[i],
@@ -925,11 +941,14 @@ impl Car {
         let pedal = clamp(controls.throttle, 0.0, 1.0);
         let tc = &p.traction_control;
         if tc.enabled && assists.traction_control && pedal > TC_PEDAL_THRESHOLD {
-            let reference = vel_body.x.abs().max(tc.min_speed_m_per_s);
+            // Each wheel against its own contact patch's speed along its
+            // heading: a steered or yawing wheel rolls further than the
+            // body moves forward, and that is not wheelspin (D-088).
             let mut slip: f64 = 0.0;
             for i in 0..4 {
+                let ground = wheel_ground_speed[i].abs();
                 let rolling = self.state.wheel_omega[i].abs() * wheels[i].rolling_radius;
-                slip = slip.max((rolling - vel_body.x.abs()) / reference);
+                slip = slip.max((rolling - ground) / ground.max(tc.min_speed_m_per_s));
             }
             let rate = clamp(
                 tc.control_gain_per_s * (tc.slip_threshold - slip),
@@ -965,6 +984,12 @@ impl Car {
                 service_brake_torque: service_brake,
                 handbrake_torque,
                 abs_active,
+                wheel_load: [
+                    wheels[0].load,
+                    wheels[1].load,
+                    wheels[2].load,
+                    wheels[3].load,
+                ],
                 speed: vel_body.x,
                 yaw_rate: omega.z,
                 steer,
@@ -1061,7 +1086,28 @@ impl Car {
                 )
             }
         };
-        let steering_torque_nm = driver_nm + friction_nm + inertia_nm;
+        // The driver feels the column's torsion bar. Behind it sit the
+        // assist motor, rack and road wheels, whose inertia and damping make
+        // the bar follow the rack-side torque as a second-order system: a
+        // steady load passes unchanged, a sudden one (a kerb, a wheel
+        // landing) is rounded off (D-088).
+        let rack_side = driver_nm + friction_nm + inertia_nm;
+        let steering_torque_nm = if legacy.is_some() {
+            rack_side
+        } else {
+            let s = &mut self.state;
+            if !s.column_settled {
+                s.torsion_torque_nm = rack_side;
+                s.torsion_rate_nm_s = 0.0;
+                s.column_settled = true;
+            }
+            let wn = fm::sqrt(st.torsion_bar_nm_per_rad / st.assist_side_inertia_kg_m2);
+            let accel = wn * wn * (rack_side - s.torsion_torque_nm)
+                - 2.0 * st.torsion_damping_ratio * wn * s.torsion_rate_nm_s;
+            s.torsion_rate_nm_s += accel * dt;
+            s.torsion_torque_nm += s.torsion_rate_nm_s * dt;
+            s.torsion_torque_nm
+        };
         let steering = SteeringOutput {
             load_nm,
             weight_nm: weight_moment / st.ratio,
@@ -1218,6 +1264,9 @@ impl Snapshot for Car {
         w.write_f64(s.column_rate);
         w.write_f64(s.column_accel);
         w.write_bool(s.column_primed);
+        w.write_f64(s.torsion_torque_nm);
+        w.write_f64(s.torsion_rate_nm_s);
+        w.write_bool(s.column_settled);
         self.drivetrain.save(w);
     }
 
@@ -1242,6 +1291,9 @@ impl Snapshot for Car {
         s.column_rate = r.read_f64()?;
         s.column_accel = r.read_f64()?;
         s.column_primed = r.read_bool()?;
+        s.torsion_torque_nm = r.read_f64()?;
+        s.torsion_rate_nm_s = r.read_f64()?;
+        s.column_settled = r.read_bool()?;
         self.drivetrain.load(r)?;
         self.refresh_static_output();
         Ok(())
