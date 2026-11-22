@@ -13,7 +13,7 @@ invert = false
 
 device_max_torque_nm = { value = 5.0, source = "guess for an unknown mid-range wheel", confidence = "placeholder" }
 device_rotation_rad = { value = 15.708, source = "assumes the wheel is set to 900 degrees of rotation", confidence = "placeholder" }
-gain = { value = 0.25, source = "derived (D-079): 0.75 knee times 5 N.m over 14.8 N.m, the highest 99th-percentile column torque over scripted Ridgeline laps (qts-sim ffb-gain)", confidence = "estimated" }
+gain = { value = 0.22, source = "derived (D-079, re-measured after D-083): 0.75 knee times 5 N.m over 17.0 N.m, the highest 99th-percentile column torque over scripted Ridgeline laps of every car (qts-sim ffb-gain); confirm with F5 logs", confidence = "estimated" }
 lowpass_cutoff_hz = { value = 60.0, source = "light smoothing, first guess", confidence = "placeholder" }
 slew_limit_nm_per_s = { value = 600.0, source = "limits spikes without dulling steering, first guess", confidence = "placeholder" }
 soft_clip_knee = { value = 0.75, source = "start compressing at three quarters of full output", confidence = "placeholder" }

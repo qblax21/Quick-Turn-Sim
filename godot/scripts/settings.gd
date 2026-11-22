@@ -30,6 +30,7 @@ const DEFAULTS := {
 	"menu/engine_damage": false,
 	"menu/ffb_preset": "",
 	"ffb/wheel_model": "",
+	"ffb/match_rotation": true,
 }
 
 var values := {}

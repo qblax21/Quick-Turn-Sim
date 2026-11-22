@@ -29,6 +29,8 @@ const BUTTON_LABELS := {
 const FFB_SLIDERS := [
 	["gain", "Gain", 0.0, 1.5, 0.01],
 	["device_max_torque_nm", "Wheel peak torque (N·m)", 1.0, 30.0, 0.1],
+	["device_rotation_deg", "Wheel rotation (deg, as set on the base)", 180.0, 2700.0, 10.0],
+	["soft_lock_full_deg", "Soft lock: degrees to full force", 0.5, 15.0, 0.5],
 	["lowpass_cutoff_hz", "Low-pass cutoff (Hz, 0 = off)", 0.0, 200.0, 1.0],
 	["slew_limit_nm_per_s", "Slew limit (N·m/s, 0 = off)", 0.0, 3000.0, 10.0],
 	["soft_clip_knee", "Soft-clip knee", 0.3, 0.95, 0.01],
@@ -57,8 +59,9 @@ var strength_label: Label
 var wheel_note: Label
 var ffb_sliders := {}
 # Column torque of hard cornering: the 99th percentile over scripted
-# Ridgeline laps of every car (`qts-sim ffb-gain`, D-079).
-const HARD_CORNER_NM := 14.8
+# Ridgeline laps of every car (`qts-sim ffb-gain`, D-079, re-measured
+# after the steering ratios of D-083).
+const HARD_CORNER_NM := 17.0
 var clutch_label: Label
 var clutch_strip: Control
 var clutch_travel := 0.0
@@ -150,10 +153,15 @@ func _ready() -> void:
 	left.add_child(pads)
 
 	# Right column: force feedback.
+	# It scrolls too: wheel, rotation and feel settings make it long.
+	var right_scroll := ScrollContainer.new()
+	right_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	columns.add_child(right_scroll)
 	var right := VBoxContainer.new()
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right.add_theme_constant_override("separation", 6)
-	columns.add_child(right)
+	right_scroll.add_child(right)
 	_heading(right, "Force feedback")
 	var config: Dictionary = sim.ffb_config()
 	if config.is_empty():
@@ -180,6 +188,18 @@ func _ready() -> void:
 	sign_help.add_theme_font_size_override("font_size", 13)
 	right.add_child(sign_help)
 	_wheel_model_row(right, config)
+	var match_box := CheckBox.new()
+	match_box.text = "Match the wheel's rotation to the car (soft lock at its full lock)"
+	match_box.button_pressed = settings.get_value("ffb/match_rotation")
+	match_box.toggled.connect(func(on: bool) -> void:
+		settings.set_value("ffb/match_rotation", on)
+		sim.set_match_rotation(on))
+	right.add_child(match_box)
+	var match_help := Label.new()
+	match_help.text = "Set \"Wheel rotation\" below to the rotation your base is set to (in its own software). The car then turns its steering wheel exactly as far as yours, and a firm wall stops you at the car's lock: 756 degrees lock to lock for the Tern GT, 720 for the Halden E4."
+	match_help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	match_help.add_theme_font_size_override("font_size", 13)
+	right.add_child(match_help)
 	for entry in FFB_SLIDERS:
 		_ffb_slider(right, entry, config)
 	strength_label = Label.new()

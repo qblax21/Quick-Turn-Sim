@@ -25,4 +25,4 @@ pub use device::{
     AXIS_NAMES, INPUT_AXES, INPUT_BUTTONS,
 };
 pub use pipeline::{apply_min_force, soft_clip, FfbConfig, FfbInput, FfbPipeline, FfbSample};
-pub use wheel::{suggest_gain, wheel_torque_nm, WheelModel};
+pub use wheel::{matched_steer, suggest_gain, wheel_torque_nm, WheelModel};

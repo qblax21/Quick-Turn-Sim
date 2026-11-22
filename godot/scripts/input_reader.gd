@@ -34,6 +34,8 @@ var use_direct := true
 # "sequential" (up and down) or "h_pattern" (a shifter with a gate per gear).
 var shift_mode := "sequential"
 var keyboard_steer := 0.0
+# The core, for matching the wheel's rotation to the car; set by main.
+var sim_bridge = null
 var keyboard_throttle := 0.0
 var keyboard_brake := 0.0
 
@@ -189,7 +191,10 @@ func read(delta: float) -> Dictionary:
 
 	# Mapped wheel or controller axes take over from the keyboard.
 	if is_mapped("steer"):
+		# A wheel: one degree turned is one degree of the car's wheel.
 		steer = -_calibrated_centered("steer")
+		if sim_bridge != null:
+			steer = sim_bridge.matched_steer(steer)
 	elif pad >= 0:
 		var x := Input.get_joy_axis(pad, JOY_AXIS_LEFT_X)
 		if absf(x) > 0.08:

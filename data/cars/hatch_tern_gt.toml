@@ -66,8 +66,8 @@ roll_center_height_m = { value = 0.14, source = "typical rear roll centre height
 anti_pitch_tan = { value = 0.10, source = "mild anti-lift", confidence = "placeholder" }
 
 [steering]
-ratio = { value = 14.5, source = "class-typical overall steering ratio", confidence = "placeholder" }
-max_wheel_angle_rad = { value = 8.17, source = "2.6 turns lock to lock", confidence = "placeholder" }
+ratio = { value = 11.73, source = "derived (D-083): 378 degrees over a mean road-wheel lock of 32.2 degrees, the lock at which the car, turning about the rear axle line at its mean front angle, traces the comparable car's published 10.9 m turning circle (Volkswagen facts sheet) with this car's wheelbase, track, Ackermann share and 225 mm tire; a constant average of a progressive rack that is slower at the centre and quicker toward lock, which this model does not represent", confidence = "estimated" }
+max_wheel_angle_rad = { value = 6.597, source = "2.1 turns lock to lock (378 degrees each way), the comparable car's progressive steering: Volkswagen newsroom, Golf GTI Mk7 running gear ('just over two full turns' end stop to end stop) and the release giving 2.1 turns, 380 degrees to the end stop (docs/VALIDATION_SOURCES.md)", confidence = "estimated" }
 ackermann_fraction = { value = 0.6, source = "partial Ackermann, typical road car", confidence = "placeholder" }
 caster_rad = { value = 0.105, source = "about 6 degrees", confidence = "placeholder" }
 kingpin_inclination_rad = { value = 0.21, source = "about 12 degrees, typical strut", confidence = "placeholder" }

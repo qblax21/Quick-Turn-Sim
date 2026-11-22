@@ -345,6 +345,9 @@ pub enum HostCommand {
     /// Take steering directly from the open device at the physics rate,
     /// mapping its angle one-to-one onto the car's steering wheel.
     SetDirectSteering(bool),
+    /// Map the wheel's angle one to one onto the car's steering wheel,
+    /// using the base's rotation (on by default).
+    SetMatchRotation(bool),
     /// Start writing telemetry to a file at about the given sample rate.
     StartTelemetry {
         /// Output path.
@@ -395,6 +398,7 @@ impl std::fmt::Debug for HostCommand {
             HostCommand::SetFfbConfig(_) => "SetFfbConfig",
             HostCommand::SetFfbEnabled(_) => "SetFfbEnabled",
             HostCommand::SetDirectSteering(_) => "SetDirectSteering",
+            HostCommand::SetMatchRotation(_) => "SetMatchRotation",
             HostCommand::StartTelemetry { .. } => "StartTelemetry",
             HostCommand::StopTelemetry => "StopTelemetry",
             HostCommand::SetLapTelemetry(_) => "SetLapTelemetry",
@@ -463,6 +467,7 @@ pub fn ffb_input(session: &Session, device_angle_rad: Option<f64>) -> FfbInput {
         kerb_contact,
         clutch_shudder,
         gear_grind,
+        lock_angle_rad: Some(session.car().params().steering.max_wheel_angle_rad),
     }
 }
 
@@ -609,6 +614,7 @@ struct SimThread {
     device: Option<Box<dyn FfbDevice>>,
     ffb_enabled: bool,
     direct_steering: bool,
+    match_rotation: bool,
     paused: bool,
     telemetry: Option<TelemetryWriter<BufWriter<File>>>,
     laps: Option<LapRecorder>,
@@ -682,6 +688,7 @@ impl SimThread {
             device: None,
             ffb_enabled: true,
             direct_steering: false,
+            match_rotation: true,
             paused: false,
             telemetry: None,
             laps: None,
@@ -744,6 +751,7 @@ impl SimThread {
                 }
             }
             HostCommand::SetDirectSteering(enabled) => self.direct_steering = enabled,
+            HostCommand::SetMatchRotation(on) => self.match_rotation = on,
             HostCommand::StartTelemetry {
                 path,
                 sample_rate_hz,
@@ -923,10 +931,26 @@ impl SimThread {
         let mut frame = self.next_frame();
         let ramp_done = self.ramp_pos >= self.ramp_len;
         let read_at = Instant::now();
+        let mut direct_steer = None;
         if let Some(direct) = self.direct.as_mut() {
-            direct.apply(&mut frame);
+            direct_steer = direct.apply(&mut frame).steer;
         }
-        let angle = self.device_angle();
+        let rotation = self.pipeline.config().device_rotation_rad;
+        let lock = self.session.car().params().steering.max_wheel_angle_rad;
+        if let Some(s) = direct_steer {
+            if self.match_rotation {
+                // One degree at the driver's wheel is one degree of the
+                // car's steering wheel (D-083).
+                let m = qts_ffb::matched_steer(f64::from(s), rotation, lock);
+                frame.steer = (m * f64::from(AXIS_MAX)).round() as i16;
+            }
+        }
+        // The physical wheel's angle, for the pipeline's effects and the
+        // soft lock: from the force-feedback device if it reports one,
+        // otherwise from the mapped steering axis.
+        let angle = self
+            .device_angle()
+            .or_else(|| direct_steer.map(|s| f64::from(s) * 0.5 * rotation));
         if self.direct_steering {
             if let Some(a) = angle {
                 let lock_angle = self.session.car().params().steering.max_wheel_angle_rad;

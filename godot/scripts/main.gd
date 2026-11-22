@@ -94,6 +94,7 @@ func _ready() -> void:
 	settings = Settings.new()
 	add_child(settings)
 	reader = InputReader.new()
+	reader.sim_bridge = sim
 	add_child(reader)
 	audio = Audio.new()
 	add_child(audio)
@@ -420,6 +421,8 @@ func _start_driving(car_id: String, track_id: String, auto_clutch: bool, auto_sh
 		settings.apply_ffb(sim)
 	if sim.has_method("set_traction_control"):
 		sim.set_traction_control(settings.get_value("menu/traction_control"))
+	if sim.has_method("set_match_rotation"):
+		sim.set_match_rotation(settings.get_value("ffb/match_rotation"))
 	if sim.has_method("set_engine_damage"):
 		sim.set_engine_damage(settings.get_value("menu/engine_damage"))
 	_hide_scenery()

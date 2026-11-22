@@ -55,6 +55,19 @@ pub fn suggest_gain(column_nm: f64, knee: f64, peak_nm: f64) -> f64 {
     (knee.clamp(0.0, 1.0) * peak_nm / column_nm).min(1.0)
 }
 
+/// Car steering input, −1 to 1, for the physical wheel at `device_fraction`
+/// of its range (−1 to 1) on a base set to `device_rotation_rad` lock to
+/// lock, matched one to one to a car whose steering wheel turns
+/// `car_lock_rad` either way: a degree at the driver's wheel is a degree of
+/// the car's. Past the car's lock the input stays at full lock; the soft
+/// lock in the pipeline holds the wheel there.
+pub fn matched_steer(device_fraction: f64, device_rotation_rad: f64, car_lock_rad: f64) -> f64 {
+    if !(car_lock_rad > 0.0 && device_rotation_rad > 0.0) {
+        return device_fraction.clamp(-1.0, 1.0);
+    }
+    (device_fraction * 0.5 * device_rotation_rad / car_lock_rad).clamp(-1.0, 1.0)
+}
+
 /// Torque at the driver's wheel, N·m, for a car column torque, before the
 /// base's limit.
 pub fn wheel_torque_nm(column_nm: f64, gain: f64) -> f64 {
@@ -73,6 +86,21 @@ mod tests {
         assert!((wheel - 4.0).abs() < 1e-12);
         assert!((wheel / 6.0 - 2.0 / 3.0).abs() < 1e-12);
         assert!((wheel / 20.0 - 0.2).abs() < 1e-12);
+    }
+
+    #[test]
+    fn matched_steering_turns_the_car_wheel_as_far_as_the_real_one() {
+        let rot = 900_f64.to_radians();
+        let lock = 378_f64.to_radians();
+        // 90 degrees at a 900-degree base is 0.2 of its half range; in the
+        // car that is 90 of 378 degrees.
+        let s = matched_steer(90.0 / 450.0, rot, lock);
+        assert!((s * lock - 90_f64.to_radians()).abs() < 1e-12);
+        // Past the car's lock it stays at full lock.
+        assert_eq!(matched_steer(0.9, rot, lock), 1.0);
+        assert_eq!(matched_steer(-0.9, rot, lock), -1.0);
+        // A base set to exactly the car's rotation maps end to end.
+        assert!((matched_steer(1.0, 2.0 * lock, lock) - 1.0).abs() < 1e-12);
     }
 
     #[test]

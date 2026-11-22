@@ -1276,3 +1276,52 @@ then exports 2 s of the replay at 15 fps and checks frame count, size,
 cut list and replay exactness. It saves its replay to a temporary file
 rather than the player's replays folder (where saving trims the oldest)
 and removes what it wrote.
+
+## D-083 Steering lock and ratio from published figures; rotation matching and soft lock
+
+**Lock and ratio.** Each car's steering-wheel lock now comes from its
+comparable car's published turns lock to lock: 2.1 turns (378 degrees
+each way) for the Tern GT, from Volkswagen's description of the Golf GTI
+Mk7's progressive steering ("just over two full turns" end stop to end
+stop, read on Volkswagen's newsroom; 2.1 turns and 380 degrees in a
+release quoted in search results), and 2.00 turns (360 degrees) for the
+Halden E4, from the Tesla Model 3 owner's manual (2017 to 2023),
+Subsystems, which also gives an 11.6 m curb-to-curb turning circle.
+Neither maker publishes a ratio, so it is derived: the road-wheel lock is
+the one at which the car, turning about its rear axle line at its mean
+front angle, puts the outside edge of the outer front tire on the
+published turning circle (10.9 m for the GTI, from Volkswagen's facts
+sheet), with this car's own wheelbase, track and tire width; ratio = lock
+over that angle: 11.73 (was 14.5) and 10.30 (was 12.0). A first
+derivation from the outer wheel's angle under ideal Ackermann gave 12.5
+and 10.95; driven, the hatch turned an 11.76 m circle, 8 % wide, because
+with partial Ackermann the car turns at its mean front angle. The
+progressive rack of the comparable car (slower at the centre, quicker
+toward lock) is represented by this constant average; the model has no
+variable ratio.
+
+Tests: the mean front angle equals the steering-wheel angle over the
+ratio at 5 to 90 degrees, lock over ratio equals the angle from the
+turning circle, and driven at full lock at walking pace the cars trace
+11.12 m and 11.81 m against the published 10.9 and 11.6 m (tire slip
+accounts for the 2 %).
+
+**Rotation matching.** With "Match the wheel's rotation to the car" on
+(the default), the physical wheel's angle, from its axis and the rotation
+the base is set to (now a slider in degrees on the Controls screen), maps
+one to one onto the car's steering wheel: 90 degrees turned is 90 degrees
+of the car's, and the car reaches full lock where the real one would.
+Done on the physics thread for wheels read there, and through the bridge
+(`matched_steer`) for wheels read through the front end; the steering
+frames that reach the physics, and so replays, carry the matched value.
+
+**Soft lock.** Past the car's lock the pipeline adds a wall: torque
+rising linearly to the base's full torque `soft_lock_full_deg` (3) further
+on, plus damping while the wheel keeps going outward. It is added after
+the soft clip, so it is never compressed. It needs the wheel's angle,
+from the force-feedback device or the mapped steering axis. It is outside
+the simulation, like the rest of the pipeline.
+
+The quicker ratios raise column torque: the highest 99th percentile on
+scripted Ridgeline laps went from 14.8 to 17.0 N.m, and the derived
+default gains from 0.30 to 0.26 (CSL Elite) and 0.25 to 0.22 (generic).

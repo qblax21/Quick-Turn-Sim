@@ -66,8 +66,8 @@ roll_center_height_m = { value = 0.11, source = "typical multi-link roll centre 
 anti_pitch_tan = { value = 0.12, source = "moderate anti-squat and anti-lift", confidence = "placeholder" }
 
 [steering]
-ratio = { value = 12.0, source = "quick ratio typical of the class", confidence = "placeholder" }
-max_wheel_angle_rad = { value = 6.283, source = "2.0 turns lock to lock", confidence = "placeholder" }
+ratio = { value = 10.30, source = "derived (D-083): 360 degrees over a mean road-wheel lock of 35.0 degrees, the lock at which the car, turning about the rear axle line at its mean front angle, traces the comparable car's published 11.6 m curb-to-curb turning circle (Tesla owner's manual) with this car's wheelbase, track, Ackermann share and 235 mm tire", confidence = "estimated" }
+max_wheel_angle_rad = { value = 6.283, source = "2.00 turns lock to lock (360 degrees each way): Tesla Model 3 owner's manual 2017-2023, Specifications, Subsystems (docs/VALIDATION_SOURCES.md)", confidence = "estimated" }
 ackermann_fraction = { value = 0.6, source = "partial Ackermann, typical road car", confidence = "placeholder" }
 caster_rad = { value = 0.12, source = "about 7 degrees", confidence = "placeholder" }
 kingpin_inclination_rad = { value = 0.19, source = "about 11 degrees", confidence = "placeholder" }

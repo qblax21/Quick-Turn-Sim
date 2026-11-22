@@ -95,6 +95,7 @@ pub struct SimBridge {
     /// round so a fresh bridge has it on.
     traction_control_off: bool,
     engine_damage: bool,
+    match_rotation_off: bool,
     /// A replay open for watching.
     playback: Option<Playback>,
     /// Devices open for the Controls screen to watch.
@@ -1160,6 +1161,42 @@ impl SimBridge {
         self.send(HostCommand::SetDirectSteering(enabled));
     }
 
+    /// Maps the wheel's angle one to one onto the car's steering wheel
+    /// (D-083), for wheels read on the physics thread.
+    #[func]
+    fn set_match_rotation(&mut self, on: bool) {
+        self.match_rotation_off = !on;
+        self.send(HostCommand::SetMatchRotation(on));
+    }
+
+    /// The car's steering input for a wheel at `device_fraction` of its
+    /// range (−1 to 1, positive left), matched to the running car, for
+    /// wheels read through the front end. Unchanged when matching is off
+    /// or no session is running.
+    #[func]
+    fn matched_steer(&self, device_fraction: f64) -> f64 {
+        let (Some(loaded), Some(ffb)) = (self.loaded.as_ref(), self.ffb.as_ref()) else {
+            return device_fraction;
+        };
+        if self.match_rotation_off {
+            return device_fraction;
+        }
+        qts_ffb::matched_steer(
+            device_fraction,
+            ffb.device_rotation_rad,
+            loaded.car.steering.max_wheel_angle_rad,
+        )
+    }
+
+    /// The car's steering-wheel angle at full lock, degrees, for the
+    /// running car (0 without one).
+    #[func]
+    fn car_lock_deg(&self) -> f64 {
+        self.loaded
+            .as_ref()
+            .map_or(0.0, |l| l.car.steering.max_wheel_angle_rad.to_degrees())
+    }
+
     /// Loads a force-feedback preset and applies it.
     #[func]
     fn ffb_load_preset(&mut self, id: GString) -> bool {
@@ -1193,6 +1230,8 @@ impl SimBridge {
             "gain" => c.gain,
             "device_max_torque_nm" => c.device_max_torque_nm,
             "device_rotation_rad" => c.device_rotation_rad,
+            "device_rotation_deg" => c.device_rotation_rad.to_degrees(),
+            "soft_lock_full_deg" => c.soft_lock_full_deg,
             "lowpass_cutoff_hz" => c.lowpass_cutoff_hz,
             "slew_limit_nm_per_s" => c.slew_limit_nm_per_s,
             "soft_clip_knee" => c.soft_clip_knee,
@@ -1220,6 +1259,8 @@ impl SimBridge {
             "gain" => c.gain = value,
             "device_max_torque_nm" => c.device_max_torque_nm = value,
             "device_rotation_rad" => c.device_rotation_rad = value,
+            "device_rotation_deg" => c.device_rotation_rad = value.to_radians(),
+            "soft_lock_full_deg" => c.soft_lock_full_deg = value,
             "lowpass_cutoff_hz" => c.lowpass_cutoff_hz = value,
             "slew_limit_nm_per_s" => c.slew_limit_nm_per_s = value,
             "soft_clip_knee" => c.soft_clip_knee = value,

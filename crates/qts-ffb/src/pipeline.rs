@@ -95,6 +95,23 @@ pub struct FfbConfig {
     /// of what the gear lever would feel; zero disables it.
     #[serde(default)]
     pub gear_grind_nm: f64,
+    /// Soft lock: degrees past the car's full lock at which the wall pushes
+    /// back with the base's full torque. Smaller is firmer; zero turns the
+    /// wall off.
+    #[serde(default = "default_soft_lock_full_deg")]
+    pub soft_lock_full_deg: f64,
+    /// Damping of the wall while the wheel moves further into it, N·m per
+    /// rad/s.
+    #[serde(default = "default_soft_lock_damping")]
+    pub soft_lock_damping_nm_s_per_rad: f64,
+}
+
+fn default_soft_lock_full_deg() -> f64 {
+    3.0
+}
+
+fn default_soft_lock_damping() -> f64 {
+    0.5
 }
 
 /// Frequency of the clutch-shudder cue, Hz: the order of the first
@@ -147,6 +164,11 @@ impl FfbConfig {
         non_negative("detail_limit_nm", self.detail_limit_nm)?;
         non_negative("clutch_shudder_nm", self.clutch_shudder_nm)?;
         non_negative("gear_grind_nm", self.gear_grind_nm)?;
+        non_negative("soft_lock_full_deg", self.soft_lock_full_deg)?;
+        non_negative(
+            "soft_lock_damping_nm_s_per_rad",
+            self.soft_lock_damping_nm_s_per_rad,
+        )?;
         positive("device_update_rate_hz", self.device_update_rate_hz)?;
         if !(0.0..=MAX_MIN_FORCE).contains(&self.min_force) {
             return Err(format!(
@@ -174,6 +196,9 @@ pub struct FfbInput {
     pub clutch_shudder: f64,
     /// Gear grind intensity from the gearbox, 0 to 1.
     pub gear_grind: f64,
+    /// The car's steering-wheel angle at full lock, rad, for the soft lock.
+    /// `None` leaves the wheel free.
+    pub lock_angle_rad: Option<f64>,
 }
 
 /// Every stage of the pipeline for one tick.
@@ -200,6 +225,8 @@ pub struct FfbSample {
     pub clipped: f64,
     /// Filtered velocity of the physical wheel, rad/s.
     pub wheel_velocity_rad_s: f64,
+    /// Soft-lock wall torque, N·m (zero inside the car's lock).
+    pub soft_lock_nm: f64,
 }
 
 impl FfbSample {
@@ -413,6 +440,21 @@ impl FfbPipeline {
         let requested = (filtered + effects + detail) / c.device_max_torque_nm;
         let clipped_level = soft_clip(requested, c.soft_clip_knee);
         let output = apply_min_force(clipped_level, c.min_force);
+
+        // Soft lock: past the car's full lock a stiff wall, reaching the
+        // base's full torque `soft_lock_full_deg` further on, damped while
+        // the wheel keeps going. It is added after the soft clip so it is
+        // never compressed, and it can take the output to full scale.
+        let mut wall = 0.0;
+        if let (Some(lock), Some(angle)) = (input.lock_angle_rad, input.device_angle_rad) {
+            let excess = angle.abs() - lock;
+            if c.soft_lock_full_deg > 0.0 && excess > 0.0 && angle.is_finite() {
+                let k = c.device_max_torque_nm / c.soft_lock_full_deg.to_radians();
+                let outward = (self.velocity * angle.signum()).max(0.0);
+                wall = -(k * excess + c.soft_lock_damping_nm_s_per_rad * outward) * angle.signum();
+            }
+        }
+        let output = (output + wall / c.device_max_torque_nm).clamp(-1.0, 1.0);
         FfbSample {
             raw_nm: raw,
             scaled_nm: scaled,
@@ -423,6 +465,7 @@ impl FfbPipeline {
             output,
             clipped: (requested.abs() - clipped_level.abs()).max(0.0),
             wheel_velocity_rad_s: self.velocity,
+            soft_lock_nm: wall,
         }
     }
 }
@@ -455,6 +498,8 @@ pub fn test_config() -> FfbConfig {
         min_force: 0.0,
         clutch_shudder_nm: 0.0,
         gear_grind_nm: 0.0,
+        soft_lock_full_deg: 3.0,
+        soft_lock_damping_nm_s_per_rad: 0.5,
     }
 }
 
@@ -756,6 +801,49 @@ mod tests {
     }
 
     #[test]
+    fn the_soft_lock_is_a_firm_wall_at_the_car_s_full_lock() {
+        let cfg = test_config();
+        let lock = 378_f64.to_radians();
+        let at = |angle: f64| {
+            let mut p = FfbPipeline::new(cfg.clone(), 1000).unwrap();
+            let input = FfbInput {
+                device_angle_rad: Some(angle),
+                lock_angle_rad: Some(lock),
+                ..FfbInput::default()
+            };
+            // Held still at that angle, so no damping.
+            let mut s = p.step(&input);
+            for _ in 0..50 {
+                s = p.step(&input);
+            }
+            s
+        };
+        // Inside the lock: nothing.
+        assert_eq!(at(lock - 0.01).soft_lock_nm, 0.0);
+        assert_eq!(at(-(lock - 0.01)).output, 0.0);
+        // Half way to the full-force angle: half the base's torque, back
+        // toward the centre, on both sides.
+        let half = at(lock + 1.5_f64.to_radians());
+        assert!((half.soft_lock_nm + 0.5 * cfg.device_max_torque_nm).abs() < 1e-9);
+        assert!((half.output + 0.5).abs() < 1e-9);
+        let other = at(-(lock + 1.5_f64.to_radians()));
+        assert!((other.output - 0.5).abs() < 1e-9);
+        // Beyond: full force, never past it.
+        assert_eq!(at(lock + 0.2).output, -1.0);
+        // Not compressed by the soft clip: at 0.9 of full force (above the
+        // 0.8 knee) the output is 0.9.
+        let deep = at(lock + 2.7_f64.to_radians());
+        assert!((deep.output + 0.9).abs() < 1e-9, "{}", deep.output);
+        // Without a device angle or a lock, no wall.
+        let mut p = FfbPipeline::new(cfg, 1000).unwrap();
+        let s = p.step(&FfbInput {
+            lock_angle_rad: Some(lock),
+            ..FfbInput::default()
+        });
+        assert_eq!(s.soft_lock_nm, 0.0);
+    }
+
+    #[test]
     fn bad_inputs_and_bad_configs_are_contained() {
         let mut p = FfbPipeline::new(test_config(), 1000).unwrap();
         let s = p.step(&FfbInput {
@@ -765,6 +853,7 @@ mod tests {
             kerb_contact: 7.0,
             clutch_shudder: f64::NAN,
             gear_grind: f64::INFINITY,
+            lock_angle_rad: Some(f64::NAN),
         });
         assert!(s.output.is_finite() && s.output == 0.0);
         let mut cfg = test_config();

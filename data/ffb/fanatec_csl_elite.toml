@@ -15,7 +15,7 @@ invert = false
 
 device_max_torque_nm = { value = 6.0, source = "UNVERIFIED: Fanatec's product pages for the discontinued base, as quoted in search results, give up to 6 Nm at the steering axis; the pages could not be read first-hand (data/wheels/fanatec_csl_elite.toml). Override it on the Controls screen", confidence = "placeholder" }
 device_rotation_rad = { value = 15.708, source = "assumes the base is set to 900 degrees of rotation", confidence = "placeholder" }
-gain = { value = 0.30, source = "derived (D-079): 0.75 knee times 6 N.m over 14.8 N.m, the highest 99th-percentile column torque over scripted Ridgeline laps of every car (qts-sim ffb-gain); confirm with F5 logs", confidence = "estimated" }
+gain = { value = 0.26, source = "derived (D-079, re-measured after D-083): 0.75 knee times 6 N.m over 17.0 N.m, the highest 99th-percentile column torque over scripted Ridgeline laps of every car (qts-sim ffb-gain); confirm with F5 logs", confidence = "estimated" }
 lowpass_cutoff_hz = { value = 60.0, source = "light smoothing for a belt-driven base, first guess", confidence = "placeholder" }
 slew_limit_nm_per_s = { value = 600.0, source = "limits spikes without dulling steering, first guess", confidence = "placeholder" }
 soft_clip_knee = { value = 0.75, source = "start compressing at three quarters of full output", confidence = "placeholder" }

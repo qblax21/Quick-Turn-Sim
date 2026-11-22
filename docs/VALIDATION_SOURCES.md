@@ -82,6 +82,17 @@ Figures:
 The understeer target (2.0 deg/g) is a guess; the only steering data found
 is the qualitative "moderate understeer".
 
+## Steering (D-083)
+
+| Car | Figure | Value | Source |
+| --- | --- | --- | --- |
+| Tern GT | turns lock to lock | 2.1 (378 degrees each way) | [Volkswagen newsroom, Golf GTI Mk7 running gear](https://www.volkswagen-newsroom.com/en/new-golf-gti-international-press-presentation-2976/new-golf-gti-running-gear-layout-and-electronics-2988) ("just over two full turns", read first-hand); 2.1 turns / 380 degrees in another Volkswagen release, quoted in search results |
+| Tern GT | turning circle | 10.9 m | [Volkswagen newsroom, Golf GTI facts in key words](https://www.volkswagen-newsroom.com/en/new-golf-gti-international-press-presentation-2976/new-golf-gti-overview-facts-in-key-words-3015) |
+| Halden E4 | turns lock to lock, turning circle | 2.00; 11.6 m curb to curb | [Tesla Model 3 owner's manual 2017-2023, Subsystems](https://www.tesla.com/ownersmanual/2017_2023_model3/en_ae/GUID-E414862C-CFA1-4A0B-9548-BE21C32CAA58.html) (newer manuals give 2.14 turns and 11.7 m) |
+
+Ratios are derived from these (D-083): 11.73 and 10.30. Driven at full
+lock, the cars trace 11.12 m and 11.81 m.
+
 ## Results, before and after closing the gaps (D-078)
 
 `cargo run --release -p qts-validate`. "Before" is D-077, "after" D-078.

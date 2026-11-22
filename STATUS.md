@@ -10,7 +10,7 @@ says so.
 | Area | State |
 | --- | --- |
 | Workspace builds with one command on Windows | Verified (`tools\build.ps1`, GNU toolchain) |
-| Test suite | 228 tests pass in release |
+| Test suite | 232 tests pass in release |
 | Headless sim runs and replays exactly | Verified |
 | All cars drivable on all four tracks | Verified with scripted drivers and the front-end smoke test |
 | Front end renders, HUD and overlay work | Verified by screenshots |
@@ -80,6 +80,9 @@ sees in the demo is described in `DEMO.md`.
   the DirectInput ABI, errors are reported. A test torque on a Fanatec CSL
   Elite moved the wheel in the commanded direction, and the project owner
   has driven with it.
+- Steering lock and ratio from the comparable cars' published turns and
+  turning circles; the wheel's rotation matched one to one to the car with
+  a firm soft-lock wall at full lock (D-083).
 - Force feedback in N·m (D-079): wheel-base models with sourced peak
   torque (CSL Elite unverified), gain as wheel N·m per column N·m, default
   gain derived from measured column torque (`qts-sim ffb-gain`).
