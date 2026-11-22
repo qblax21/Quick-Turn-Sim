@@ -144,7 +144,7 @@ def honeycomb_material():
 
 def make_materials(style):
     if style == "small":
-        paint, alloy, caliper = (0.55, 0.02, 0.018), (0.62, 0.63, 0.66), (0.16, 0.16, 0.17)
+        paint, alloy, caliper = (0.55, 0.02, 0.018), (0.80, 0.80, 0.78), (0.16, 0.16, 0.17)
     elif style == "hatch":
         paint, alloy, caliper = (0.58, 0.03, 0.025), (0.60, 0.61, 0.64), (0.62, 0.03, 0.02)
     else:
@@ -168,7 +168,9 @@ def make_materials(style):
         "plate": material("plate", (0.85, 0.85, 0.82), 0.5),
         "honeycomb": honeycomb_material(),
         "rubber": material("tire", (0.03, 0.03, 0.032), 0.92),
-        "alloy": material("alloy", alloy, 0.28, 1.0),
+        # Both sides drawn: the left wheels are mirrored.
+        "fan_slot": material("fan_slot", (0.01, 0.01, 0.011), 0.7, culled=False),
+        "alloy": material("alloy", alloy, 0.22, 0.15, culled=False) if style == "small" else material("alloy", alloy, 0.28, 1.0),
         "disc": material("brake_disc", (0.32, 0.31, 0.30), 0.45, 1.0),
         "caliper": material("caliper", caliper, 0.35, 0.1),
     }
@@ -909,15 +911,18 @@ def add_small_ends(det, d, frame, places, front_belt, rear_belt):
     zf = frame.zf
     zb = front_belt
     # Heights on the face, from the floor line.
-    z_lamp = zb - 0.095
+    z_lamp = zb - 0.085
     z_shut = zb - 0.225
     for side in (1.0, -1.0):
-        c = (side * 0.58 * hw, yn, z_lamp)
-        det.ring("headlamp_bezel", "chrome", c, 0.122, 0.106, fwd, lift=0.006)
-        det.ring("headlamp", "housing", c, 0.106, 0.0, fwd, lift=0.005)
-        det.ring("headlamp_drl", "head", c, 0.095, 0.078, fwd, lift=0.008)
-        det.ring("headlamp_lens", "lens", c, 0.038, 0.0, fwd, lift=0.009)
-        det.ring("indicator", "amber", (side * 0.86 * hw, yn, z_shut - 0.05), 0.022, 0.0, fwd, lift=0.006)
+        corner = (-side * 0.42, -1.0, 0.0)
+        c = (side * 0.76 * hw, yn, z_lamp)
+        # Chrome bezel round a silver reflector, a dark projector bowl with
+        # a lit lens above the middle, and the indicator low in the lamp.
+        det.ring("headlamp_bezel", "chrome", c, 0.132, 0.114, corner, lift=0.006)
+        det.ring("headlamp", "lens", c, 0.114, 0.0, corner, lift=0.005)
+        det.ring("headlamp_bowl", "housing", (c[0], c[1], c[2] + 0.02), 0.052, 0.0, corner, lift=0.008)
+        det.ring("headlamp_lens", "head", (c[0], c[1], c[2] + 0.02), 0.032, 0.0, corner, lift=0.010)
+        det.ring("indicator", "amber", (c[0], c[1], c[2] - 0.072), 0.026, 0.0, corner, lift=0.009)
     # Bonnet shut line: across the face under the lamps, then back along
     # each side just under the belt to the screen.
     sb = places["screen"][0]
@@ -1132,6 +1137,9 @@ def build_wheel(name, radius, width, mats, style):
     disc_r = rim_r - 0.035
     disc = [(0.35 * disc_r, hw * 0.05), (disc_r, hw * 0.05), (disc_r, -hw * 0.2), (0.35 * disc_r, -hw * 0.2)]
     parts.append(lathe("disc", disc, mats["disc"], 48))
+    if style == "small":
+        parts += turbofan_face(radius, rim_r, hw, mats)
+        return join(parts, name)
     # Spokes: five split pairs on the hatch, ten curved blades on the sedan.
     n, twist, sw = (10, 0.0, 0.045) if style != "sedan" else (10, 0.45, 0.032)
     for k in range(n):
@@ -1162,6 +1170,43 @@ def build_wheel(name, radius, width, mats, style):
         me.materials.append(mats["alloy"])
         parts.append(s)
     return join(parts, name)
+
+
+def turbofan_face(radius, rim_r, hw, mats, blades=16, twist=0.70):
+    """A near-solid painted face, slightly dished, with a ring of narrow
+    swept slots between curved blades, like a fan; a domed centre cap."""
+    x_face = hw * 0.60
+    face = [(0.16 * radius, x_face + 0.006), (0.40 * rim_r, x_face), (0.94 * rim_r, x_face - 0.004),
+            (rim_r - 0.006, x_face + 0.010), (rim_r + 0.006, hw * 0.88)]
+    parts = [lathe("fan_face", face, mats["alloy"], 72)]
+    # Slots: dark swept strips on the face, widening outward.
+    mesh = bpy.data.meshes.new("fan_slots")
+    bm = bmesh.new()
+    r0, r1, steps = 0.40 * rim_r, 0.92 * rim_r, 8
+    for k in range(blades):
+        t0 = 2 * math.pi * k / blades
+        rows = []
+        for i in range(steps + 1):
+            u = i / steps
+            r = r0 + (r1 - r0) * u
+            a = t0 + twist * u
+            half = (0.007 + 0.015 * u) / r
+            x = x_face + 0.0025
+            rows.append([bm.verts.new((x, r * math.cos(a + e), r * math.sin(a + e))) for e in (-half, half)])
+        for a_, b_ in zip(rows, rows[1:]):
+            f = bm.faces.new((a_[0], a_[1], b_[1], b_[0]))
+            if f.normal.x < 0:
+                f.normal_flip()
+    bm.to_mesh(mesh)
+    bm.free()
+    mesh.materials.append(mats["fan_slot"])
+    obj = bpy.data.objects.new("fan_slots", mesh)
+    bpy.context.collection.objects.link(obj)
+    parts.append(obj)
+    # Centre cap with a dark ring round it.
+    parts.append(lathe("fan_cap", [(0.0, x_face + 0.03), (0.08 * radius, x_face + 0.024), (0.15 * radius, x_face + 0.008)], mats["alloy"], 32))
+    parts.append(lathe("fan_cap_ring", [(0.15 * radius, x_face + 0.0085), (0.165 * radius, x_face + 0.0065)], mats["under"], 32))
+    return parts
 
 
 def build_caliper(name, radius, width, mats):

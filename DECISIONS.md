@@ -1736,3 +1736,23 @@ version's length less the wheelbase; the data keeps the 3729 mm length,
 so the rear overhang is 571 mm. Confidence `estimated`. The body box
 moves 61 mm forward, which changes only body contact: tire forces,
 masses and the validation results are unchanged.
+
+## D-097 Turbofan wheels and corner headlamps on the Tern GT
+
+The owner asked for white turbofan wheels and headlamps out at the
+corners, so the car reads less like a modern electric truck and more like
+its small-hatch comparable. In `tools/blender/make_car.py` the "small"
+style now has:
+
+- A wheel with a near-solid face painted white, slightly dished, with 16
+  narrow slots swept round it like a fan, and a domed centre cap. The
+  slots use a two-sided material because the left wheels are mirrored.
+  The other cars keep their spoked wheels.
+- Headlamps moved out to the top corners of the face (from 58 to 76
+  percent of the half-width), cast along a direction leaning outward so
+  they wrap the corner. The full glowing ring is gone: each lamp is a
+  chrome bezel round a silver reflector, with a lit projector lens above
+  the middle and the amber indicator low inside the lamp.
+
+No maker's wheel or lamp design is copied. Drawing only; the physics is
+unchanged.
