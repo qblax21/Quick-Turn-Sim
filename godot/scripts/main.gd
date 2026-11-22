@@ -43,6 +43,9 @@ var pause_menu
 var results
 # The last drive request, so a session can be restarted or driven again.
 var last_drive: Array = []
+# Highest hot tire pressure per wheel this session, Pa absolute, for the garage.
+var hot_pressure_peak: Array = [0.0, 0.0, 0.0, 0.0]
+var cold_pressure_set: Array = [0.0, 0.0, 0.0, 0.0]
 # Counted laps or runs this session: {time, cones}.
 var session_laps: Array = []
 var session_runs_seen := 0
@@ -471,6 +474,7 @@ func _process(delta: float) -> void:
 		_fly_scenery(delta)
 	if sim == null or not sim.is_running():
 		return
+	_track_pressures()
 	var input: Dictionary = fixed_input if not fixed_input.is_empty() else reader.read(delta)
 	sim.set_input(input.steer, input.throttle, input.brake, input.clutch, input.handbrake, input.buttons, input.get("gear", -128))
 	var car_xform: Transform3D = sim.car_transform()
@@ -608,8 +612,24 @@ func _restart_session() -> void:
 	_start_driving.callv(again)
 
 
+# Remembers the hottest tire pressures of the session.
+func _track_pressures() -> void:
+	var hud: Dictionary = sim.hud()
+	if not hud.has("pressure"):
+		return
+	for i in 4:
+		hot_pressure_peak[i] = maxf(hot_pressure_peak[i], hud.pressure[i])
+		cold_pressure_set[i] = hud.get("pressure_cold", hud.pressure)[i]
+
+
 # Leaves the session and shows what happened in it.
 func _end_session() -> void:
+	if last_drive.size() > 1 and hot_pressure_peak[0] > 0.0:
+		settings.set_value("garage/pressures/" + last_drive[0], {
+			"track": sim.track_info().get("name", ""),
+			"cold": cold_pressure_set.duplicate(), "hot": hot_pressure_peak.duplicate()})
+		settings.save()
+	hot_pressure_peak = [0.0, 0.0, 0.0, 0.0]
 	var car_name: String = sim.car_info().get("name", "")
 	var track_name: String = sim.track_info().get("name", "")
 	var ghost_time: float = sim.ghost().get("time", 0.0)

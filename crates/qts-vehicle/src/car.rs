@@ -244,6 +244,8 @@ pub struct WheelOutput {
     pub temp_carcass_c: f64,
     /// Inflation pressure, Pa absolute.
     pub pressure_pa: f64,
+    /// Cold inflation pressure set for this tire, Pa absolute.
+    pub pressure_cold_pa: f64,
     /// Brake disc temperature, °C.
     pub brake_temp_c: f64,
     /// Pad friction factor from the disc temperature (1 nominal, lower
@@ -559,6 +561,7 @@ impl Car {
             w.temp_core_c = t.thermal.core_c;
             w.temp_carcass_c = t.thermal.carcass_c;
             w.pressure_pa = t.thermal.pressure_pa(&self.tires[corner.axle]);
+            w.pressure_cold_pa = self.tires[corner.axle].pressure.cold_pressure_pa;
             w.rolling_radius = self.tires[corner.axle].geometry.unloaded_radius_m;
             w.brake_temp_c = self.state.brake_temp_c[i];
             w.brake_friction_factor = self
@@ -756,6 +759,7 @@ impl Car {
                 temp_core_c: thermal.core_c,
                 temp_carcass_c: thermal.carcass_c,
                 pressure_pa: thermal.pressure_pa(tire),
+                pressure_cold_pa: tire.pressure.cold_pressure_pa,
                 brake_temp_c: self.state.brake_temp_c[i],
                 brake_friction_factor: p.brakes.friction_factor(self.state.brake_temp_c[i]),
                 brake_heat_w: 0.0,

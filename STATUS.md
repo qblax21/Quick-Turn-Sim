@@ -10,7 +10,7 @@ says so.
 | Area | State |
 | --- | --- |
 | Workspace builds with one command on Windows | Verified (`tools\build.ps1`, GNU toolchain) |
-| Test suite | 225 tests pass in release |
+| Test suite | 227 tests pass in release |
 | Headless sim runs and replays exactly | Verified |
 | All cars drivable on all four tracks | Verified with scripted drivers and the front-end smoke test |
 | Front end renders, HUD and overlay work | Verified by screenshots |
@@ -143,6 +143,9 @@ tire size. No understeer data was found.
   inclination; `qts-sim steering-compare` and
   `docs/img/steering_torque.svg` show column torque against speed before
   and after.
+- Tire pressure rises with the inflation gas as the carcass heats and acts
+  on stiffness, grip and relaxation length (tested, D-080); cold and hot
+  pressure on the F1 overlay and in the garage.
 - Brake disc temperature per wheel with fade, speed-dependent cooling and
   garage brake ducts; tire wear from sliding energy, lowering grip and
   thinning the tread (D-076). Both on the F1 overlay and in telemetry.

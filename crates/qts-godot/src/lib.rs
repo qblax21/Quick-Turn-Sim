@@ -768,6 +768,7 @@ impl SimBridge {
             "temp_core" => per_wheel(&|w| w.temp_core_c),
             "temp_carcass" => per_wheel(&|w| w.temp_carcass_c),
             "pressure" => per_wheel(&|w| w.pressure_pa),
+            "pressure_cold" => per_wheel(&|w| w.pressure_cold_pa),
             "brake_temp" => per_wheel(&|w| w.brake_temp_c),
             "brake_friction" => per_wheel(&|w| w.brake_friction_factor),
             "tire_wear" => per_wheel(&|w| w.tire_wear),

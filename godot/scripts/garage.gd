@@ -52,6 +52,20 @@ func _ready() -> void:
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	note.add_theme_font_size_override("font_size", 13)
 	outer.add_child(note)
+	# Cold pressures are set here; the hot ones come from the last drive.
+	var pressures = settings.get_value("garage/pressures/" + car_id)
+	var pressure_note := Label.new()
+	pressure_note.add_theme_font_size_override("font_size", 13)
+	pressure_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	if pressures is Dictionary and pressures.has("hot"):
+		var parts: Array = []
+		var names := ["FL", "FR", "RL", "RR"]
+		for i in 4:
+			parts.append("%s %.0f -> %.0f kPa" % [names[i], (pressures.cold[i] - 101325.0) / 1000.0, (pressures.hot[i] - 101325.0) / 1000.0])
+		pressure_note.text = "Tire pressure, cold as set -> hottest on the last drive (%s): %s. Pressure rises with the air in the tire as it warms; set cold pressures with that in mind." % [pressures.track, ", ".join(parts)]
+	else:
+		pressure_note.text = "Tire pressures are set cold. Drive this car once and the hot pressures it reached are shown here."
+	outer.add_child(pressure_note)
 
 	# Saved setups and the name to save under.
 	var top := HBoxContainer.new()

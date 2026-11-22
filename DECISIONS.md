@@ -1191,3 +1191,27 @@ as the earlier guess (which had been reasoned from the heavier unassisted
 torque before D-075); for the 5 N·m generic preset 0.25, from 0.20. The F5
 log report now prints the same figure from a real lap, so the CSL Elite
 gain can be confirmed from the owner's logs.
+
+## D-080 Tire pressure with temperature: checked, tested and shown
+
+Checked first: pressure already followed temperature. Each tire's
+inflation gas is a thermal node heated by the carcass (the thermal
+model); absolute pressure follows the gas temperature at constant volume
+from the cold setting; and the pressure deviation feeds vertical
+stiffness (`pfz1`), slip and cornering stiffness and friction through the
+Magic Formula's pressure terms (`ppx*`, `ppy*`), and carcass stiffness,
+which sets the relaxation length. Nothing in the physics was changed or
+retuned.
+
+What was missing: tests through a running tire and any display. New
+tests: two minutes of hard cornering heat the carcass and then the gas,
+and the pressure rises by exactly the ratio of absolute gas temperatures;
+at a higher pressure alone the tire's characteristics are those of the
+Magic Formula at that pressure (in these placeholder files cornering
+stiffness at 4 kN goes slightly down, because `ppy2` raises the load of
+peak stiffness), the relaxation length shortens and peak friction falls.
+The F1 overlay shows cold (as set) and hot pressure per wheel in bar, and
+the garage shows the cold settings against the hottest pressures of the
+last drive of that car. Tires starting at a road temperature above the
+20 degC the cold pressure is set at already read a little high at the
+start.

@@ -15,6 +15,8 @@ var delta_label: Label
 var limits_label: Label
 var invalid_seen := -1
 var invalid_shown_until := 0
+# Standard atmosphere, bar: gauge pressure is absolute less this.
+const ATMOSPHERE_BAR := 1.01325
 # Over-rev warning: held a few seconds after the engine comes back down.
 var overrev_until := 0
 var overrev_peak := 0.0
@@ -276,14 +278,15 @@ func update(hud: Dictionary, status: Dictionary, input: Dictionary, telemetry_on
 	notice_label.text = "\n".join(notices)
 
 	if debug_visible:
-		var lines: Array = [car_name, "wheel   slip    angle    load   surf   core  carc   bar   wear  brake °C  pad   surface"]
+		var lines: Array = [car_name, "wheel   slip    angle    load   surf   core  carc   bar cold/hot   wear  brake °C  pad   surface"]
 		for i in range(4):
 			var surface_index: int = hud.surface[i]
 			var surface := surface_names[surface_index] if surface_index < surface_names.size() else "?"
-			lines.append("%s    %+5.2f  %+5.1f°  %5.0f N  %4.0f  %4.0f  %4.0f  %4.2f  %4.1f%%  %5.0f  %4.2f  %s" % [
+			var cold_bar: float = hud.get("pressure_cold", hud.pressure)[i] / 100000.0 - ATMOSPHERE_BAR
+			lines.append("%s    %+5.2f  %+5.1f°  %5.0f N  %4.0f  %4.0f  %4.0f  %4.2f/%4.2f  %4.1f%%  %5.0f  %4.2f  %s" % [
 				WHEEL_NAMES[i], hud.slip_ratio[i], rad_to_deg(hud.slip_angle[i]), hud.load[i],
 				hud.temp_surface[i], hud.temp_core[i], hud.temp_carcass[i],
-				hud.pressure[i] / 100000.0 - 1.0, hud.get("tire_wear", [0, 0, 0, 0])[i] * 100.0,
+				cold_bar, hud.pressure[i] / 100000.0 - ATMOSPHERE_BAR, hud.get("tire_wear", [0, 0, 0, 0])[i] * 100.0,
 				hud.get("brake_temp", [0, 0, 0, 0])[i], hud.get("brake_friction", [1, 1, 1, 1])[i], surface])
 		lines.append("")
 		lines.append("accel  long %+5.2f g   lat %+5.2f g" % [hud.accel_long / 9.80665, hud.accel_lat / 9.80665])
