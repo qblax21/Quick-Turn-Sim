@@ -271,6 +271,11 @@ Everything numeric. In particular:
 - Replays and ghost laps recorded before the setup and track-limits
   changes still load; replays made before track limits report that they
   no longer reproduce from the start.
+- Tire temperature (D-108): the model's grip changes 1.5 % between 30 and
+  70 C, against about 10 % measured for a high-performance summer tire,
+  and in the other direction below its 45 C optimum; its cornering
+  stiffness changes 7.8 % against 20 to 25 %. Recorded with ignored tests
+  in `tests/cold_tires.rs`; not changed pending a decision.
 - Debug and release builds are different builds: a replay recorded by one is
   not expected to match on the other, and the replay command warns about it.
 - The `windows` crate is pinned to 0.58 because newer versions do not link

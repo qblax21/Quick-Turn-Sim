@@ -2009,3 +2009,67 @@ unchanged.
 
 Replays and ghosts recorded with the LSD variant before this change
 will not reproduce, because the differential's values changed.
+
+## D-108 Cold tires on the out-lap: measured and reported, physics unchanged
+
+The owner asked for a cold-start check with the numbers reported before
+any physics change. `qts-sim/src/cold_start.rs` drives a lap from the pits
+with the tires at a chosen temperature. It reads back, corner by corner,
+the four tires' surface, core and carcass temperatures and the grip factor
+the thermal model gives them, and tabulates the model's grip and stiffness
+factors against temperature. `qts-sim cold-start` prints it all and draws
+`docs/img/cold_start_hatch_tern_gt.svg`.
+
+**How the model works.** Grip follows a Gaussian window on a 60/40 blend
+of tread surface and core temperature, centred on 45 C, 60 C wide, with
+a floor of 0.85. Carcass temperature does not touch grip; it scales
+stiffness (0.2 % per degree from 40 C) and sets pressure. All four tire
+files share these values.
+
+**Numbers** (Tern GT, Ridgeline):
+
+- **Grip factor:** 0.976 at 20 C, 0.991 at 30 C, 1.000 at 45 C, 0.976
+  at 70 C, 0.936 at 90 C. **Stiffness factor:** 1.04 at 20 C, 0.94 at
+  70 C.
+- **First lap from the pits, close to the limit:** 127.73 s on tires
+  starting at 20 C, 127.34 s at 45 C, so +0.39 s (0.3 %). The second laps
+  were 129.02 and 127.84 s: this driver at the limit varies by 0.5 to
+  1.3 s from lap to lap, so the 0.39 s is not a clean measure.
+- **At a road pace** (planning for 5 m/s2) the cold lap was 0.05 s
+  *quicker*: below the limit, grip does not set the lap time.
+- **Grip at the first corner's exit:** 0.988 cold against 0.999 warm
+  (-1.1 %). Within 0.5 % of the warm tires from corner 5 of 11 on.
+- **Temperatures over the cold lap:** surface 32 to 45 C (spikes higher
+  in slides), core 22 to 35 C, carcass 21 to 28 C. At a road pace the
+  surface reaches only 29 C by the end of the lap, still 0.8 % short.
+
+**Against published figures**: one source was read first-hand, Goodyear's
+Flat-Trac test of a high-performance summer tire (arXiv:2305.18422).
+
+- From cold (about 30 C) to hot (about 70 C) its peak grip *falls* about
+  10 %, where the model's falls 1.5 %. Between 30 C and 45 C the model's
+  grip rises.
+- Its cornering stiffness falls 20 to 25 %, against the model's 7.8 %.
+
+So the measured tire is stiffer and grippier cold, not slower. That source
+does not support "the first lap from the pits is measurably slower" for a
+summer road tire. What it supports is a car that feels different, sharper,
+on cold tires. No car warm-up figure was found.
+
+**What is in the tests** (`tests/cold_tires.rs`):
+
+- Every tire's factors are sane: within the floor and one, peaking at the
+  optimum, stiffness falling with temperature.
+- A cold start gives measurably less grip at the first corner (more than
+  0.5 %), the tires warm through the lap, they come within 0.5 % of warm
+  tires within 2 to 8 corners, and the cold lap is not faster.
+- The two published comparisons are ignored tests marked as known gaps.
+  They fail today and stay visible until a decision is made.
+
+**Nothing in the physics was changed.** The choices for the owner:
+
+- Keep the model.
+- Move the grip optimum down and the window's fall steeper, so grip falls
+  from cold to hot as published.
+- Raise the stiffness sensitivity to about 0.006 per degree, to match the
+  20 to 25 % change.

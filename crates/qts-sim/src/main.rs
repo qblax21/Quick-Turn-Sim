@@ -62,6 +62,10 @@ Commands:
                                          a setup in real units with its ride
                                          frequencies, damping, roll split and
                                          differential locking; loads back
+  cold-start [--car ID] [--track ID] [--cold C] [--warm C] [--accel A] [--svg FILE]
+                                         first lap from the pits with cold and
+                                         warm tires: lap times, grip and
+                                         temperatures corner by corner
   coach LAP.csv BEST.csv                  the lap corner by corner against the
                                          best: time lost per corner and why
   tire-plots [--out DIR]                 force against slip at three loads and
@@ -337,6 +341,65 @@ fn cmd_setup_sheet(args: &Args) -> Result<(), String> {
         "{}",
         setup_sheet(&car, &tf, &tr, &setup, args.text("track").unwrap_or(""))?
     );
+    Ok(())
+}
+
+fn cmd_cold_start(args: &Args) -> Result<(), String> {
+    use qts_sim::cold_start::{change, drive, svg, warm_up};
+    let root = data_root()?;
+    let car = args.text("car").unwrap_or("hatch_tern_gt");
+    let track = args.text("track").unwrap_or("ridgeline_circuit");
+    let cold_c = args.number("cold", 20.0)?;
+    let warm_c = args.number("warm", 45.0)?;
+    let accel = args.number("accel", 8.0)?;
+    let cold = drive(&root, car, track, cold_c, accel, 2)?;
+    let warm = drive(&root, car, track, warm_c, accel, 2)?;
+    let w = warm_up(&cold[0], &warm[0], 0.005)?;
+    let params = root.load_car(car).map_err(|e| e.to_string())?.value;
+    let tire = root
+        .load_tire(&params.tire_front)
+        .map_err(|e| e.to_string())?
+        .value;
+    let (g, k) = change(&tire, 30.0, 70.0);
+    println!("model, 30 to 70 C: grip {:+.1} %, stiffness {:+.1} % (published: grip about -10 %, stiffness -20 to -25 %)", 100.0 * g, 100.0 * k);
+    println!(
+        "lap 1 from the pits: {:.3} s from {cold_c:.0} C, {:.3} s from {warm_c:.0} C ({:+.3} s); lap 2: {:.3} s and {:.3} s",
+        cold[0].lap_s,
+        warm[0].lap_s,
+        cold[0].lap_s - warm[0].lap_s,
+        cold[1].lap_s,
+        warm[1].lap_s
+    );
+    for (i, c) in w.corners.iter().enumerate() {
+        let (gc, gw) = w.grip[i];
+        let t = w.cold_temps[i];
+        println!(
+            "T{:<2} exit: cold grip {:.4}, warm {:.4} ({:+.2} %); cold tires surface {:.1} core {:.1} carcass {:.1} C",
+            c.number,
+            gc,
+            gw,
+            100.0 * (gc / gw - 1.0),
+            t[0],
+            t[1],
+            t[2]
+        );
+    }
+    match w.warm_after {
+        Some(n) => println!(
+            "within 0.5 % of the warm tires' grip from corner {} on",
+            n + 1
+        ),
+        None => println!("not within 0.5 % of the warm tires' grip by the end of the lap"),
+    }
+    if let Some(path) = args.text("svg") {
+        let title = format!(
+            "{} on {}: cold tires on the first lap from the pits",
+            params.name, track
+        );
+        std::fs::write(path, svg(&tire, &cold[0], &warm[0], &w, &title))
+            .map_err(|e| format!("{path}: {e}"))?;
+        println!("wrote {path}");
+    }
     Ok(())
 }
 
@@ -1389,6 +1452,7 @@ fn main() -> ExitCode {
         "ffb-gain" => cmd_ffb_gain(&args).map(|()| true),
         "lap-compare" => cmd_lap_compare(&args).map(|()| true),
         "coach" => cmd_coach(&args).map(|()| true),
+        "cold-start" => cmd_cold_start(&args).map(|()| true),
         "setup-sheet" => cmd_setup_sheet(&args).map(|()| true),
         "tire-plots" => cmd_tire_plots(&args).map(|()| true),
         "ffb-devices" => cmd_ffb_devices().map(|()| true),

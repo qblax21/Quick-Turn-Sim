@@ -108,6 +108,24 @@ Not used: Cusco's cam angles (45 / 15 for the FK8 unit), because Cusco
 quotes cam angle from a different reference from Drexler's ramp angle,
 and no conversion was found.
 
+## Cold tires and temperature (D-108)
+
+![Cold start](img/cold_start_hatch_tern_gt.svg)
+
+`qts-sim cold-start --svg docs/img/cold_start_hatch_tern_gt.svg` draws
+this. It runs the Tern GT from the pits on Ridgeline with the tires at
+20 C and at 45 C, driven by the path follower close to the limit (planning
+for 8 m/s2).
+
+| Figure | Model | Published | Source |
+| --- | --- | --- | --- |
+| Peak grip, cold (about 30 C) to hot (about 70 C) surface | -1.5 %, and +0.9 % from 30 C to its 45 C optimum | about -10 %, falling as the tire heats | Singh and Sivaramakrishnan (Goodyear), "Extended Pacejka Tire Model for Enhanced Vehicle Stability Control", [arXiv:2305.18422](https://arxiv.org/abs/2305.18422) (2023), Table 3 and Figure 26: Flat-Trac, high-performance summer tire, new tires without warm-up; read first-hand 2026-11-22 |
+| Cornering stiffness, cold to hot | -7.8 % (stiffness factor, carcass 30 to 70 C) | -20 to -25 %, "strongly influenced by the tire bulk temperature" | same |
+| Warm-up | grip within 0.5 % of warm tires from corner 5 of 11; surface 32 to 45 C, core 22 to 35 C, carcass 21 to 28 C over the lap | no car figure found; Michelin advises motorcyclists to warm tires gently for the first two to three laps | [Michelin, tire pressure on track (motorcycle)](https://www.michelinman.com/motorcycle/tips-and-advice/tips-to-take-care-of-motorcycle-tires/tire-pressure-on-track), seen in search results only, **not verified** |
+
+Not found: a published grip-against-temperature curve for a road summer
+tire below 30 C, and a measured warm-up time for road tires on a car.
+
 ## Halden E4 and the Tesla Model 3 Performance (2018 to 2020)
 
 Comparable: Model 3 Dual Motor Performance with the Performance Upgrade
