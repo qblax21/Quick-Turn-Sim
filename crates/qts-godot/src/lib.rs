@@ -751,6 +751,43 @@ impl SimBridge {
     /// ghost has not finished its lap, and then `transform` and `wheels`
     /// are laid out like `car_transform` and `wheel_states`.
     #[func]
+    fn coach(&self) -> VarDictionary {
+        // The coach's newest report (D-106): `serial` counts reports;
+        // `corners` holds one dictionary per corner with `number`, `left`,
+        // `time_lost`, `cause` (a key) and `text`.
+        let Some(host) = &self.host else {
+            return VarDictionary::new();
+        };
+        let slot = host.coach();
+        let mut corners: Array<VarDictionary> = Array::new();
+        let (lap_s, reference_s) = slot
+            .report
+            .as_ref()
+            .map_or((0.0, 0.0), |r| (r.lap_s, r.reference_s));
+        if let Some(r) = &slot.report {
+            for c in &r.corners {
+                corners.push(&vd! {
+                    "number" => c.corner.number as i64,
+                    "left" => c.corner.left,
+                    "time_lost" => c.time_lost_s,
+                    "cause" => gstr(c.cause.key()),
+                    "text" => gstr(&c.cause.describe()),
+                    "min_speed_kmh" => c.min_speed_kmh.0,
+                    "ref_min_speed_kmh" => c.min_speed_kmh.1,
+                });
+            }
+        }
+        vd! {
+            "serial" => i64::from(slot.serial),
+            "has_report" => slot.report.is_some(),
+            "lap_s" => lap_s,
+            "reference_s" => reference_s,
+            "corners" => corners,
+            "error" => gstr(slot.error.as_deref().unwrap_or("")),
+        }
+    }
+
+    #[func]
     fn ghost(&self) -> VarDictionary {
         let Some(host) = &self.host else {
             return VarDictionary::new();

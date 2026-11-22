@@ -7,6 +7,8 @@ const WHEEL_NAMES := ["FL", "FR", "RL", "RR"]
 const Minimap := preload("res://scripts/minimap.gd")
 const FfbMeter := preload("res://scripts/ffb_meter.gd")
 const PerfOverlay := preload("res://scripts/perf_overlay.gd")
+const DeltaBar := preload("res://scripts/delta_bar.gd")
+const CoachPanel := preload("res://scripts/coach_panel.gd")
 
 var main_label: Label
 var time_label: Label
@@ -34,6 +36,9 @@ var electric := false
 var minimap
 var ffb_meter
 var perf_overlay
+var delta_bar
+var coach_panel
+var coach_poll_at := 0.0
 var sim_ref
 
 
@@ -93,6 +98,19 @@ func _ready() -> void:
 	delta_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	delta_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	add_child(delta_label)
+	# The same as a bar, under the number.
+	delta_bar = DeltaBar.new()
+	delta_bar.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP, Control.PRESET_MODE_MINSIZE, 12)
+	delta_bar.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	delta_bar.position.y = 108.0
+	add_child(delta_bar)
+
+	# After-lap coach, right of centre, shown after each counted lap and on F7.
+	coach_panel = CoachPanel.new()
+	coach_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT, Control.PRESET_MODE_MINSIZE, 24)
+	coach_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	coach_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	add_child(coach_panel)
 
 	# Track limits warning, large, under the time difference.
 	limits_label = Label.new()
@@ -178,6 +196,10 @@ func toggle_ffb_meter() -> void:
 	ffb_meter.visible = not ffb_meter.visible
 
 
+func toggle_coach() -> void:
+	coach_panel.toggle()
+
+
 func toggle_perf_overlay() -> void:
 	perf_overlay.visible = not perf_overlay.visible
 
@@ -229,6 +251,12 @@ func update(hud: Dictionary, status: Dictionary, input: Dictionary, telemetry_on
 		delta_label.add_theme_color_override("font_color", Color(0.35, 0.95, 0.45) if delta <= 0.0 else Color(1.0, 0.45, 0.4))
 	else:
 		delta_label.text = ""
+	delta_bar.set_delta(hud.get("ghost_delta", 0.0), hud.get("ghost_has_delta", false))
+	# The coach changes once a lap; four looks a second are plenty.
+	var now := Time.get_ticks_msec() / 1000.0
+	if sim_ref and now >= coach_poll_at:
+		coach_poll_at = now + 0.25
+		coach_panel.update_from(sim_ref.coach())
 
 	# What the physics used, wherever it was read.
 	input_bars["steer"].value = -hud.get("input_steer", input.steer)

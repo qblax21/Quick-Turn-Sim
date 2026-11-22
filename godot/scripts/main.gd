@@ -611,6 +611,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			hud.toggle_ffb_meter()
 		KEY_F6:
 			hud.toggle_perf_overlay()
+		KEY_F7:
+			hud.toggle_coach()
 		KEY_F8:
 			_open_photo_mode()
 		KEY_F5:

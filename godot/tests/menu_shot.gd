@@ -37,7 +37,7 @@ func _run() -> void:
 			main._show_settings()
 		"setup":
 			main._show_input_setup()
-		"pause", "results", "ffb", "limits", "overlay", "perf":
+		"pause", "results", "ffb", "limits", "overlay", "perf", "coach":
 			var presets: PackedStringArray = main.sim.list_ids("ffb")
 			main._start_driving("hatch_tern_gt", "ridgeline_circuit", true, true, presets[0], "", false)
 			main.reader = FixedInput.new()
@@ -64,6 +64,26 @@ func _run() -> void:
 				v["run_active"] = true
 				v["run_time"] = 31.4
 				main.hud.update(v, main.sim.status(), {"steer": 0.12, "throttle": 0.5, "brake": 0.0}, false, false)
+			if mode == "coach":
+				# Layout check of the delta bar and the coach panel. The
+				# figures are the core's report on the early-braking lap of
+				# crates/qts-sim/tests/coach.rs against its reference; the
+				# analysis itself is tested there.
+				main.set_process(false)
+				var v: Dictionary = main.sim.hud()
+				v["ghost_has_delta"] = true
+				v["ghost_delta"] = 0.38
+				main.hud.update(v, main.sim.status(), {"steer": 0.0, "throttle": 0.5, "brake": 0.0}, false, false)
+				var rows := [[1, false, 0.183, "braked or lifted 34 m earlier"], [2, true, -0.001, ""],
+					[3, true, 0.382, "braked or lifted 67 m earlier"], [4, true, 0.342, "braked or lifted 27 m earlier"],
+					[5, false, 0.370, "no single cause stands out"], [6, true, 0.116, "braked or lifted 10 m earlier"],
+					[7, true, 0.128, "braked or lifted 6 m earlier"], [8, true, 0.144, "no single cause stands out"],
+					[9, true, 1.367, "minimum speed 11.0 km/h lower"]]
+				var corners: Array = []
+				for r in rows:
+					corners.append({"number": r[0], "left": r[1], "time_lost": r[2], "cause": "", "text": r[3]})
+				main.hud.coach_panel.update_from({"serial": 1, "has_report": true, "lap_s": 146.150,
+					"reference_s": 143.120, "corners": corners, "error": ""})
 			if mode == "pause":
 				main._open_pause_menu()
 			elif mode == "results":

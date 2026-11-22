@@ -58,6 +58,8 @@ Commands:
   lap-compare A.csv B.csv [--svg FILE] [--step M]
                                          line two lap files up by distance:
                                          where B gains and loses time on A
+  coach LAP.csv BEST.csv                  the lap corner by corner against the
+                                         best: time lost per corner and why
   tire-plots [--out DIR]                 force against slip at three loads and
                                          the combined-slip envelope, one SVG
                                          per tire file (default docs/img)
@@ -303,6 +305,19 @@ fn cmd_bench(args: &Args) -> Result<(), String> {
             ticks as f64 * dt / (total * 1e-6)
         );
     }
+    Ok(())
+}
+
+fn cmd_coach(args: &Args) -> Result<(), String> {
+    let [lap, best] = args
+        .positional
+        .get(1..3)
+        .and_then(|p| <&[String; 2]>::try_from(p).ok())
+        .ok_or("usage: coach LAP.csv BEST.csv (two per-lap telemetry files)")?;
+    let lap = qts_sim::lap_telemetry::Lap::read(std::path::Path::new(lap))?;
+    let best = qts_sim::lap_telemetry::Lap::read(std::path::Path::new(best))?;
+    let report = qts_sim::coach::analyse(&lap, &best)?;
+    print!("{}", qts_sim::coach::report_text(&report));
     Ok(())
 }
 
@@ -1341,6 +1356,7 @@ fn main() -> ExitCode {
         "steering-compare" => cmd_steering_compare(&args).map(|()| true),
         "ffb-gain" => cmd_ffb_gain(&args).map(|()| true),
         "lap-compare" => cmd_lap_compare(&args).map(|()| true),
+        "coach" => cmd_coach(&args).map(|()| true),
         "tire-plots" => cmd_tire_plots(&args).map(|()| true),
         "ffb-devices" => cmd_ffb_devices().map(|()| true),
         "input-read" => cmd_input_read(&args).map(|()| true),

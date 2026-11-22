@@ -1909,3 +1909,63 @@ host thread waking 40 ms late once.
   all.
 
 No simulation behaviour changed.
+
+## D-106 "Why am I slow": live delta bar and after-lap coach
+
+**Live delta bar.** Under the existing time difference to the best lap
+(the ghost), a bar fills green to the left when ahead and red to the right
+when behind, full at one second either way. A small arrow at its end
+shows which way it has moved over the last half second. Display only; the
+delta is the core's (`GhostRecorder::delta_s`).
+
+**After-lap coach.** `qts-sim/src/coach.rs` reads per-lap telemetry
+(time, speed, throttle, brake and yaw rate by distance) and changes no
+physics.
+
+- **Corners** are found on the reference lap, where its path curves
+  tighter than a 120 m radius (yaw rate over speed, smoothed over 5 m
+  either side). Corners less than 20 m apart are one corner, and curves
+  shorter than 12 m are ignored. This needs no track data, so it works on
+  any track; Ridgeline gives nine corners.
+- **Sectors.** The lap is cut into one sector per corner, at the middle
+  of each straight. The sectors cover the whole lap, so the losses add up
+  exactly to the difference in lap time. Distances are aligned by scaling
+  the lap to the reference's length.
+- **Phases and cause.** Each sector is split at the reference's braking
+  point, its slowest point and its return to throttle (above 0.5). The
+  braking point is where the car stops gaining speed and starts slowing
+  for the corner, if it then slows by at least 2 km/h; that is the brake
+  going on, or a lift where a lift is enough. The cause given is the one
+  that accounts for the most lost time in the phase it affects:
+  - earlier braking or lifting (3 m or more before the reference);
+  - later braking with an overshoot;
+  - lower minimum speed (1 km/h or more);
+  - later throttle (3 m or more);
+  - otherwise "no single cause stands out".
+- **Live.** On the host thread, `CoachRecorder` keeps a light trace of
+  the lap in progress at 100 rows a second. When a lap counts, a
+  background thread compares it with the best lap before it. A faster lap
+  becomes the reference and is saved next to the ghost file
+  (`<ghost>.coach.csv`, in the telemetry format). It is read back in a
+  later session only for the same car, track and data content.
+- **Screen.** The panel appears for 12 s after each counted lap; F7 shows
+  it or hides it. It lists every corner with the time lost or gained and
+  the cause, and the three costliest are marked.
+- **Command line.** `qts-sim coach LAP.csv BEST.csv` gives the same report
+  from two per-lap files.
+
+**Checked** (`tests/coach.rs`) on Ridgeline flying laps of the path
+follower, written and read back as ordinary lap files.
+
+- The corners are in order, and their sectors touch and cover the lap.
+- The losses add up to the lap-time difference, and a lap against itself
+  shows nothing.
+- A driver planning corners for 4 m/s² of lateral acceleration (the
+  reference plans for 5) is 11.2 s slower. Eight of nine corners are put
+  down to minimum speed, 4.7 to 8.8 km/h lower.
+- A driver planning braking for 2.5 m/s² (the reference 4) is 3.0 s
+  slower. Five of the eight corners that lose time are put down to braking
+  or lifting 6 to 67 m earlier. The last corner is put down to an 11 km/h
+  lower minimum speed, and two to no single cause.
+- The live recorder reports the second counted lap against the first,
+  saves the best, and a new session reloads it for the same car only.

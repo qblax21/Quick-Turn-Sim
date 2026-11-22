@@ -451,6 +451,7 @@ struct Published {
 
 struct Shared {
     stop: AtomicBool,
+    coach: Mutex<Option<Arc<Mutex<crate::coach::CoachSlot>>>>,
     input: Mutex<InputSlot>,
     commands: Mutex<Vec<HostCommand>>,
     published: Mutex<Published>,
@@ -462,6 +463,7 @@ impl Shared {
         let pose = RenderPose::of(session);
         Arc::new(Shared {
             stop: AtomicBool::new(false),
+            coach: Mutex::new(None),
             input: Mutex::new(InputSlot::default()),
             commands: Mutex::new(Vec::new()),
             published: Mutex::new(Published {
@@ -567,6 +569,15 @@ impl RealtimeHost {
         slot.frame = frame;
         slot.sequence += 1;
         slot.sent_at = Some(Instant::now());
+    }
+
+    /// The coach's newest corner-by-corner report on the last counted lap
+    /// against the best lap before it (D-106).
+    pub fn coach(&self) -> crate::coach::CoachSlot {
+        lock(&self.shared.coach)
+            .as_ref()
+            .map(|slot| lock(slot).clone())
+            .unwrap_or_default()
     }
 
     /// Queues a command for the sim thread.
@@ -694,6 +705,7 @@ struct SimThread {
     laps: Option<LapRecorder>,
     recorder: Option<ReplayRecorder>,
     ghost: GhostRecorder,
+    coach: crate::coach::CoachRecorder,
     row: Vec<f64>,
     // Input interpolation.
     seen_sequence: u64,
@@ -758,8 +770,18 @@ impl SimThread {
             .and_then(|path| std::fs::read(path).ok())
             .and_then(|bytes| GhostLap::from_bytes(&bytes).ok())
             .filter(|lap| lap.fits(&session) && lap.is_valid_lap(&session));
+        // The coach's best lap lives next to the ghost file.
+        let coach = crate::coach::CoachRecorder::new(
+            &session,
+            options
+                .ghost_path
+                .as_ref()
+                .map(|p| p.with_extension("coach.csv")),
+        );
+        *lock(&shared.coach) = Some(coach.slot());
         Self {
             ghost: GhostRecorder::new(saved),
+            coach,
             session,
             pipeline,
             options,
@@ -1123,6 +1145,7 @@ impl SimThread {
         if let Some(laps) = self.laps.as_mut() {
             laps.observe(&self.session, &frame, &sample);
         }
+        self.coach.observe(&self.session, &frame);
         if let Some(recorder) = self.recorder.as_mut() {
             recorder.record(frame, &self.session);
         }

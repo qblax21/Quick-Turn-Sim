@@ -114,6 +114,7 @@ wheel setup** first: assign and calibrate the axes, choose the wheel under
 | While the meter shows: gain down, up / minimum force down, up | [ ] / ; ' |
 | Log the force feedback for the next full lap | F5 |
 | Frame time and physics step overlay | F6 |
+| Coach: last lap corner by corner against the best | F7 |
 | Starter (engine stalled: clutch down first) | I |
 | Photo mode: free camera, depth of field, high-res stills | F8 |
 | Hide everything on screen | H |
