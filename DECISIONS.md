@@ -1773,3 +1773,13 @@ Following the owner's notes on D-097:
   nuts. The owner asked for no research here, so the design is generic.
 
 Drawing only; the physics is unchanged.
+
+## D-099 Flat aero-disc wheels on the Tern GT
+
+The owner sent a photo of the wheels they wanted: flat white aero discs.
+The Tern GT's wheel (the "small" style in `tools/blender/make_car.py`)
+now follows that layout: a flat white face almost to the rim, a ring of
+40 short radial slots just inside the rim, a ring of 20 small round holes
+nearer the middle, and a red domed centre cap with a gold ring. The
+photo's lettering and badge are left off, since the car is fictional.
+This replaces the slanted-vane wheel of D-098. Drawing only.

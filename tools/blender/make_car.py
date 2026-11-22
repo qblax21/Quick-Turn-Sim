@@ -170,6 +170,8 @@ def make_materials(style):
         "rubber": material("tire", (0.03, 0.03, 0.032), 0.92),
         # Both sides drawn: the left wheels are mirrored.
         "fan_slot": material("fan_slot", (0.01, 0.01, 0.011), 0.7, culled=False),
+        "gold": material("gold", (0.83, 0.62, 0.22), 0.25, 1.0),
+        "cap": material("wheel_cap", (0.55, 0.03, 0.02), 0.15, 0.3),
         "alloy": material("alloy", alloy, 0.22, 0.15, culled=False) if style == "small" else material("alloy", alloy, 0.28, 1.0),
         "disc": material("brake_disc", (0.32, 0.31, 0.30), 0.45, 1.0),
         "caliper": material("caliper", caliper, 0.35, 0.1),
@@ -1180,50 +1182,46 @@ def build_wheel(name, radius, width, mats, style):
     return join(parts, name)
 
 
-def turbofan_face(radius, rim_r, hw, mats, blades=28, lean=0.30):
-    """Rally-style turbofan: a flat painted disc almost to the rim, a ring
-    of straight vanes leaning the same way round its outer part (dark slots
-    between white vanes), and a flat centre with four exposed nuts."""
-    x_face = hw * 0.62
-    face = [(0.05 * radius, x_face + 0.004), (0.50 * rim_r, x_face + 0.002), (0.95 * rim_r, x_face),
+def turbofan_face(radius, rim_r, hw, mats, slots=40, holes=20):
+    """Flat aero disc: a solid painted face almost to the rim, a ring of
+    short radial slots just inside the rim, a ring of small round holes
+    nearer the middle, and a red centre cap with a gold ring."""
+    x_face = hw * 0.64
+    face = [(0.05 * radius, x_face + 0.002), (0.60 * rim_r, x_face + 0.001), (0.96 * rim_r, x_face),
             (rim_r - 0.006, x_face + 0.008), (rim_r + 0.006, hw * 0.88)]
-    parts = [lathe("fan_face", face, mats["alloy"], 72)]
-    # Slots: straight dark strips from the inner to the outer edge of the
-    # ring, each turned by `lean` radians against a radius.
+    parts = [lathe("fan_face", face, mats["alloy"], 96)]
     mesh = bpy.data.meshes.new("fan_slots")
     bm = bmesh.new()
-    r0, r1 = 0.56 * rim_r, 0.93 * rim_r
-    for k in range(blades):
-        t0 = 2 * math.pi * k / blades
-        p0 = (r0 * math.cos(t0), r0 * math.sin(t0))
-        d = (math.cos(t0 + lean), math.sin(t0 + lean))
-        n = (-d[1], d[0])
-        span = r1 - r0
-        quad = []
-        for along, half in ((0.0, 0.006), (span, 0.010)):
-            c = (p0[0] + d[0] * along, p0[1] + d[1] * along)
-            quad.append([(c[0] + n[0] * e, c[1] + n[1] * e) for e in (-half, half)])
-        vs = [bm.verts.new((x_face + 0.0025, y, z)) for y, z in (quad[0][0], quad[0][1], quad[1][1], quad[1][0])]
+
+    def face_up(vs):
         f = bm.faces.new(vs)
         if f.normal.x < 0:
             f.normal_flip()
+
+    # Outer slots: short rectangles pointing at the centre.
+    r0, r1, half = 0.76 * rim_r, 0.945 * rim_r, 0.008
+    for k in range(slots):
+        t = 2 * math.pi * k / slots
+        d, n = (math.cos(t), math.sin(t)), (-math.sin(t), math.cos(t))
+        face_up([bm.verts.new((x_face + 0.0025, d[0] * r + n[0] * e, d[1] * r + n[1] * e))
+                 for r, e in ((r0, -half), (r1, -half), (r1, half), (r0, half))])
+    # Inner holes: small round dots.
+    rh, hole = 0.44 * rim_r, 0.010
+    for k in range(holes):
+        t = 2 * math.pi * (k + 0.5) / holes
+        cy, cz = rh * math.cos(t), rh * math.sin(t)
+        face_up([bm.verts.new((x_face + 0.0025, cy + hole * math.cos(a), cz + hole * math.sin(a)))
+                 for a in (2 * math.pi * j / 10 for j in range(10))])
     bm.to_mesh(mesh)
     bm.free()
     mesh.materials.append(mats["fan_slot"])
     obj = bpy.data.objects.new("fan_slots", mesh)
     bpy.context.collection.objects.link(obj)
     parts.append(obj)
-    # A thin dark ring at the inner edge of the vanes, and four nuts.
-    parts.append(lathe("fan_ring", [(0.50 * rim_r, x_face + 0.0045), (0.52 * rim_r, x_face + 0.0045)], mats["fan_slot"], 72))
-    for k in range(4):
-        t = 2 * math.pi * k / 4 + math.pi / 4
-        r = 0.16 * radius
-        bpy.ops.mesh.primitive_cylinder_add(vertices=6, radius=0.013, depth=0.024,
-                                            location=(x_face + 0.008, r * math.cos(t), r * math.sin(t)), rotation=(0.0, math.pi / 2, 0.0))
-        nut = bpy.context.active_object
-        nut.data.materials.append(mats["trim"])
-        parts.append(nut)
-    parts.append(lathe("fan_hub", [(0.0, x_face + 0.012), (0.06 * radius, x_face + 0.010), (0.08 * radius, x_face + 0.004)], mats["trim"], 32))
+    # Centre cap: a gold ring round a red dome.
+    rc = 0.19 * radius
+    parts.append(lathe("fan_cap_ring", [(rc * 0.70, x_face + 0.013), (rc, x_face + 0.007), (rc * 1.06, x_face + 0.001)], mats["gold"], 48))
+    parts.append(lathe("fan_cap", [(0.0, x_face + 0.026), (rc * 0.45, x_face + 0.023), (rc * 0.72, x_face + 0.0135)], mats["cap"], 48))
     return parts
 
 
