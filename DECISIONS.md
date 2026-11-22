@@ -1783,3 +1783,13 @@ now follows that layout: a flat white face almost to the rim, a ring of
 nearer the middle, and a red domed centre cap with a gold ring. The
 photo's lettering and badge are left off, since the car is fictional.
 This replaces the slanted-vane wheel of D-098. Drawing only.
+
+## D-100 Aero discs: outer slots only, black centre lock
+
+Following the owner's notes on D-099: the ring of inner holes is gone,
+leaving only the 40 slots just inside the rim, and the red cap with its
+gold ring is replaced by a black centre lock. The lock is a stepped
+round base with a six-sided nut on it, and stands about 4.7 cm proud of
+the face, just past the tire's sidewall. Its base uses a two-sided
+material, because the lathed faces would otherwise be culled and show the
+white disc through. Drawing only.

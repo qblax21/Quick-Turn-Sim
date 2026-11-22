@@ -170,8 +170,6 @@ def make_materials(style):
         "rubber": material("tire", (0.03, 0.03, 0.032), 0.92),
         # Both sides drawn: the left wheels are mirrored.
         "fan_slot": material("fan_slot", (0.01, 0.01, 0.011), 0.7, culled=False),
-        "gold": material("gold", (0.83, 0.62, 0.22), 0.25, 1.0),
-        "cap": material("wheel_cap", (0.55, 0.03, 0.02), 0.15, 0.3),
         "alloy": material("alloy", alloy, 0.22, 0.15, culled=False) if style == "small" else material("alloy", alloy, 0.28, 1.0),
         "disc": material("brake_disc", (0.32, 0.31, 0.30), 0.45, 1.0),
         "caliper": material("caliper", caliper, 0.35, 0.1),
@@ -1182,10 +1180,10 @@ def build_wheel(name, radius, width, mats, style):
     return join(parts, name)
 
 
-def turbofan_face(radius, rim_r, hw, mats, slots=40, holes=20):
+def turbofan_face(radius, rim_r, hw, mats, slots=40):
     """Flat aero disc: a solid painted face almost to the rim, a ring of
-    short radial slots just inside the rim, a ring of small round holes
-    nearer the middle, and a red centre cap with a gold ring."""
+    short radial slots just inside the rim, and a black centre lock that
+    stands slightly proud of the face."""
     x_face = hw * 0.64
     face = [(0.05 * radius, x_face + 0.002), (0.60 * rim_r, x_face + 0.001), (0.96 * rim_r, x_face),
             (rim_r - 0.006, x_face + 0.008), (rim_r + 0.006, hw * 0.88)]
@@ -1205,23 +1203,26 @@ def turbofan_face(radius, rim_r, hw, mats, slots=40, holes=20):
         d, n = (math.cos(t), math.sin(t)), (-math.sin(t), math.cos(t))
         face_up([bm.verts.new((x_face + 0.0025, d[0] * r + n[0] * e, d[1] * r + n[1] * e))
                  for r, e in ((r0, -half), (r1, -half), (r1, half), (r0, half))])
-    # Inner holes: small round dots.
-    rh, hole = 0.44 * rim_r, 0.010
-    for k in range(holes):
-        t = 2 * math.pi * (k + 0.5) / holes
-        cy, cz = rh * math.cos(t), rh * math.sin(t)
-        face_up([bm.verts.new((x_face + 0.0025, cy + hole * math.cos(a), cz + hole * math.sin(a)))
-                 for a in (2 * math.pi * j / 10 for j in range(10))])
     bm.to_mesh(mesh)
     bm.free()
     mesh.materials.append(mats["fan_slot"])
     obj = bpy.data.objects.new("fan_slots", mesh)
     bpy.context.collection.objects.link(obj)
     parts.append(obj)
-    # Centre cap: a gold ring round a red dome.
-    rc = 0.19 * radius
-    parts.append(lathe("fan_cap_ring", [(rc * 0.70, x_face + 0.013), (rc, x_face + 0.007), (rc * 1.06, x_face + 0.001)], mats["gold"], 48))
-    parts.append(lathe("fan_cap", [(0.0, x_face + 0.026), (rc * 0.45, x_face + 0.023), (rc * 0.72, x_face + 0.0135)], mats["cap"], 48))
+    # Black centre lock standing proud of the face: a stepped round boss
+    # with a six-sided nut on it, its top just past the tire's sidewall.
+    rc = 0.17 * radius
+    parts.append(lathe("centre_lock_boss", [(rc * 1.05, x_face + 0.001), (rc, x_face + 0.010), (rc * 0.92, x_face + 0.022),
+                                            (rc * 0.70, x_face + 0.026), (rc * 0.62, x_face + 0.026)], mats["fan_slot"], 48))
+    bpy.ops.mesh.primitive_cylinder_add(vertices=6, radius=rc * 0.62, depth=0.022, location=(x_face + 0.036, 0.0, 0.0),
+                                        rotation=(0.0, math.pi / 2, 0.0))
+    nut = bpy.context.active_object
+    bev = nut.modifiers.new("bevel", "BEVEL")
+    bev.width = 0.003
+    bev.segments = 2
+    apply_modifiers(nut)
+    nut.data.materials.append(mats["gloss_black"])
+    parts.append(nut)
     return parts
 
 
