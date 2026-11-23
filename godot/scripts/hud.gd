@@ -187,9 +187,9 @@ func _bar_row(caption: String, minimum: float) -> HBoxContainer:
 
 
 # Shows a short message for two seconds.
-func flash(text: String) -> void:
+func flash(text: String, seconds := 2.0) -> void:
 	flash_text = text
-	flash_until = Time.get_ticks_msec() + 2000
+	flash_until = Time.get_ticks_msec() + int(seconds * 1000.0)
 
 
 func toggle_ffb_meter() -> void:
@@ -236,6 +236,11 @@ func update(hud: Dictionary, status: Dictionary, input: Dictionary, telemetry_on
 	if electric:
 		rpm_text = "battery %.0f%%" % (hud.battery_soc * 100.0)
 	main_label.text = "%3.0f km/h   %3.0f mph\ngear %s   %s" % [speed * 3.6, speed * 2.23694, _gear_text(hud.gear), rpm_text]
+	# An H-pattern lever in a gate the gearbox is not in: say so, and why.
+	var lever: int = hud.get("lever", -128)
+	if lever != -128 and lever != hud.gear and not electric:
+		main_label.text += "\nlever %s: %s" % [_gear_text(lever),
+			"clutch down to engage" if hud.get("grinding", false) else "engaging"]
 
 	var run_line := "run   %s" % _format_time(hud.run_time) if hud.run_active else "run   waiting for the start gate"
 	time_label.text = "%s\nlast  %s   cones %d\nbest  %s\ncones this run: %d" % [

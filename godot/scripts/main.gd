@@ -517,6 +517,24 @@ func _start_driving(car_id: String, track_id: String, auto_clutch: bool, auto_sh
 	if not direct_map.axes.is_empty() or not direct_map.buttons.is_empty():
 		if not sim.set_direct_inputs(direct_map):
 			hud.flash(sim.last_error())
+	_check_shifter(auto_clutch)
+
+
+# An H-pattern shifter that cannot work as set up says so at the start,
+# instead of silently grinding or doing nothing (D-110).
+func _check_shifter(auto_clutch: bool) -> void:
+	var any_gate := false
+	for gate in reader.GEAR_GATES:
+		any_gate = any_gate or reader.has_direct(gate) or reader.buttons[gate].device >= 0
+	if reader.shift_mode != "h_pattern":
+		if any_gate:
+			hud.flash("Shifter gates are assigned but Gear change is Sequential, so the lever is ignored (Controls).", 8.0)
+		return
+	var has_clutch: bool = reader.has_direct("clutch") or reader.axes["clutch"].device >= 0
+	if not any_gate:
+		hud.flash("H-pattern is selected but no shifter gate is assigned (Controls).", 8.0)
+	elif not auto_clutch and not has_clutch:
+		hud.flash("No clutch pedal assigned and Automatic clutch is off: gears will not go in.", 8.0)
 
 
 func _process(delta: float) -> void:

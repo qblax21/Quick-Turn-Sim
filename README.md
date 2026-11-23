@@ -167,6 +167,18 @@ ratios, roll split and differential locking the setup gives; **Export
 sheet** writes it all to a text sheet that **Load sheet...** reads back.
 Ranges and their reasoning: [docs/SETUP.md](docs/SETUP.md).
 
+### H-pattern shifter
+
+On the Controls screen set **Gear change** to "H-pattern shifter" (it
+switches itself when you assign a gate), then **Assign** each gate,
+Shifter gate 1 to 6 and R, by putting the lever in it. "Lever now" shows
+which gate the game reads; move through every gate and check it follows.
+With **Automatic clutch** off (car screen) a gear only goes in with the
+clutch pedal down, so the clutch must be assigned and calibrated
+(released 0 %, floor 100 %). With it on, the lever alone changes gear.
+While driving, "lever 3: clutch down to engage" under the gear means the
+lever is in a gate the gearbox refused (D-110).
+
 ### Wheel and pedals read on the physics thread
 
 On the Controls screen, **Assign** each control and move it: the wheel,

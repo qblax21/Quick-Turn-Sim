@@ -906,6 +906,7 @@ impl SimBridge {
             "tire_wear" => per_wheel(&|w| w.tire_wear),
             "surface" => surfaces,
             "input_steer" => h.input[0],
+            "lever" => i64::from(h.lever),
             "input_throttle" => h.input[1],
             "input_brake" => h.input[2],
             "input_clutch" => h.input[3],

@@ -70,6 +70,8 @@ var cal_min := 0.0
 var cal_max := 0.0
 # Devices read directly by the core: id -> {"name", "axes", "buttons"}.
 var scan := {}
+var mode_select: OptionButton
+var lever_label: Label
 var direct_baseline := {}  # id -> axes when listening started
 var direct_held := {}      # id -> buttons held when listening started
 var cal_dmin := 0.0
@@ -130,7 +132,14 @@ func _ready() -> void:
 	mode.select(1 if reader.shift_mode == "h_pattern" else 0)
 	mode.item_selected.connect(func(i: int) -> void: reader.shift_mode = "h_pattern" if i == 1 else "sequential")
 	mode_row.add_child(mode)
+	mode_select = mode
 	left.add_child(mode_row)
+	# What the game reads from the shifter right now, and anything that
+	# would stop it working.
+	lever_label = Label.new()
+	lever_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lever_label.add_theme_font_size_override("font_size", 15)
+	left.add_child(lever_label)
 	var shifter_help := Label.new()
 	shifter_help.text = "H-pattern: press Assign, then put the lever in that gate. With a manual clutch (Automatic clutch off), a gear only goes in with the clutch down or the revs matched; otherwise it grinds and stays in neutral. Let the clutch out too fast and the engine stalls: clutch down and the starter (I) to restart."
 	shifter_help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -516,6 +525,7 @@ func _toggle_calibration(action: String, button: Button) -> void:
 
 func _process(_delta: float) -> void:
 	_refresh_scan()
+	lever_label.text = _shifter_text()
 	if listening != "":
 		if Input.is_physical_key_pressed(KEY_ESCAPE):
 			listening = ""
@@ -602,6 +612,48 @@ func _detect_axis() -> void:
 	listening = ""
 
 
+# Assigning a shifter gate means an H-pattern shifter: switch to it, since
+# the gates are ignored in sequential mode.
+func _gate_assigned() -> void:
+	if reader.GEAR_GATES.has(listening) and reader.shift_mode != "h_pattern":
+		reader.shift_mode = "h_pattern"
+		mode_select.select(1)
+		status.text += " Gear change set to H-pattern."
+
+
+# The gate the lever is in now, as the game reads it: 0 neutral, -1
+# reverse, NO_GEAR when no gate is assigned.
+func _lever_now() -> int:
+	var any := false
+	var gear := 0
+	for gate in reader.GEAR_GATES:
+		var mapped: bool = reader.has_direct(gate) or reader.buttons[gate].device >= 0
+		any = any or mapped
+		if (reader.has_direct(gate) and _direct_pressed(gate)) or reader._button(gate):
+			gear = reader.GEAR_GATES[gate]
+	return gear if any else reader.NO_GEAR
+
+
+func _shifter_text() -> String:
+	var lever := _lever_now()
+	if lever == reader.NO_GEAR:
+		return "Shifter: no gates assigned." if reader.shift_mode == "h_pattern" else ""
+	var lines: Array = []
+	var where := "neutral" if lever == 0 else ("reverse" if lever < 0 else "gear %d" % lever)
+	lines.append("Lever now: %s" % where)
+	if reader.shift_mode != "h_pattern":
+		lines.append("Gates are assigned but Gear change is Sequential: the lever is ignored. Choose H-pattern above.")
+	var unassigned: Array = []
+	for gate in reader.GEAR_GATES:
+		if not reader.has_direct(gate) and reader.buttons[gate].device < 0:
+			unassigned.append(BUTTON_LABELS[gate])
+	if not unassigned.is_empty():
+		lines.append("Not assigned: " + ", ".join(unassigned) + ".")
+	if not reader.has_direct("clutch") and reader.axes["clutch"].device < 0:
+		lines.append("No clutch pedal assigned: tick Automatic clutch on the car screen, or the gears will not go in.")
+	return "\n".join(lines)
+
+
 func _detect_button() -> void:
 	for id in scan:
 		for button in scan[id].buttons:
@@ -617,6 +669,7 @@ func _detect_button() -> void:
 						reader.buttons[listening].device = pad
 						reader.buttons[listening].button = b
 			status.text = "Assigned %s to %s button %d." % [BUTTON_LABELS[listening], scan[id].name, button]
+			_gate_assigned()
 			listening = ""
 			return
 	for pad in Input.get_connected_joypads():
@@ -625,5 +678,6 @@ func _detect_button() -> void:
 				reader.buttons[listening].device = pad
 				reader.buttons[listening].button = button
 				status.text = "Assigned %s to device %d button %d." % [BUTTON_LABELS[listening], pad, button]
+				_gate_assigned()
 				listening = ""
 				return

@@ -2114,3 +2114,39 @@ Knock-on changes:
   about 30 C; the steering lightens more as tires heat.
 
 Replays and ghosts recorded before this will not reproduce.
+
+## D-110 H-pattern shifting: the silent failures made visible
+
+The owner's shifter did not work on the real wheel. The core path was
+checked and is correct; a new session-level test holds it in place
+(`tests/h_pattern.rs`):
+
+- The lever's gate arrives as the input frame's gear request, 0 in
+  neutral and -1 in reverse, from the physics-thread reader or from the
+  front end.
+- With a manual clutch, a gate only engages with the pedal down (or revs
+  matched); otherwise the box stays in neutral and grinds.
+- Neutral is immediate, every gate from reverse to sixth engages, and the
+  automatic clutch lets the lever alone select gears.
+- The lever overrides Automatic gears; without a lever, automatic gears
+  work as before.
+
+The cause was in the setup. The owner's saved controls (`input.cfg`)
+had all seven gates assigned, reverse on button 12 and first to sixth on
+buttons 13 to 18 of the CSL Elite base, on both read paths, but Gear change
+was still "Sequential". In that mode the gates are dropped before they
+reach the core, and nothing said so. Changes:
+
+- **Switch on assign.** Assigning a shifter gate on the Controls screen
+  switches Gear change to H-pattern and says so.
+- **Live readout.** The Controls screen shows the lever's gate as the
+  game reads it ("Lever now: gear 3", "neutral"). It warns when gates are
+  assigned but the mode is Sequential, lists unassigned gates, and warns
+  when no clutch pedal is assigned.
+- **Start-of-drive notice** (8 s): gates assigned while Sequential; or
+  H-pattern with no gates; or H-pattern with no clutch pedal and
+  Automatic clutch off. In that last case no gear can go in from rest.
+- **HUD.** When the lever is in a gate the box is not in, it shows
+  "lever 3: clutch down to engage" (grinding) or "lever 3: engaging".
+
+The owner's settings file was not changed.

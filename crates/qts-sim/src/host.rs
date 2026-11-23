@@ -200,6 +200,11 @@ pub struct HudState {
     /// Controls the physics used on the last tick: steering (−1 to 1,
     /// positive left), accelerator, brake, clutch and handbrake (0 to 1).
     pub input: [f64; 5],
+    /// Gear the controls asked for on the last tick: an H-pattern lever's
+    /// gate (0 in neutral, -1 reverse), or `GEAR_NO_REQUEST` when no
+    /// shifter is in use. When it differs from the gearbox's gear, the
+    /// gear did not go in (clutch not down, or revs not matched).
+    pub lever: i8,
 }
 
 impl HudState {
@@ -227,6 +232,7 @@ impl HudState {
             limits_broken: t.limits_broken && t.running,
             limit_breaches: t.limit_breaches,
             input: [0.0; 5],
+            lever: qts_core::input::GEAR_NO_REQUEST,
         }
     }
 }
@@ -1235,6 +1241,7 @@ impl SimThread {
                 p.alpha = if self.paused { 1.0 } else { driver.alpha() };
                 p.hud = HudState::of(&self.session);
                 let f = &self.last_frame;
+                p.hud.lever = self.last_frame.gear_request;
                 p.hud.input = [
                     f.steer_f64(),
                     f.throttle_f64(),
