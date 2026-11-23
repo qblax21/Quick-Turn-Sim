@@ -108,20 +108,23 @@ Not used: Cusco's cam angles (45 / 15 for the FK8 unit), because Cusco
 quotes cam angle from a different reference from Drexler's ramp angle,
 and no conversion was found.
 
-## Cold tires and temperature (D-108)
+## Cold tires and temperature (D-108, D-109)
 
 ![Cold start](img/cold_start_hatch_tern_gt.svg)
 
 `qts-sim cold-start --svg docs/img/cold_start_hatch_tern_gt.svg` draws
 this. It runs the Tern GT from the pits on Ridgeline with the tires at
 20 C and at 45 C, driven by the path follower close to the limit (planning
-for 8 m/s2).
+for 8 m/s2). Since D-109 the model follows the published figures below:
+grip peaks at 30 C (window 38 C) and stiffness falls 0.006 per degree.
+**This curve comes from one tire and is unverified for every tire file
+that uses it** (all four do; each file can be tuned on its own).
 
 | Figure | Model | Published | Source |
 | --- | --- | --- | --- |
-| Peak grip, cold (about 30 C) to hot (about 70 C) surface | -1.5 %, and +0.9 % from 30 C to its 45 C optimum | about -10 %, falling as the tire heats | Singh and Sivaramakrishnan (Goodyear), "Extended Pacejka Tire Model for Enhanced Vehicle Stability Control", [arXiv:2305.18422](https://arxiv.org/abs/2305.18422) (2023), Table 3 and Figure 26: Flat-Trac, high-performance summer tire, new tires without warm-up; read first-hand 2026-11-22 |
-| Cornering stiffness, cold to hot | -7.8 % (stiffness factor, carcass 30 to 70 C) | -20 to -25 %, "strongly influenced by the tire bulk temperature" | same |
-| Warm-up | grip within 0.5 % of warm tires from corner 5 of 11; surface 32 to 45 C, core 22 to 35 C, carcass 21 to 28 C over the lap | no car figure found; Michelin advises motorcyclists to warm tires gently for the first two to three laps | [Michelin, tire pressure on track (motorcycle)](https://www.michelinman.com/motorcycle/tips-and-advice/tips-to-take-care-of-motorcycle-tires/tire-pressure-on-track), seen in search results only, **not verified** |
+| Peak grip, cold (about 30 C) to hot (about 70 C) surface | -10.0 % (was -1.5 % before D-109) | about -10 %, falling as the tire heats | Singh and Sivaramakrishnan (Goodyear), "Extended Pacejka Tire Model for Enhanced Vehicle Stability Control", [arXiv:2305.18422](https://arxiv.org/abs/2305.18422) (2023), Table 3 and Figure 26: Flat-Trac, high-performance summer tire, new tires without warm-up; read first-hand 2026-11-22 |
+| Cornering stiffness, cold to hot | -22.6 % (stiffness factor, carcass 30 to 70 C; was -7.8 %) | -20 to -25 %, "strongly influenced by the tire bulk temperature" | same |
+| Warm-up | since D-109 there is none to wait for: from the pits at 20 C the tires grip 3 % better at the first corner than tires started at 45 C, and lose grip where they heat (before D-109: within 0.5 % of warm tires from corner 5 of 11) | no car figure found; Michelin advises motorcyclists to warm tires gently for the first two to three laps | [Michelin, tire pressure on track (motorcycle)](https://www.michelinman.com/motorcycle/tips-and-advice/tips-to-take-care-of-motorcycle-tires/tire-pressure-on-track), seen in search results only, **not verified** |
 
 Not found: a published grip-against-temperature curve for a road summer
 tire below 30 C, and a measured warm-up time for road tires on a car.
@@ -207,10 +210,32 @@ D-086 found two gaps, closed in D-087 with the owner's approval:
 Effect on validation: skidpad 0.934 to 0.923 g (Tern GT) and 0.955 to
 0.953 g (Halden E4); everything else unchanged; all targets pass.
 
+## Results since D-109
+
+`cargo run --release -p qts-validate`, tires starting at their new 30 C
+optimum (D-109):
+
+| Car | Metric | Simulated | Target | Error |
+| --- | --- | --- | --- | --- |
+| Tern GT | skidpad | 0.935 g | 0.87 g | +7.4 % |
+| Tern GT | 60-0 mph | 33.82 m | 34.59 m | -2.2 % |
+| Tern GT | 0-60 mph | 7.12 s | 6.6 s | +7.8 % |
+| Tern GT | top speed | 64.65 m/s | 63.33 m/s | +2.1 % |
+| Tern GT | understeer (guess) | 1.90 deg/g | 2.5 | -23.9 % |
+| Halden E4 | skidpad | 0.940 g | 0.96 g | -2.1 % |
+| Halden E4 | 70-0 mph | 45.61 m | 44.81 m | +1.8 % |
+| Halden E4 | 0-60 mph, 1 ft rollout | 2.84 s | 3.1 s | -8.4 % |
+| Halden E4 | top speed | 71.52 m/s | 72.42 m/s | -1.2 % |
+| Halden E4 | understeer (guess) | 1.85 deg/g | 2.0 | -7.5 % |
+
+Kept at 60 C, as the harness used to start, the hot tires would fail two
+targets (Tern GT 0-60 +11.0 %, Halden E4 70-0 +10.9 %).
+
 ## Results since D-093
 
-`cargo run --release -p qts-validate`, with the Tern GT on the Cooper S
-data and the torque curve read as net output (D-093):
+History, before D-109. `cargo run --release -p qts-validate`, with the
+Tern GT on the Cooper S data and the torque curve read as net output
+(D-093):
 
 | Car | Metric | Simulated | Target | Error |
 | --- | --- | --- | --- | --- |

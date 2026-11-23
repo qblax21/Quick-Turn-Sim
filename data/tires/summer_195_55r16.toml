@@ -80,11 +80,11 @@ convection_carcass_w_per_k = { value = 6.0, source = "order of magnitude", confi
 convection_carcass_speed_gain = { value = 0.6, source = "order of magnitude", confidence = "placeholder" }
 friction_heat_fraction = { value = 0.6, source = "share of sliding heat entering the tire rather than the road", confidence = "placeholder" }
 hysteresis_core_fraction = { value = 0.5, source = "even split of rolling loss between tread and carcass", confidence = "placeholder" }
-optimal_temp_c = { value = 45.0, source = "road compound: near full grip from a cool start; lowered from 60 after driver feedback", confidence = "placeholder" }
-temp_window_c = { value = 60.0, source = "wide window for a road compound", confidence = "placeholder" }
+optimal_temp_c = { value = 30.0, source = "D-109: grip highest at about 30 C, the coolest point of the published data, where grip was highest; Singh and Sivaramakrishnan (Goodyear), arXiv:2305.18422, Table 3 and Figure 26: a high-performance summer tire on a Flat-Trac loses about 10 percent of peak grip and 20 to 25 percent of cornering stiffness from cold (about 30 C) to hot (about 70 C). One tire, so unverified for this one (docs/VALIDATION_SOURCES.md)", confidence = "estimated" }
+temp_window_c = { value = 38.0, source = "D-109: with the 0.85 floor, gives 10 percent less grip at 70 C than at 30 C; Singh and Sivaramakrishnan (Goodyear), arXiv:2305.18422, Table 3 and Figure 26: a high-performance summer tire on a Flat-Trac loses about 10 percent of peak grip and 20 to 25 percent of cornering stiffness from cold (about 30 C) to hot (about 70 C). One tire, unverified for this one", confidence = "estimated" }
 min_grip_factor = { value = 0.85, source = "grip floor far from the optimum", confidence = "placeholder" }
 surface_weight = { value = 0.6, source = "surface dominates the grip temperature", confidence = "placeholder" }
-stiffness_temp_sensitivity_per_k = { value = 0.002, source = "tire softens slightly when hot", confidence = "placeholder" }
+stiffness_temp_sensitivity_per_k = { value = 0.006, source = "D-109: three times the earlier 0.002, so cornering stiffness falls 22.6 percent from 30 to 70 C carcass; Singh and Sivaramakrishnan (Goodyear), arXiv:2305.18422, Table 3 and Figure 26: a high-performance summer tire on a Flat-Trac loses about 10 percent of peak grip and 20 to 25 percent of cornering stiffness from cold (about 30 C) to hot (about 70 C). One tire, unverified for this one", confidence = "estimated" }
 reference_temp_c = { value = 40.0, source = "temperature the stiffness coefficients are taken to apply at", confidence = "placeholder" }
 
 [pressure]

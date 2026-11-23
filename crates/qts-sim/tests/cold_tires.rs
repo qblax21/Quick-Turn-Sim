@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-//! Cold tires on the first lap from the pits (D-108). No physics was
-//! changed for this: the tests hold the model's present behaviour, and the
-//! two places where it differs from published measurements are kept as
-//! ignored tests so the gap stays visible until it is decided on
-//! (`cargo test -- --ignored` runs them).
+//! Tire temperature against published figures and on the first lap from
+//! the pits (D-108, D-109). Since D-109 grip and cornering stiffness fall
+//! from cold to hot as Goodyear measured on one high-performance summer
+//! tire; the two published comparisons are ordinary tests again.
 
 mod common;
 
@@ -44,46 +43,46 @@ fn grip_and_stiffness_against_temperature_are_sane_for_every_tire() {
 }
 
 #[test]
-fn cold_tires_cost_grip_at_first_and_warm_up_within_the_lap() {
+fn out_lap_grip_follows_the_published_direction() {
     // The hatch from the pits on Ridgeline with the tires at the air
-    // temperature (20 C) and at their optimum (45 C), driven close to the
-    // limit (the path follower planning corners for 8 m/s2).
+    // temperature (20 C) and already hot (45 C), driven close to the limit
+    // (the path follower planning corners for 8 m/s2). Since D-109 grip is
+    // highest cool and falls as the tire heats, as Goodyear measured.
     let root = data();
-    let cold = drive(&root, "hatch_tern_gt", "ridgeline_circuit", 20.0, 8.0, 1).unwrap();
-    let warm = drive(&root, "hatch_tern_gt", "ridgeline_circuit", 45.0, 8.0, 1).unwrap();
-    let w = warm_up(&cold[0], &warm[0], 0.005).unwrap();
+    let cool = drive(&root, "hatch_tern_gt", "ridgeline_circuit", 20.0, 8.0, 1).unwrap();
+    let hot = drive(&root, "hatch_tern_gt", "ridgeline_circuit", 45.0, 8.0, 1).unwrap();
+    let w = warm_up(&cool[0], &hot[0], 0.005).unwrap();
     eprintln!(
-        "lap from the pits: {:.3} s cold, {:.3} s warm; grip at T1 {:.4} cold, {:.4} warm; within 0.5 % from corner {:?}",
-        cold[0].lap_s,
-        warm[0].lap_s,
-        w.grip[0].0,
-        w.grip[0].1,
-        w.warm_after.map(|n| n + 1)
+        "lap from the pits: {:.3} s from 20 C, {:.3} s from 45 C; grip at T1 {:.4} and {:.4}",
+        cool[0].lap_s, hot[0].lap_s, w.grip[0].0, w.grip[0].1
     );
-    // Measurably less grip at the first corner.
-    assert!(w.grip[0].0 < w.grip[0].1 - 0.005, "{:?}", w.grip[0]);
-    // The tires warm through the lap...
+    // Cool tires grip better than hot ones at the first corner.
+    assert!(w.grip[0].0 > w.grip[0].1 + 0.005, "{:?}", w.grip[0]);
+    // The cool tires heat through the lap...
     let first = w.cold_temps[0];
     let last = *w.cold_temps.last().unwrap();
     assert!(last[1] > first[1] + 5.0, "core {first:?} -> {last:?}");
     assert!(last[2] > first[2] + 3.0, "carcass {first:?} -> {last:?}");
-    // ...and the grip is within half a percent of the warm tires' from a
-    // few corners in to the end of the lap.
-    let n = w
-        .warm_after
-        .expect("cold tires never caught up within the lap");
-    assert!((2..=8).contains(&n), "warm after {n} corners");
-    // The first lap is not faster on cold tires.
-    assert!(cold[0].lap_s >= warm[0].lap_s - 0.05);
+    // ...and lose grip where they are hottest.
+    let (hottest, _) = w
+        .cold_temps
+        .iter()
+        .enumerate()
+        .max_by(|a, b| a.1[0].total_cmp(&b.1[0]))
+        .unwrap();
+    assert!(
+        w.grip[hottest].0 < w.grip[0].0 - 0.005,
+        "grip {:.4} at the hottest corner against {:.4} at the first",
+        w.grip[hottest].0,
+        w.grip[0].0
+    );
 }
 
 /// Published: a high-performance summer tire on a Flat-Trac machine loses
 /// about 10 % of its peak grip going from cold to hot (about 30 to 70 C
 /// surface). Singh and Sivaramakrishnan (Goodyear), arXiv:2305.18422,
-/// Table 3 and Figure 26. The model loses 1.5 %, and gains grip between
-/// 30 and its 45 C optimum.
+/// Table 3 and Figure 26.
 #[test]
-#[ignore = "known gap (D-108): the model's grip changes far less with temperature than published; not changed pending a decision"]
 fn grip_falls_from_cold_to_hot_as_published() {
     let root = data();
     for id in root.list("tires").unwrap() {
@@ -99,10 +98,8 @@ fn grip_falls_from_cold_to_hot_as_published() {
 }
 
 /// Published: cornering stiffness 20 to 25 % lower hot than cold, strongly
-/// tied to the bulk temperature (same source). The model's stiffness factor
-/// falls 7.8 % from 30 to 70 C.
+/// tied to the bulk temperature (same source).
 #[test]
-#[ignore = "known gap (D-108): the model's cornering stiffness changes about a third as much with temperature as published"]
 fn stiffness_falls_from_cold_to_hot_as_published() {
     let root = data();
     for id in root.list("tires").unwrap() {

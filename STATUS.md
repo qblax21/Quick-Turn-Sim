@@ -111,11 +111,14 @@ sees in the demo is described in `DEMO.md`.
 
 | Metric | Tern GT vs 2011 MINI Cooper S | error | Halden E4 vs Model 3 Performance | error | tolerance |
 | --- | --- | --- | --- | --- | --- |
-| Skidpad lateral | 0.931 g vs 0.87 | +7.0% | 0.943 g vs 0.96 | -1.8% | 10% |
-| Braking | 60-0 mph: 34.6 m vs 34.6 | -0.1% | 70-0 mph: 46.6 m vs 44.8 | +3.9% | 10% |
-| 0-60 mph | no rollout: 7.17 s vs 6.6 | +8.6% | 1 ft rollout: 2.90 s vs 3.1 | -6.4% | 10% |
-| Top speed | 64.6 m/s vs 63.3 | +2.1% | 71.7 m/s vs 72.4 | -1.0% | 6% |
-| Understeer gradient | 1.92 deg/g vs 2.5 (guess) | -23.4% | 1.88 deg/g vs 2.0 (guess) | -6.0% | 40% |
+| Skidpad lateral | 0.935 g vs 0.87 | +7.4% | 0.940 g vs 0.96 | -2.1% | 10% |
+| Braking | 60-0 mph: 33.8 m vs 34.6 | -2.2% | 70-0 mph: 45.6 m vs 44.8 | +1.8% | 10% |
+| 0-60 mph | no rollout: 7.12 s vs 6.6 | +7.8% | 1 ft rollout: 2.84 s vs 3.1 | -8.4% | 10% |
+| Top speed | 64.6 m/s vs 63.3 | +2.1% | 71.5 m/s vs 72.4 | -1.2% | 6% |
+| Understeer gradient | 1.90 deg/g vs 2.5 (guess) | -23.9% | 1.85 deg/g vs 2.0 (guess) | -7.5% | 40% |
+
+Since D-109 the runs start with the tires at 30 C, their new grip
+optimum (they started at 60 C, the optimum when the harness was written).
 
 These figures measure the comparable real cars, not ours, so they are
 labelled estimated. The Tern GT has been based on the 2011 MINI Cooper S
@@ -271,11 +274,10 @@ Everything numeric. In particular:
 - Replays and ghost laps recorded before the setup and track-limits
   changes still load; replays made before track limits report that they
   no longer reproduce from the start.
-- Tire temperature (D-108): the model's grip changes 1.5 % between 30 and
-  70 C, against about 10 % measured for a high-performance summer tire,
-  and in the other direction below its 45 C optimum; its cornering
-  stiffness changes 7.8 % against 20 to 25 %. Recorded with ignored tests
-  in `tests/cold_tires.rs`; not changed pending a decision.
+- Tire temperature follows one published tire (D-109): grip and cornering
+  stiffness fall from cold to hot as Goodyear measured on a
+  high-performance summer tire. Every tire file uses that curve, which is
+  unverified for each of them.
 - Debug and release builds are different builds: a replay recorded by one is
   not expected to match on the other, and the replay command warns about it.
 - The `windows` crate is pinned to 0.58 because newer versions do not link

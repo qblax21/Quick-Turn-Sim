@@ -153,8 +153,12 @@ fn column_torque_peaks_before_front_lateral_force_on_the_moving_car() {
             "{car}: front Fy already at {:.0}% of its max when the torque peaks",
             100.0 * fy_at_tq / fy_max
         );
+        // Since D-109 the fronts lose grip as they heat during the ramp,
+        // so their force tops out sooner, with less slip past the
+        // torque's peak: the drop by then is smaller (13 percent on the
+        // Tern GT) but still there.
         assert!(
-            tq_at_fy < 0.85 * tq_max,
+            tq_at_fy < 0.9 * tq_max,
             "{car}: torque only fell to {:.0}% of its peak by the Fy maximum",
             100.0 * tq_at_fy / tq_max
         );

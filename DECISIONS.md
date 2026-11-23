@@ -2073,3 +2073,44 @@ on cold tires. No car warm-up figure was found.
   from cold to hot as published.
 - Raise the stiffness sensitivity to about 0.006 per degree, to match the
   20 to 25 % change.
+
+## D-109 Tire temperature follows the published cold-to-hot figures
+
+The owner chose to match the published data (D-108). All four tire files
+now take, as `estimated` with the source given:
+
+- grip optimum 30 C (was 45), the coolest point of Goodyear's data, where
+  its grip was highest;
+- grip window 38 C (was 60), so that with the 0.85 floor grip is 10.0 %
+  lower at 70 C than at 30 C;
+- stiffness sensitivity 0.006 per degree (was 0.002), three times faster,
+  so cornering stiffness falls 22.6 % from 30 to 70 C carcass.
+
+The published figures (about -10 % grip, -20 to -25 % stiffness, Singh
+and Sivaramakrishnan, arXiv:2305.18422) come from one high-performance
+summer tire, so the curve is marked unverified for each tire in
+docs/VALIDATION_SOURCES.md. The values stay per tire file, so each can be
+tuned on its own. No code changed: the Gaussian window already falls on
+both sides of its optimum.
+
+Knock-on changes:
+
+- **Tests.** The two published-figure tests in `tests/cold_tires.rs` are
+  ordinary tests again and pass. The out-lap test now checks the new
+  direction: from the pits, tires at 20 C grip better at the first
+  corner than tires started at 45 C (0.999 against 0.969), heat through
+  the lap, and lose grip where they are hottest.
+- **Validation.** The harness started tires at 60 C, the optimum when it
+  was written (the tire files say it was lowered from 60), with no other
+  source. It now starts them at the new 30 C optimum, keeping that
+  intent. Every target passes; at 60 C two would fail (Tern GT 0-60
+  +11.0 %, Halden E4 70-0 +10.9 %). New figures are in STATUS.md.
+- **FFB cue (D-104).** The fronts now lose grip as they heat during the
+  test's steering ramp, so their force tops out sooner. The column torque
+  still peaks first (front force at 90 to 94 % of its maximum), and has
+  fallen to 86 or 87 % by the force maximum, where before it fell to 60.
+  The test's limit moves from 85 to 90 %.
+- **Feel.** Grip is now highest on cool tires and falls as they heat past
+  about 30 C; the steering lightens more as tires heat.
+
+Replays and ghosts recorded before this will not reproduce.

@@ -19,7 +19,9 @@
 
 car = "hatch_tern_gt"
 track = "test_track"
-tire_temp_c = 60.0
+# Tires start at their grip optimum (30 C since D-109; 60 C before, the
+# optimum when the harness was written).
+tire_temp_c = 30.0
 note = "Targets are published figures of a comparable real car (see docs/VALIDATION_SOURCES.md), not measurements of this car."
 
 [[target]]
