@@ -22,10 +22,11 @@ fn worst_drive_slip(session: &qts_sim::Session) -> f64 {
 fn a_floored_launch_is_held_near_the_target_slip() {
     for car in CARS {
         let mut session = session(car, "test_track");
-        assert!(
-            session.car().params().traction_control.enabled,
-            "{car} is expected to have traction control"
-        );
+        // The drift build has none, by design (D-111); every road car does.
+        if !session.car().params().traction_control.enabled {
+            assert_eq!(car, "coupe_kestrel_rc", "{car} is expected to have traction control");
+            continue;
+        }
         let rate = f64::from(session.tick_rate_hz());
         let floored = InputFrame::from_analog(0.0, 1.0, 0.0, 0.0, 0.0);
         // Seconds spent above twice the target slip once the launch has

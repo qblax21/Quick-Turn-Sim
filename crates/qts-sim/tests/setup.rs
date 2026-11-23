@@ -64,23 +64,21 @@ fn far_end(item: &SetupItem) -> f64 {
     }
 }
 
-/// Hard acceleration with the wheel turned and the throttle lifted and
-/// reapplied: drive and overrun torque through the differential, with
-/// the inner wheel unloaded.
+/// Overrun and drive torque through the differential in a turn: from a
+/// rolling start at 50 km/h in second gear, a lift, part throttle and a
+/// lift again with the front wheels at 5 degrees, so the inner and outer
+/// wheels want different speeds. A rolling start, because a standing one
+/// on a powerful rear-drive car (the Kestrel RC, D-111) is a burnout with
+/// both wheels spinning alike.
 fn split_launch(s: &mut Session) {
-    for t in 0..6000 {
-        let (steer, throttle) = match t {
-            0..=2999 => (0.08, 1.0),
-            3000..=3999 => (0.25, 0.0),
-            _ => (0.3, 1.0),
-        };
-        s.step(
-            &InputFrame::from_analog(steer, throttle, 0.0, 0.0, 0.0).with_gear(if t < 2000 {
-                1
-            } else {
-                2
-            }),
-        );
+    let (x, y, h) = s.track().spawn();
+    s.car_mut().place(x, y, h, 0.0);
+    s.car_mut().set_forward_speed(14.0);
+    let p = s.car().params().steering.clone();
+    let steer = 5_f64.to_radians() * p.ratio / p.max_wheel_angle_rad;
+    for t in 0..3000 {
+        let throttle = if (1000..2000).contains(&t) { 0.5 } else { 0.0 };
+        s.step(&InputFrame::from_analog(steer, throttle, 0.0, 0.0, 0.0).with_gear(2));
     }
 }
 
@@ -194,11 +192,18 @@ fn every_adjustment_changes_the_physics() {
                     item.key
                 );
                 // Engine speed over driven-wheel speed is the overall ratio.
+                // The driven wheels are the fronts or the rears.
                 let ratio_of = |s: &Session| {
+                    let rear = matches!(
+                        &s.car().params().drivetrain,
+                        qts_vehicle::params::DrivetrainParams::EngineManual(m)
+                            if m.driven_axle == qts_vehicle::params::DrivenAxle::Rear
+                    );
+                    let (a, b) = if rear { (2, 3) } else { (0, 1) };
                     let out = s.car().output();
                     out.drive.engine_rpm * std::f64::consts::PI
                         / 30.0
-                        / (0.5 * (out.wheels[0].omega + out.wheels[1].omega))
+                        / (0.5 * (out.wheels[a].omega + out.wheels[b].omega))
                 };
                 let change = ratio_of(&s) / ratio_of(&base);
                 let expected = value / item.default;
@@ -212,8 +217,15 @@ fn every_adjustment_changes_the_physics() {
             if item.key.starts_with("diff.") && item.key != "diff.mode" {
                 // Preload and ramps act only with a clutch pack fitted:
                 // compare against a clutch pack with the car's settings.
+                // Ramps are compared with no preload: on a car whose preload
+                // alone holds the differential through the lift (the
+                // Kestrel RC, D-111) a ramp that adds nothing would show no
+                // change for a reason that is not the ramp's.
                 let pack = |extra: Option<(&str, f64)>| {
                     let mut setup = one("diff.mode", 1.0);
+                    if item.key != "diff.preload_nm" {
+                        setup.values.insert("diff.preload_nm".to_string(), 0.0);
+                    }
                     if let Some((k, v)) = extra {
                         setup.values.insert(k.to_string(), v);
                     }
