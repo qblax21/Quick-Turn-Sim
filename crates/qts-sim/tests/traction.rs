@@ -24,7 +24,10 @@ fn a_floored_launch_is_held_near_the_target_slip() {
         let mut session = session(car, "test_track");
         // The drift build has none, by design (D-111); every road car does.
         if !session.car().params().traction_control.enabled {
-            assert_eq!(car, "coupe_kestrel_rc", "{car} is expected to have traction control");
+            assert_eq!(
+                car, "coupe_kestrel_rc",
+                "{car} is expected to have traction control"
+            );
             continue;
         }
         let rate = f64::from(session.tick_rate_hz());
