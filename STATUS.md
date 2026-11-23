@@ -217,7 +217,9 @@ understeer data was found for either car.
 - Lot Autocross (412 m cone course, 69 cones: slalom, sweeper, offset, hairpin), Proving Ground (timed
   quarter-mile strip, 30 m skidpad, kerb strip, gravel patch), Quarry Road
   Stage (1001 m, gravel changing to tarmac at 758 m), Ridgeline Circuit
-  (fictional 2.85 km closed circuit, 38 m of elevation, banked corners).
+  (fictional 2.85 km closed circuit, 38 m of elevation, banked corners),
+  Harrow Drift Park (fictional 1.91 km drift course with linked corners, a
+  hairpin, a carousel, paved run-off and painted clipping points, D-113).
 
 ## What is stubbed or missing
 

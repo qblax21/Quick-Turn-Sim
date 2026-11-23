@@ -12,8 +12,9 @@ pub const CARS: [&str; 4] = [
     "hatch_tern_gt_lsd",
     "sedan_halden_e4",
 ];
-pub const TRACKS: [&str; 4] = [
+pub const TRACKS: [&str; 5] = [
     "autocross_lot",
+    "harrow_drift_park",
     "test_track",
     "gravel_stage",
     "ridgeline_circuit",

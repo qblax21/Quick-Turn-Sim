@@ -2231,3 +2231,35 @@ built from its data's dimensions like the other cars.
 
 About 11 800 faces. The overhangs stay equal: the car's data gives no
 front overhang.
+
+## D-113 Harrow Drift Park
+
+A fictional track laid out for drifting (`data/tracks/harrow_drift_park.toml`),
+not a copy of any real venue. A script lays out the segments, solves the
+last two elements so the lap closes exactly, and checks that no two
+distant parts of the course come within two road widths of each other.
+The closest are the hairpin's legs, 35 m apart centre to centre.
+
+- **Layout.** 1.91 km, clockwise, on a 14 m road:
+  - a 200 m start straight into T1 to T3, linked sweepers (right 60 m,
+    left 42 m, right 38 m);
+  - a 16 m left hairpin;
+  - T5 to T7, a linked right-left-right (34, 28 and 24 m);
+  - a 479 m back straight into T9, a 180 degree carousel of 133 m radius.
+- **Run-off.** Paved, 10 m beyond the road edge through every corner and
+  30 m either side of it, then dirt, then barriers 26 m from the centre
+  line. Every barrier span is checked clear of the rest of the course.
+  Track limits are the road and the kerbs (8.2 m either side), so a lap
+  run wide onto the run-off does not count.
+- **Kerbs.** Low rumble kerbs (1.2 m wide, 30 mm high) on the outside of
+  each corner's exit.
+- **Clipping points**, painted, with no effect on the simulation, as
+  drift judging uses them: an inner clipping point (ICP) just inside the
+  road's inner edge at each apex, and an outer clipping zone (OCZ) painted
+  1 m in from the outside edge over the middle half of each corner.
+- **Timing.** A start/finish gate at 30 m and three checkpoints.
+
+Tests (`tests/drift_track.rs`): every corner has its inner point and its
+outer zone in the right place, and the Kestrel RC with the path follower
+drives a counted lap (102.7 s). The track joins the shared track list, so
+the smoke and content tests run on it too.

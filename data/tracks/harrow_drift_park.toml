@@ -1,0 +1,655 @@
+# SPDX-License-Identifier: CC-BY-4.0
+# Harrow Drift Park: a FICTIONAL track laid out for drifting (D-113).
+#
+# Original layout, placeholder quality, not a copy of any real venue.
+# Distances in metres, angles in degrees; negative arcs turn right, so the
+# lap runs clockwise. A 14 m road with paved run-off at every corner,
+# linked corners, sweepers and a hairpin, with painted clipping points:
+# an inner clipping point (ICP) at each apex and an outer clipping zone
+# (OCZ) along the outside of each corner, as drift judging uses them.
+#
+#   distance  element
+#         0   straight, 200 m
+#       200   T1: right, 90 degrees, radius 60 m
+#       294   T2: left, 115 degrees, radius 42 m
+#       379   T3: right, 140 degrees, radius 38 m
+#       471   straight, 45 m
+#       516   T4: left, 175 degrees, radius 16 m
+#       565   straight, 85 m
+#       650   T5: right, 95 degrees, radius 34 m
+#       707   T6: left, 75 degrees, radius 28 m
+#       743   T7: right, 165 degrees, radius 24 m
+#       812   straight, 120 m
+#       932   T8: right, 55 degrees, radius 40 m
+#       971   straight, 479 m
+#      1449   T9: right, 180 degrees, radius 133 m
+#      1867   straight, 40 m
+
+id = "harrow_drift_park"
+name = "Harrow Drift Park"
+description = "Fictional 1.91 km drift course: linked sweepers, a tight hairpin, a linked right-left-right and a long back straight into a 180 degree carousel, with paved run-off and painted clipping points."
+default_surface = "dirt"
+air_temp_c = 20.0
+road_temp_c = 28.0
+ground_half_extent_m = 700.0
+
+[spawn]
+x = 0.0
+y = 0.0
+heading_deg = 0.0
+
+[[paths]]
+id = "circuit"
+start_x = 0.0
+start_y = 0.0
+start_heading_deg = 0.0
+segments = [
+    { kind = "straight", length_m = 200.000 },
+    { kind = "arc", radius_m = 60.000, angle_deg = -90.0 },  # T1
+    { kind = "arc", radius_m = 42.000, angle_deg = 115.0 },  # T2
+    { kind = "arc", radius_m = 38.000, angle_deg = -140.0 },  # T3
+    { kind = "straight", length_m = 45.000 },
+    { kind = "arc", radius_m = 16.000, angle_deg = 175.0 },  # T4
+    { kind = "straight", length_m = 85.000 },
+    { kind = "arc", radius_m = 34.000, angle_deg = -95.0 },  # T5
+    { kind = "arc", radius_m = 28.000, angle_deg = 75.0 },  # T6
+    { kind = "arc", radius_m = 24.000, angle_deg = -165.0 },  # T7
+    { kind = "straight", length_m = 120.000 },
+    { kind = "arc", radius_m = 40.000, angle_deg = -55.0 },  # T8
+    { kind = "straight", length_m = 478.585 },
+    { kind = "arc", radius_m = 132.833, angle_deg = -180.0 },  # T9
+    { kind = "straight", length_m = 40.000 },
+]
+
+# Track limits: the road and the kerbs. Run-off is paved but beyond them.
+[track_limits]
+path = "circuit"
+half_width_m = 8.2
+
+[[regions]]
+kind = "path"
+surface = "tarmac"
+path = "circuit"
+from_m = 0.0
+to_m = 1906.7
+half_width_m = 7.0
+
+# Paved run-off, 10 m beyond the road edge, through every corner and
+# 30 m either side of it.
+[[regions]]
+kind = "path"
+surface = "tarmac"
+path = "circuit"
+from_m = 170.0
+to_m = 324.2
+half_width_m = 17.0
+
+[[regions]]
+kind = "path"
+surface = "tarmac"
+path = "circuit"
+from_m = 264.2
+to_m = 408.5
+half_width_m = 17.0
+
+[[regions]]
+kind = "path"
+surface = "tarmac"
+path = "circuit"
+from_m = 348.5
+to_m = 501.4
+half_width_m = 17.0
+
+[[regions]]
+kind = "path"
+surface = "tarmac"
+path = "circuit"
+from_m = 486.4
+to_m = 595.3
+half_width_m = 17.0
+
+[[regions]]
+kind = "path"
+surface = "tarmac"
+path = "circuit"
+from_m = 620.3
+to_m = 736.6
+half_width_m = 17.0
+
+[[regions]]
+kind = "path"
+surface = "tarmac"
+path = "circuit"
+from_m = 676.6
+to_m = 773.3
+half_width_m = 17.0
+
+[[regions]]
+kind = "path"
+surface = "tarmac"
+path = "circuit"
+from_m = 713.3
+to_m = 842.4
+half_width_m = 17.0
+
+[[regions]]
+kind = "path"
+surface = "tarmac"
+path = "circuit"
+from_m = 902.4
+to_m = 1000.8
+half_width_m = 17.0
+
+[[regions]]
+kind = "path"
+surface = "tarmac"
+path = "circuit"
+from_m = 1419.4
+to_m = 1896.7
+half_width_m = 17.0
+
+# Low rumble kerbs, 1.2 m wide and 30 mm high, on the outside of each
+# corner's exit, where the rear of a car in a slide runs out to.
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 256.5
+to_m = 309.2
+side = "left"
+inner_m = 7.0
+width_m = 1.2
+height_m = 0.03
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 344.8
+to_m = 393.5
+side = "right"
+inner_m = 7.0
+width_m = 1.2
+height_m = 0.03
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 434.3
+to_m = 486.4
+side = "left"
+inner_m = 7.0
+width_m = 1.2
+height_m = 0.03
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 545.7
+to_m = 580.3
+side = "right"
+inner_m = 7.0
+width_m = 1.2
+height_m = 0.03
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 684.1
+to_m = 721.6
+side = "left"
+inner_m = 7.0
+width_m = 1.2
+height_m = 0.03
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 728.6
+to_m = 758.3
+side = "right"
+inner_m = 7.0
+width_m = 1.2
+height_m = 0.03
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 784.8
+to_m = 827.4
+side = "left"
+inner_m = 7.0
+width_m = 1.2
+height_m = 0.03
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 955.4
+to_m = 985.8
+side = "left"
+inner_m = 7.0
+width_m = 1.2
+height_m = 0.03
+
+[[regions]]
+kind = "kerb"
+surface = "kerb"
+path = "circuit"
+from_m = 1699.8
+to_m = 1881.7
+side = "left"
+inner_m = 7.0
+width_m = 1.2
+height_m = 0.03
+
+[[gates]]
+kind = "start_finish"
+path = "circuit"
+at_m = 30.0
+half_width_m = 7.0
+
+[[gates]]
+kind = "checkpoint"
+path = "circuit"
+at_m = 600.0
+half_width_m = 17.0
+
+[[gates]]
+kind = "checkpoint"
+path = "circuit"
+at_m = 1000.0
+half_width_m = 17.0
+
+[[gates]]
+kind = "checkpoint"
+path = "circuit"
+at_m = 1500.0
+half_width_m = 17.0
+
+# Clipping points, painted: they have no effect on the simulation.
+[[markers]]
+kind = "circle"
+center_x = 237.05
+center_y = -22.95
+radius_m = 0.9
+label = "ICP T1"
+
+[[markers]]
+kind = "line"
+x1 = 225.26
+y1 = 0.98
+x2 = 240.45
+y2 = -7.85
+label = "OCZ T1"
+
+[[markers]]
+kind = "line"
+x1 = 240.45
+y1 = -7.85
+x2 = 252.15
+y2 = -19.55
+label = "OCZ T1"
+
+[[markers]]
+kind = "line"
+x1 = 252.15
+y1 = -19.55
+x2 = 260.98
+y2 = -34.74
+label = "OCZ T1"
+
+[[markers]]
+kind = "circle"
+center_x = 283.52
+center_y = -89.01
+radius_m = 0.9
+label = "ICP T2"
+
+[[markers]]
+kind = "line"
+x1 = 259.92
+y1 = -83.09
+x2 = 270.07
+y2 = -95.84
+label = "OCZ T2"
+
+[[markers]]
+kind = "line"
+x1 = 270.07
+y1 = -95.84
+x2 = 283.01
+y2 = -104.09
+label = "OCZ T2"
+
+[[markers]]
+kind = "line"
+x1 = 283.01
+y1 = -104.09
+x2 = 298.86
+y2 = -107.90
+label = "OCZ T2"
+
+[[markers]]
+kind = "circle"
+center_x = 357.31
+center_y = -111.01
+radius_m = 0.9
+label = "ICP T3"
+
+[[markers]]
+kind = "line"
+x1 = 343.45
+y1 = -89.17
+x2 = 360.29
+y2 = -95.94
+label = "OCZ T3"
+
+[[markers]]
+kind = "line"
+x1 = 360.29
+y1 = -95.94
+x2 = 372.37
+y2 = -108.03
+label = "OCZ T3"
+
+[[markers]]
+kind = "line"
+x1 = 372.37
+y1 = -108.03
+x2 = 379.14
+y2 = -124.86
+label = "OCZ T3"
+
+[[markers]]
+kind = "circle"
+center_x = 361.85
+center_y = -203.56
+radius_m = 0.9
+label = "ICP T4"
+
+[[markers]]
+kind = "line"
+x1 = 344.90
+y1 = -203.18
+x2 = 351.15
+y2 = -212.59
+label = "OCZ T4"
+
+[[markers]]
+kind = "line"
+x1 = 351.15
+y1 = -212.59
+x2 = 360.60
+y2 = -217.50
+label = "OCZ T4"
+
+[[markers]]
+kind = "line"
+x1 = 360.60
+y1 = -217.50
+x2 = 371.89
+y2 = -217.23
+label = "OCZ T4"
+
+[[markers]]
+kind = "circle"
+center_x = 445.82
+center_y = -121.72
+radius_m = 0.9
+label = "ICP T5"
+
+[[markers]]
+kind = "line"
+x1 = 427.88
+y1 = -115.24
+x2 = 437.79
+y2 = -109.93
+label = "OCZ T5"
+
+[[markers]]
+kind = "line"
+x1 = 437.79
+y1 = -109.93
+x2 = 448.12
+y2 = -107.64
+label = "OCZ T5"
+
+[[markers]]
+kind = "line"
+x1 = 448.12
+y1 = -107.64
+x2 = 459.34
+y2 = -108.27
+label = "OCZ T5"
+
+[[markers]]
+kind = "circle"
+center_x = 487.99
+center_y = -117.09
+radius_m = 0.9
+label = "ICP T6"
+
+[[markers]]
+kind = "line"
+x1 = 477.58
+y1 = -129.35
+x2 = 485.02
+y2 = -130.65
+label = "OCZ T6"
+
+[[markers]]
+kind = "line"
+x1 = 485.02
+y1 = -130.65
+x2 = 492.12
+y2 = -130.34
+label = "OCZ T6"
+
+[[markers]]
+kind = "line"
+x1 = 492.12
+y1 = -130.34
+x2 = 499.42
+y2 = -128.40
+label = "OCZ T6"
+
+[[markers]]
+kind = "circle"
+center_x = 531.60
+center_y = -124.45
+radius_m = 0.9
+label = "ICP T7"
+
+[[markers]]
+kind = "line"
+x1 = 521.17
+y1 = -106.55
+x2 = 535.20
+y2 = -110.38
+label = "OCZ T7"
+
+[[markers]]
+kind = "line"
+x1 = 535.20
+y1 = -110.38
+x2 = 545.30
+y2 = -119.64
+label = "OCZ T7"
+
+[[markers]]
+kind = "line"
+x1 = 545.30
+y1 = -119.64
+x2 = 550.34
+y2 = -133.28
+label = "OCZ T7"
+
+[[markers]]
+kind = "circle"
+center_x = 453.55
+center_y = -254.40
+radius_m = 0.9
+label = "ICP T8"
+
+[[markers]]
+kind = "line"
+x1 = 468.91
+y1 = -260.25
+x2 = 462.89
+y2 = -264.72
+label = "OCZ T8"
+
+[[markers]]
+kind = "line"
+x1 = 462.89
+y1 = -264.72
+x2 = 456.63
+y2 = -267.98
+label = "OCZ T8"
+
+[[markers]]
+kind = "line"
+x1 = 456.63
+y1 = -267.98
+x2 = 449.52
+y2 = -270.35
+label = "OCZ T8"
+
+[[markers]]
+kind = "circle"
+center_x = -165.23
+center_y = -132.83
+radius_m = 0.9
+label = "ICP T9"
+
+[[markers]]
+kind = "line"
+x1 = -138.17
+y1 = -231.00
+x2 = -174.47
+y2 = -167.36
+label = "OCZ T9"
+
+[[markers]]
+kind = "line"
+x1 = -174.47
+y1 = -167.36
+x2 = -174.47
+y2 = -98.31
+label = "OCZ T9"
+
+[[markers]]
+kind = "line"
+x1 = -174.47
+y1 = -98.31
+x2 = -138.17
+y2 = -34.66
+label = "OCZ T9"
+
+[trees]
+seed = 31
+spacing_m = 9.0
+per_point = 3
+keep_clear_m = 34.0
+reach_m = 90.0
+
+# Barriers on the outside of each corner, 26 m from the centre line, and
+# along both sides of the straights 20 m out; each span is checked clear of
+# every other part of the course by the generator.
+[[barriers]]
+path = "circuit"
+from_m = 180.0
+to_m = 313.0
+offset_m = 26.0
+
+[[barriers]]
+path = "circuit"
+from_m = 274.0
+to_m = 397.0
+offset_m = -26.0
+
+[[barriers]]
+path = "circuit"
+from_m = 358.0
+to_m = 462.0
+offset_m = 26.0
+
+[[barriers]]
+path = "circuit"
+from_m = 496.0
+to_m = 584.0
+offset_m = -26.0
+
+[[barriers]]
+path = "circuit"
+from_m = 630.0
+to_m = 725.0
+offset_m = 26.0
+
+[[barriers]]
+path = "circuit"
+from_m = 686.0
+to_m = 762.0
+offset_m = -26.0
+
+[[barriers]]
+path = "circuit"
+from_m = 723.0
+to_m = 831.0
+offset_m = 26.0
+
+[[barriers]]
+path = "circuit"
+from_m = 912.0
+to_m = 989.0
+offset_m = 26.0
+
+[[barriers]]
+path = "circuit"
+from_m = 1429.0
+to_m = 1885.0
+offset_m = 26.0
+
+[[barriers]]
+path = "circuit"
+from_m = 25.0
+to_m = 174.0
+offset_m = 20.0
+
+[[barriers]]
+path = "circuit"
+from_m = 25.0
+to_m = 174.0
+offset_m = -20.0
+
+[[barriers]]
+path = "circuit"
+from_m = 837.0
+to_m = 906.0
+offset_m = 20.0
+
+[[barriers]]
+path = "circuit"
+from_m = 837.0
+to_m = 906.0
+offset_m = -20.0
+
+[[barriers]]
+path = "circuit"
+from_m = 995.0
+to_m = 1423.0
+offset_m = 20.0
+
+[[barriers]]
+path = "circuit"
+from_m = 995.0
+to_m = 1423.0
+offset_m = -20.0
+
