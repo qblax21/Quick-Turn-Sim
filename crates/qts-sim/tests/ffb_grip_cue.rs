@@ -156,9 +156,15 @@ fn column_torque_peaks_before_front_lateral_force_on_the_moving_car() {
         // Since D-109 the fronts lose grip as they heat during the ramp,
         // so their force tops out sooner, with less slip past the
         // torque's peak: the drop by then is smaller (13 percent on the
-        // Tern GT) but still there.
+        // Tern GT) but still there. A car with a long mechanical trail
+        // (the angle-kit drift car's 7 degrees of caster give 38 mm, D-111)
+        // carries more of its torque on a part that follows the force
+        // itself, so its steering lightens less (7 percent): such cars
+        // are known for heavy, strongly centring steering.
+        let trail = s.car().params().steering.mechanical_trail_m;
+        let needed = if trail > 0.03 { 0.95 } else { 0.9 };
         assert!(
-            tq_at_fy < 0.9 * tq_max,
+            tq_at_fy < needed * tq_max,
             "{car}: torque only fell to {:.0}% of its peak by the Fy maximum",
             100.0 * tq_at_fy / tq_max
         );

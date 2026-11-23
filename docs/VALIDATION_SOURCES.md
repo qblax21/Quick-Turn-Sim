@@ -85,6 +85,51 @@ Not found: weight distribution (62 % front is a placeholder), rev limit
 (6500 rpm placeholder), the hatch's own skidpad figure, and the
 construction of the optional limited-slip differential.
 
+## Kestrel RC and the Mazda RX-7 (FC3S, 1986 to 1992) (D-111)
+
+The Kestrel RC is fictional. Its base is the second-generation Mazda
+RX-7 coupe (FC3S, 13B twin-rotor), in the turbo form that drift builds
+usually start from: the 1987 RX-7 Turbo II. On top of that it is built
+as a modified drift car at the owner's request: about 1.5 times the
+factory power, coilovers, lowering, an angle kit and a locked
+differential. No validation targets: the car is no longer the stock one.
+
+**Stock factory power: 133 kW (180 PS, 178 bhp) at 6500 rpm, and 247 N.m
+at 3500 rpm**, from [Carfolio, 1987 Mazda RX-7 Turbo II](https://www.carfolio.com/mazda-rx-7-turbo-ii-615868),
+read first-hand 2026-11-22. One and a half times that is 200 kW, the
+Kestrel RC's peak at 6500 rpm. Other sources give 182 hp for the US car
+and 200 hp for the 1989 to 1991 update (auto-data.net, search results);
+the build is based on the 1987 figure.
+
+| Figure | Value | Source | Status |
+| --- | --- | --- | --- |
+| Kerb weight | 1250 kg | Carfolio (above) | read first-hand |
+| Wheelbase, tracks | 2430 mm; 1450 / 1440 mm | Carfolio | read first-hand |
+| Length, width, height | 4290, 1690, 1265 mm | Carfolio | read first-hand |
+| Drag coefficient | 0.29 | Carfolio | read first-hand; frontal area (1.75 m2) not found, **unverified** |
+| Tires | 205/55 VR16 on 7J x 16 | Carfolio | read first-hand; the tire file is the project's placeholder compound scaled to that size |
+| Top gear, final drive | 0.76, 4.10 | Carfolio | read first-hand |
+| Gears 1 to 5 | 3.483, 2.015, 1.391, 1.000, 0.762 | Lapmeta and a rotary club forum archive, seen in search results | **unverified** (top gear agrees with Carfolio) |
+| Reverse | 3.288 | rx7.net.nz, the later FD3S's sheet (read first-hand) | **unverified** for this car |
+| Weight on the front axle | 50.5 % | the maker's launch figure, quoted in search results; Car Throttle questions the "50:50" claim | **unverified** |
+| Steering, 2.9 turns lock to lock | 522 degrees each way | rx7.net.nz, the later FD3S's sheet | **unverified** for this car |
+| Brakes | vented discs all round, ABS | Carfolio | read first-hand; four-piston fronts from search results, **unverified**; torques are placeholders |
+| Rev limit | 7000 rpm | commonly given, not found in a primary source | **unverified** |
+
+The build, all **estimated and unverified**:
+
+| Change | Value | Basis |
+| --- | --- | --- |
+| Power | 1.5 times the stock torque at every speed: 370 N.m peak, 200 kW at 6500 rpm | the owner's brief; the shape of the stock curve between the two published points is estimated |
+| Coilovers | 8 kgf/mm front, 6 kgf/mm rear (78.5 and 58.8 N/mm); ride 2.5 and 1.9 Hz | common street and drift rates for this chassis |
+| Dampers | 0.35 of critical in bump, 0.6 in rebound | placeholder |
+| Lowering | 30 mm | placeholder |
+| Angle kit | 60 degrees of lock (63 inner, 58 outer); Ackermann 0.2 of ideal; caster 7 degrees | FC kits from FDF (Mantis, "up to 70 degrees depending on wheel size and offset", adjustable Ackermann) and FAT ("up to 71 degrees") seen in search results; 60 is taken as a decent rather than maximum kit |
+| Steering ratio | 8.70 overall | 60 degrees on the same 522 degrees of wheel travel: kits gain lock with shorter steering arms |
+| Differential | locked (welded or spool) | the owner's brief |
+| Clutch | 600 N.m | uprated for the torque; placeholder |
+| Anti-lock and traction control | off | drift builds disconnect ABS for the handbrake; placeholder |
+
 ## Clutch-pack limited-slip differential (D-107)
 
 Used by `hatch_tern_gt_lsd` and whenever a clutch pack is fitted in the

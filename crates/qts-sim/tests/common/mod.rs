@@ -6,7 +6,12 @@ use qts_sim::session::{Session, SessionConfig};
 use qts_sim::DataRoot;
 use qts_vehicle::Assists;
 
-pub const CARS: [&str; 3] = ["hatch_tern_gt", "hatch_tern_gt_lsd", "sedan_halden_e4"];
+pub const CARS: [&str; 4] = [
+    "coupe_kestrel_rc",
+    "hatch_tern_gt",
+    "hatch_tern_gt_lsd",
+    "sedan_halden_e4",
+];
 pub const TRACKS: [&str; 4] = [
     "autocross_lot",
     "test_track",

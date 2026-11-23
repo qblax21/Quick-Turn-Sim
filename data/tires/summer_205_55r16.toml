@@ -1,0 +1,107 @@
+# SPDX-License-Identifier: CC-BY-4.0
+# Placeholder summer performance tire in 205/55 R16 for the RX-7 FC drift
+# car: the 1987 RX-7 Turbo II's standard size, 205/55 VR16 on 7J x 16
+# (Carfolio; docs/VALIDATION_SOURCES.md). Derived from summer_195_55r16
+# by width (205/195); the compound coefficients are the same placeholders.
+#
+# NOT DATA FOR ANY REAL TIRE. Every value is a stand-in chosen so the model
+# behaves like a generic summer road tire. Replace with fitted coefficients
+# when measured data exists. Magic Formula coefficient names follow PAC2002.
+
+id = "summer_205_55r16"
+name = "Summer 205/55 R16 (placeholder)"
+description = "Generic summer performance road tire, placeholder coefficients."
+
+[geometry]
+unloaded_radius_m = { value = 0.316, source = "205/55 R16: 8 inch rim radius plus 55 percent of 205 mm, 315.95 mm", confidence = "estimated" }
+width_m = { value = 0.205, source = "nominal section width of a 205/55 R16", confidence = "estimated" }
+
+[vertical]
+stiffness_n_per_m = { value = 226775.5, source = "scaled from the 195/55 R16 placeholder by section width (205/195)", confidence = "placeholder" }
+damping_n_s_per_m = { value = 450.0, source = "small value for numerical damping of wheel hop", confidence = "placeholder" }
+nominal_load_n = { value = 4047.4, source = "scaled from the 195/55 R16 placeholder by section width (205/195)", confidence = "placeholder" }
+nominal_pressure_pa = { value = 331000.0, source = "the hatch's 2.3 bar gauge setting as the reference", confidence = "placeholder" }
+rolling_resistance_coefficient = { value = 0.011, source = "typical range 0.008-0.013 for road tires", confidence = "placeholder" }
+
+[magic_formula]
+pcx1 = { value = 1.50, source = "lowered from 1.60 after driver feedback that a spinning tire lost too much grip; sliding force is now about 75 percent of peak, not a fit", confidence = "placeholder" }
+pdx1 = { value = 1.22, source = "raised from 1.15: validation braking and launch were short of target and the driver reported low grip; not a fit", confidence = "placeholder" }
+pdx2 = { value = -0.08, source = "mild load sensitivity", confidence = "placeholder" }
+pex1 = { value = 0.10, source = "textbook-typical curvature", confidence = "placeholder" }
+pex2 = { value = 0.0, source = "not modelled yet", confidence = "placeholder" }
+pkx1 = { value = 21.0, source = "slip stiffness about 21 x load", confidence = "placeholder" }
+pkx2 = { value = 0.0, source = "not modelled yet", confidence = "placeholder" }
+pkx3 = { value = 0.15, source = "mild load dependence", confidence = "placeholder" }
+pcy1 = { value = 1.35, source = "textbook-typical shape factor", confidence = "placeholder" }
+pdy1 = { value = 1.12, source = "raised from 1.07: validation skidpad was below target and the driver reported low grip; not a fit", confidence = "placeholder" }
+pdy2 = { value = -0.16, source = "load sensitivity giving about 4 percent grip loss per kN", confidence = "placeholder" }
+pdy3 = { value = 2.0, source = "grip loss with camber squared", confidence = "placeholder" }
+pey1 = { value = -0.6, source = "textbook-typical curvature", confidence = "placeholder" }
+pey2 = { value = 0.0, source = "not modelled yet", confidence = "placeholder" }
+pky1 = { value = 21.0, source = "cornering stiffness about 0.26 x load per degree at nominal load", confidence = "placeholder" }
+pky2 = { value = 2.0, source = "cornering stiffness peaks at twice nominal load", confidence = "placeholder" }
+pky3 = { value = 0.3, source = "small camber effect on cornering stiffness", confidence = "placeholder" }
+pvy3 = { value = 1.0, source = "camber thrust about 1.7 percent of load per degree", confidence = "placeholder" }
+rbx1 = { value = 16.0, source = "raised from 12 (D-087) so combined braking and cornering stays inside the friction ellipse of the pure peaks (it reached 3 to 4 percent beyond at 6 degrees); still a placeholder shape, not a fit", confidence = "placeholder" }
+rbx2 = { value = 10.0, source = "textbook-typical combined-slip weighting", confidence = "placeholder" }
+rcx1 = { value = 1.0, source = "textbook-typical combined-slip weighting", confidence = "placeholder" }
+rby1 = { value = 10.0, source = "textbook-typical combined-slip weighting", confidence = "placeholder" }
+rby2 = { value = 8.0, source = "textbook-typical combined-slip weighting", confidence = "placeholder" }
+rby3 = { value = 0.0, source = "symmetric tire", confidence = "placeholder" }
+rcy1 = { value = 1.0, source = "textbook-typical combined-slip weighting", confidence = "placeholder" }
+qbz1 = { value = 10.0, source = "textbook-typical pneumatic trail shape", confidence = "placeholder" }
+qbz2 = { value = -1.0, source = "textbook-typical pneumatic trail shape", confidence = "placeholder" }
+qcz1 = { value = 1.1, source = "textbook-typical pneumatic trail shape", confidence = "placeholder" }
+qdz1 = { value = 0.10, source = "peak trail about 3 cm at nominal load", confidence = "placeholder" }
+qdz2 = { value = -0.01, source = "small load dependence", confidence = "placeholder" }
+qez1 = { value = -1.5, source = "textbook-typical pneumatic trail shape", confidence = "placeholder" }
+
+[transient]
+carcass_stiffness_long_n_per_m = { value = 523433.3, source = "scaled from the 195/55 R16 placeholder by section width (205/195)", confidence = "placeholder" }
+carcass_stiffness_lat_n_per_m = { value = 165731.1, source = "scaled from the 195/55 R16 placeholder by section width (205/195)", confidence = "placeholder" }
+min_relaxation_length_m = { value = 0.02, source = "numerical floor", confidence = "placeholder" }
+low_speed_damping_n_s_per_m = { value = 3000.0, source = "enough to damp standstill oscillation", confidence = "placeholder" }
+low_speed_threshold_m_per_s = { value = 2.5, source = "fade-out speed for the low-speed damping", confidence = "placeholder" }
+slip_ratio_limit = { value = 2.0, source = "anti-windup bound", confidence = "placeholder" }
+slip_tangent_limit = { value = 5.0, source = "anti-windup bound, about 79 degrees", confidence = "placeholder" }
+
+[thermal]
+surface_heat_capacity_j_per_k = { value = 800.0, source = "thin tread layer, order of magnitude", confidence = "placeholder" }
+core_heat_capacity_j_per_k = { value = 6560.0, source = "scaled from the 195/55 R16 placeholder by section width (205/195)", confidence = "placeholder" }
+carcass_heat_capacity_j_per_k = { value = 9566.7, source = "scaled from the 195/55 R16 placeholder by section width (205/195)", confidence = "placeholder" }
+gas_heat_capacity_j_per_k = { value = 100.0, source = "about 0.14 kg of air at constant volume", confidence = "estimated" }
+conductance_surface_core_w_per_k = { value = 120.0, source = "order of magnitude", confidence = "placeholder" }
+conductance_core_carcass_w_per_k = { value = 60.0, source = "order of magnitude", confidence = "placeholder" }
+conductance_carcass_gas_w_per_k = { value = 15.0, source = "order of magnitude", confidence = "placeholder" }
+conductance_surface_road_w_per_k = { value = 40.0, source = "order of magnitude", confidence = "placeholder" }
+convection_surface_w_per_k = { value = 8.0, source = "order of magnitude", confidence = "placeholder" }
+convection_surface_speed_gain = { value = 2.0, source = "order of magnitude", confidence = "placeholder" }
+convection_carcass_w_per_k = { value = 6.0, source = "order of magnitude", confidence = "placeholder" }
+convection_carcass_speed_gain = { value = 0.6, source = "order of magnitude", confidence = "placeholder" }
+friction_heat_fraction = { value = 0.6, source = "share of sliding heat entering the tire rather than the road", confidence = "placeholder" }
+hysteresis_core_fraction = { value = 0.5, source = "even split of rolling loss between tread and carcass", confidence = "placeholder" }
+optimal_temp_c = { value = 30.0, source = "D-109: grip highest at about 30 C, the coolest point of the published data, where grip was highest; Singh and Sivaramakrishnan (Goodyear), arXiv:2305.18422, Table 3 and Figure 26: a high-performance summer tire on a Flat-Trac loses about 10 percent of peak grip and 20 to 25 percent of cornering stiffness from cold (about 30 C) to hot (about 70 C). One tire, so unverified for this one (docs/VALIDATION_SOURCES.md)", confidence = "estimated" }
+temp_window_c = { value = 38.0, source = "D-109: with the 0.85 floor, gives 10 percent less grip at 70 C than at 30 C; Singh and Sivaramakrishnan (Goodyear), arXiv:2305.18422, Table 3 and Figure 26: a high-performance summer tire on a Flat-Trac loses about 10 percent of peak grip and 20 to 25 percent of cornering stiffness from cold (about 30 C) to hot (about 70 C). One tire, unverified for this one", confidence = "estimated" }
+min_grip_factor = { value = 0.85, source = "grip floor far from the optimum", confidence = "placeholder" }
+surface_weight = { value = 0.6, source = "surface dominates the grip temperature", confidence = "placeholder" }
+stiffness_temp_sensitivity_per_k = { value = 0.006, source = "D-109: three times the earlier 0.002, so cornering stiffness falls 22.6 percent from 30 to 70 C carcass; Singh and Sivaramakrishnan (Goodyear), arXiv:2305.18422, Table 3 and Figure 26: a high-performance summer tire on a Flat-Trac loses about 10 percent of peak grip and 20 to 25 percent of cornering stiffness from cold (about 30 C) to hot (about 70 C). One tire, unverified for this one", confidence = "estimated" }
+reference_temp_c = { value = 40.0, source = "temperature the stiffness coefficients are taken to apply at", confidence = "placeholder" }
+
+[pressure]
+cold_pressure_pa = { value = 331000.0, source = "2.3 bar gauge set cold, as on the hatch before", confidence = "placeholder" }
+cold_temp_c = { value = 20.0, source = "temperature at which the cold pressure is set", confidence = "placeholder" }
+ppx1 = { value = -0.3, source = "slip stiffness falls with pressure", confidence = "placeholder" }
+ppx3 = { value = -0.1, source = "friction falls slightly with pressure", confidence = "placeholder" }
+ppx4 = { value = 0.0, source = "not modelled yet", confidence = "placeholder" }
+ppy1 = { value = 0.4, source = "peak cornering stiffness rises with pressure", confidence = "placeholder" }
+ppy2 = { value = 1.3, source = "load of peak cornering stiffness rises with pressure", confidence = "placeholder" }
+ppy3 = { value = -0.1, source = "friction falls slightly with pressure", confidence = "placeholder" }
+ppy4 = { value = 0.0, source = "not modelled yet", confidence = "placeholder" }
+pfz1 = { value = 0.7, source = "vertical stiffness rises with pressure", confidence = "placeholder" }
+carcass_stiffness_sensitivity = { value = 0.5, source = "carcass stiffens with pressure", confidence = "placeholder" }
+
+[wear]
+rate_per_mj = { value = 0.005, source = "a scripted Ridgeline lap at about 0.7 g dissipates some 0.5 MJ of sliding on the busiest front tire; set so that lap uses a quarter of a percent of the tread, which puts tread life at a few hundred laps, fewer the harder the tires are worked; an estimate of track-day life, not a measurement", confidence = "placeholder" }
+grip_loss_at_full_wear = { value = 0.08, source = "compound ageing and graining over the tire's life; a shallower tread alone does not lose dry grip", confidence = "placeholder" }
+stiffness_gain_at_full_wear = { value = 0.15, source = "less tread depth to squirm; worn tires are known to respond more sharply", confidence = "placeholder" }
+tread_heat_capacity_share = { value = 0.5, source = "about half of the tread surface and bulk heat capacity is rubber worn away by the end of the usable tread", confidence = "placeholder" }

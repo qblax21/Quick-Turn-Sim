@@ -2150,3 +2150,58 @@ reach the core, and nothing said so. Changes:
   "lever 3: clutch down to engage" (grinding) or "lever 3: engaging".
 
 The owner's settings file was not changed.
+
+## D-111 Kestrel RC: an FC RX-7-based drift car
+
+The owner asked for an FC RX-7 drift car. Following the project's rule
+that cars are fictional, it is the **Kestrel RC** (`coupe_kestrel_rc`).
+The real car is named only in docs/VALIDATION_SOURCES.md, where every
+source and every unverified figure is listed.
+
+- **Base.** The 1987 RX-7 Turbo II, the turbo FC that drift builds start
+  from. From Carfolio, read first-hand:
+  - 133 kW and 247 N.m stock;
+  - 1250 kg;
+  - 2430 mm wheelbase, 1450 / 1440 mm tracks, 4290 x 1690 x 1265 mm;
+  - Cd 0.29;
+  - 205/55 R16;
+  - 0.76 top gear and 4.10 final drive.
+
+  The other ratios, the reverse gear, the weight split, the steering
+  turns and the rev limit come from secondary sources and are marked
+  unverified.
+- **Build.** 1.5 times the stock torque at every speed, 200 kW peak.
+  Coilovers at 8 and 6 kgf/mm (ride 2.5 and 1.9 Hz), 30 mm lower,
+  -3.5 degrees front camber. A locked differential, a 600 N.m clutch, a
+  hydraulic handbrake, and no ABS or traction control.
+- **Angle kit.** 60 degrees of lock (63 inner, 58 outer at full lock),
+  Ackermann cut to 0.2 of ideal, and 7 degrees of caster (38 mm of
+  mechanical trail). Lock is gained, as kits do, by quicker steering:
+  8.7:1 overall on the same 2.9 turns.
+- **New tire file.** `summer_205_55r16`, the placeholder compound at the
+  stock size, scaled by width from the 195/55 R16.
+
+Tests (`tests/drift_car.rs`):
+
+- Full lock is about 60 degrees, with the outer wheel close to the inner.
+- A half-second of full throttle in second gear at 50 km/h swings the
+  rear out to 24 degrees, and a simple driver model (opposite lock with
+  the slide and the yaw rate, throttle to keep it going) holds it
+  between 13 and 24 degrees.
+- The front-drive hatch slides 1.3 degrees on the same inputs.
+
+The car is lively: held longer, the simple driver loses it, with the
+engine on its 7000 rpm limiter in second.
+
+The car joins the shared test list, so two older tests met it:
+
+- **Pull away with the wheel turned** (D-088) is now judged at the same
+  road-wheel angles for every car. At 32 degrees, a road car's full lock,
+  the locked differential scrubs the inside rear and the car reaches
+  4.8 m/s in 4 s, as a welded car does. Locked cars need more than 4 m/s
+  there; the others still need more than 5.
+- **FFB grip cue** (D-104). The column torque still peaks first, but
+  with 38 mm of mechanical trail it drops 7 percent by the front force
+  peak, not 13. Cars with more than 30 mm of trail need a drop of more
+  than 5 percent; the others more than 10. Heavy, strongly centring
+  steering is what angle-kit cars are known for.

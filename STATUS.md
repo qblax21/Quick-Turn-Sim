@@ -207,6 +207,9 @@ understeer data was found for either car.
 - Telemetry recording from the keyboard; F3 saves the replay so far.
 
 ### Content
+- Kestrel RC, a fictional rear-drive rotary turbo coupe built as a drift
+  car (based on the 1987 Mazda RX-7 Turbo II, D-111): 200 kW, coilovers,
+  a 60 degree angle kit and a locked differential.
 - Tern GT, a fictional small three-door turbocharged hatch (based on the
   2011 MINI Cooper S, D-093), with a limited-slip variant.
 - Halden E4, a fictional dual-motor electric sedan.
