@@ -2205,3 +2205,29 @@ The car joins the shared test list, so two older tests met it:
   peak, not 13. Cars with more than 30 mm of trail need a drop of more
   than 5 percent; the others more than 10. Heavy, strongly centring
   steering is what angle-kit cars are known for.
+
+## D-112 The Kestrel RC drawn as a white FC-style coupe
+
+A new "wedge" style in `tools/blender/make_car.py` draws the Kestrel RC
+(D-111) as a white, low, rear-drive coupe in the manner of its comparable,
+built from its data's dimensions like the other cars.
+
+- **Shape.** A sharp wedge nose and a long bonnet; a steeply raked screen
+  and a short roof running into a large curved glass hatch over a short
+  tail; blistered wings, the doors and bumpers pulled in up to 30 mm
+  away from the wheels. Two doors, with a quarter glass whose back edge
+  leans forward under the hatch.
+- **Pop-up headlamps.** Shown raised: a box in the paint standing on each
+  front corner of the bonnet, with a dark bezel, a lens and two lamp
+  units, and the cover's shut line round its foot.
+- **Details.** A scoop on the bonnet; a black rubbing strip and a slim
+  mesh intake across the bumper; amber indicators and side markers; a
+  black side moulding along the doors; a full-width red tail-lamp band
+  with a dark centre and bright bars; a small black lip at the foot of
+  the rear glass; one pipe on the left.
+- **Finish.** White paint, silver split five-spoke wheels, dark
+  calipers. No badge, name or maker's lamp or grille graphic is
+  reproduced.
+
+About 11 800 faces. The overhangs stay equal: the car's data gives no
+front overhang.

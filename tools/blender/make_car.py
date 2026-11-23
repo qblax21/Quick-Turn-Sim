@@ -37,7 +37,10 @@ SUBDIVISIONS = 2
 # Styles by car id. A car not listed gets "hatch" under 4.3 m, else "sedan".
 # "small" is the upright three-door (the Tern GT since D-094); "hatch" the
 # five-door hot hatch it was drawn as before.
+# "wedge" is the low rear-drive coupe with pop-up headlamps (the Kestrel RC,
+# D-112).
 STYLES = {
+    "coupe_kestrel_rc": "wedge",
     "hatch_tern_gt": "small",
     "sedan_halden_e4": "sedan",
 }
@@ -147,10 +150,12 @@ def make_materials(style):
         paint, alloy, caliper = (0.55, 0.02, 0.018), (0.80, 0.80, 0.78), (0.16, 0.16, 0.17)
     elif style == "hatch":
         paint, alloy, caliper = (0.58, 0.03, 0.025), (0.60, 0.61, 0.64), (0.62, 0.03, 0.02)
+    elif style == "wedge":
+        paint, alloy, caliper = (0.80, 0.80, 0.78), (0.58, 0.59, 0.62), (0.16, 0.16, 0.17)
     else:
         paint, alloy, caliper = (0.05, 0.20, 0.58), (0.13, 0.135, 0.145), (0.62, 0.03, 0.02)
     return {
-        "paint": material("paint", paint, 0.2, 0.55),
+        "paint": material("paint", paint, 0.2, 0.08 if style == "wedge" else 0.55),
         "roof": material("roof", (0.86, 0.86, 0.84), 0.22, 0.1),
         "amber": material("indicator", (0.8, 0.4, 0.02), 0.15, 0.0, (1.0, 0.5, 0.05), 0.4),
         "glass": material("glass", (0.015, 0.02, 0.025), 0.04, 0.4),
@@ -219,6 +224,36 @@ def body_design(d):
         windows = [
             [(sb + 0.12, 0.04), (b - 0.04, 0.04), (b - 0.04, 0.93), (st_ + 0.05, 0.93)],
             [(b + 0.04, 0.04), (rear_top - 0.05, 0.04), (rear_top - 0.26, 0.93), (b + 0.04, 0.93)],
+        ]
+    elif d["style"] == "wedge":
+        # Low rear-drive coupe: a sharp wedge nose with pop-up lamps, a long
+        # bonnet, a steeply raked screen, a short roof running into a large
+        # curved glass hatch over a short tail. Two doors.
+        sb, st_ = fa + 0.70, fa + 1.50
+        rear_top, rear_base = ra - 0.55, L - 0.42
+        st = [
+            (0.00, 0.22, 0.78, 0.30, 0.32),
+            (0.06, 0.10, 0.90, 0.36, 0.385),
+            (0.20, 0.03, 0.97, 0.42, 0.445),
+            (0.45, 0.01, 0.99, 0.46, 0.485),
+            (fa, 0.00, 1.00, 0.50, 0.525),
+            (sb, 0.00, 1.00, 0.53, 0.555),
+            (0.5 * (sb + st_), 0.00, 1.00, 0.54, 0.78),
+            (st_, 0.00, 1.00, 0.55, 0.975),
+            (0.5 * (st_ + rear_top), 0.00, 1.00, 0.56, 1.00),
+            (rear_top, 0.00, 0.995, 0.57, 0.99),
+            (0.5 * (rear_top + rear_base), 0.02, 0.99, 0.60, 0.86),
+            (rear_base, 0.05, 0.97, 0.63, 0.705),
+            (L - 0.18, 0.10, 0.95, 0.64, 0.685),
+            (L - 0.04, 0.18, 0.90, 0.63, 0.665),
+            (L, 0.26, 0.84, 0.60, 0.635),
+        ]
+        b = rear_top + 0.01
+        q = None
+        windows = [
+            [(sb + 0.16, 0.04), (b - 0.04, 0.04), (b - 0.04, 0.92), (st_ + 0.05, 0.92)],
+            # Quarter glass, its back edge leaning forward under the hatch.
+            [(b + 0.04, 0.04), (b + 0.42, 0.04), (b + 0.18, 0.88), (b + 0.04, 0.88)],
         ]
     elif d["style"] == "hatch":
         # Hot hatch: upright nose, near-horizontal bonnet, long flat roof
@@ -814,6 +849,8 @@ def add_details(d, body, mats, frame, stations, places):
         add_sedan_ends(det, d, frame, places, front_belt, rear_belt)
     elif d["style"] == "small":
         add_small_ends(det, d, frame, places, front_belt, rear_belt)
+    elif d["style"] == "wedge":
+        add_wedge_ends(det, d, frame, places, front_belt, rear_belt)
     else:
         add_hatch_ends(det, d, frame, places, front_belt, rear_belt)
     if det.missed:
@@ -1006,6 +1043,100 @@ def add_small_ends(det, d, frame, places, front_belt, rear_belt):
         for x in (-0.075, 0.075):
             det.cylinder("tailpipe", "chrome", 0.036, 0.09, (x, loc.y - 0.02, zv + 0.045), (math.pi / 2, 0.0, 0.0))
             det.cylinder("tailpipe_bore", "under", 0.029, 0.092, (x, loc.y - 0.02, zv + 0.045), (math.pi / 2, 0.0, 0.0))
+
+
+def add_wedge_ends(det, d, frame, places, front_belt, rear_belt):
+    """Pop-up headlamps standing up from the corners of a low wedge nose,
+    a black rubbing strip and a slim intake in the bumper, corner
+    indicators, a scoop on the bonnet; a full-width tail-lamp band, a
+    small lip over the rear glass, a single pipe; a side moulding."""
+    hw, L = frame.hw, d["length"]
+    fwd, back, down = (0.0, -1.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, -1.0)
+    yn, yt = frame.y(0.0), frame.y(L)
+    # Pop-up headlamps, raised: a box in the paint standing on the bonnet
+    # with a lamp lens in its front face, and the shut line of the cover
+    # round its foot.
+    s0, s1 = 0.17, 0.36
+    for side in (1.0, -1.0):
+        x = side * 0.60 * hw
+        loc, _ = det.hit((x, frame.y(0.5 * (s0 + s1)), frame.roof(0.5 * (s0 + s1))), down)
+        z0 = loc.z if loc is not None else frame.roof(s1)
+        w, depth, height = 0.36, s1 - s0, 0.13
+        y_mid = frame.y(0.5 * (s0 + s1))
+        det.solid("popup", "paint", (w, depth, height), (x, y_mid, z0 + 0.5 * height - 0.01), bevel=0.012)
+        y_face = frame.y(s0) + 0.003
+        det.solid("popup_bezel", "trim", (w - 0.03, 0.01, height - 0.035), (x, y_face, z0 + 0.5 * height), bevel=0.0)
+        det.solid("popup_lens", "lens", (w - 0.06, 0.012, height - 0.06), (x, y_face + 0.002, z0 + 0.5 * height), bevel=0.0)
+        det.solid("popup_lamp", "head", (0.10, 0.014, 0.05), (x - side * 0.06, y_face + 0.003, z0 + 0.5 * height), bevel=0.0)
+        det.solid("popup_lamp", "head", (0.10, 0.014, 0.05), (x + side * 0.06, y_face + 0.003, z0 + 0.5 * height), bevel=0.0)
+        rim = [(x - 0.5 * w - 0.01, frame.y(s0 - 0.01), 0.0), (x + 0.5 * w + 0.01, frame.y(s0 - 0.01), 0.0),
+               (x + 0.5 * w + 0.01, frame.y(s1 + 0.01), 0.0), (x - 0.5 * w - 0.01, frame.y(s1 + 0.01), 0.0)]
+        det.line("popup_gap", [(px, py, z0 + 0.3) for px, py, _ in rim + rim[:1]], down)
+    # Bonnet shut line: across behind the nose and back along each wing.
+    sb = places["screen"][0]
+    det.line("bonnet_gap", [(-0.80 * hw, frame.y(0.12), frame.roof(0.12)), (0.80 * hw, frame.y(0.12), frame.roof(0.12))], down)
+    for side in (1.0, -1.0):
+        det.line("bonnet_gap", [(side * 0.80 * hw, frame.y(0.12), frame.roof(0.12)), (side * 0.84 * hw, frame.y(sb - 0.05), frame.roof(sb - 0.05))], down)
+    # Bonnet scoop, a little behind the middle.
+    a0, a1 = 0.62, 0.95
+
+    def scoop(xx):
+        l0, _ = det.hit((xx, frame.y(a0), frame.roof(a0)), down)
+        l1, _ = det.hit((xx, frame.y(a1), frame.roof(a1)), down)
+        z0 = l0.z if l0 is not None else frame.roof(a0)
+        z1 = l1.z if l1 is not None else frame.roof(a1)
+        return [(frame.y(a0), z0 + 0.04), (frame.y(a1), z1 + 0.004), (frame.y(a1), z1 - 0.02), (frame.y(a0), z0 - 0.02)]
+
+    det.extrude_x("bonnet_scoop", "paint", scoop, [0.22 * (2 * k / 6 - 1) for k in range(7)])
+    l0, _ = det.hit((0.0, frame.y(a0), frame.roof(a0)), down)
+    if l0 is not None:
+        det.solid("scoop_mouth", "gloss_black", (0.40, 0.006, 0.03), (0.0, frame.y(a0) + 0.001, l0.z + 0.016), bevel=0.0)
+    # Bumper: a black rubbing strip across the nose, a slim intake below,
+    # amber indicators at the corners, the plate between.
+    zr = frame.lift(0.03) + 0.17
+    det.line("rub_strip", [(-0.88 * hw, yn, zr), (0.88 * hw, yn, zr)], fwd, width=0.045, mat="trim", lift=0.006)
+    zi = frame.lift(0.03) + 0.04
+    det.panel("intake", "trim", [(-0.62 * hw, yn, zi), (0.62 * hw, yn, zi), (0.58 * hw, yn, zi + 0.07), (-0.58 * hw, yn, zi + 0.07)], fwd)
+    det.panel("intake_mesh", "honeycomb", [(-0.58 * hw, yn, zi + 0.01), (0.58 * hw, yn, zi + 0.01), (0.55 * hw, yn, zi + 0.06), (-0.55 * hw, yn, zi + 0.06)],
+              fwd, lift=0.006, tile=0.05)
+    for side in (1.0, -1.0):
+        det.panel("indicator", "amber", [(side * 0.66 * hw, yn, zr + 0.035), (side * 0.90 * hw, yn, zr + 0.03),
+                                         (side * 0.90 * hw, yn, zr + 0.075), (side * 0.66 * hw, yn, zr + 0.08)], fwd, lift=0.007)
+        det.panel("side_marker", "amber", [(side * hw, frame.y(0.10), zr + 0.03), (side * hw, frame.y(0.22), zr + 0.03),
+                                           (side * hw, frame.y(0.22), zr + 0.06), (side * hw, frame.y(0.10), zr + 0.06)], (-side, 0.0, 0.0))
+    det.panel("front_plate", "plate", [(-0.24, yn, zr - 0.13), (0.24, yn, zr - 0.13), (0.24, yn, zr - 0.025), (-0.24, yn, zr - 0.025)], fwd, lift=0.009)
+    # Side moulding along the doors, between the wheels.
+    ax = axles(d)
+    for side in (1.0, -1.0):
+        zm = frame.zf + 0.30
+        y0 = ax[0]["y"] - ax[0]["r"] - ARCH_GAP - 0.08
+        y1 = ax[1]["y"] + ax[1]["r"] + ARCH_GAP + 0.08
+        det.line("side_moulding", [(side * hw, y0, zm), (side * hw, y1, zm)], (-side, 0.0, 0.0), width=0.04, mat="trim", lift=0.005)
+    # Rear: a small black lip at the foot of the glass, a full-width lamp
+    # band with a dark centre, the plate and one pipe on the left.
+    rt, rb = places["rear"]
+
+    def lip(xx):
+        l, _ = det.hit((xx, frame.y(rb + 0.02), frame.roof(rb + 0.02)), down)
+        z0 = l.z if l is not None else frame.roof(rb)
+        return [(frame.y(rb - 0.02), z0 - 0.003), (frame.y(rb + 0.08), z0 + 0.02), (frame.y(rb + 0.09), z0 + 0.01), (frame.y(rb + 0.02), z0 - 0.01)]
+
+    det.extrude_x("lip_spoiler", "gloss_black", lip, [0.78 * hw * (2 * k / 10 - 1) for k in range(11)])
+    zt0, zt1 = rear_belt - 0.15, rear_belt - 0.03
+    det.panel("taillamp", "tail", [(-0.86 * hw, yt, zt0), (0.86 * hw, yt, zt0), (0.86 * hw, yt, zt1), (-0.86 * hw, yt, zt1)], back)
+    det.panel("tail_centre", "gloss_black", [(-0.32 * hw, yt, zt0 + 0.01), (0.32 * hw, yt, zt0 + 0.01), (0.32 * hw, yt, zt1 - 0.01), (-0.32 * hw, yt, zt1 - 0.01)],
+              back, lift=0.007)
+    for side in (1.0, -1.0):
+        det.panel("taillamp_bar", "tail_bright", [(side * 0.40 * hw, yt, zt0 + 0.05), (side * 0.82 * hw, yt, zt0 + 0.05),
+                                                  (side * 0.82 * hw, yt, zt0 + 0.075), (side * 0.40 * hw, yt, zt0 + 0.075)], back, lift=0.008)
+    det.line("hatch_gap", [(-0.80 * hw, yt, zt1 + 0.02), (0.80 * hw, yt, zt1 + 0.02)], back, lift=0.009)
+    det.panel("rear_plate", "plate", [(-0.24, yt, zt0 - 0.15), (0.24, yt, zt0 - 0.15), (0.24, yt, zt0 - 0.04), (-0.24, yt, zt0 - 0.04)], back, lift=0.008)
+    zv = frame.lift(L - 0.04) + 0.01
+    det.panel("valance", "trim", [(-0.84 * hw, yt, zv), (0.84 * hw, yt, zv), (0.84 * hw, yt, zv + 0.08), (-0.84 * hw, yt, zv + 0.08)], back)
+    l, _ = det.hit((-0.55 * hw, yt, zv + 0.04), back)
+    if l is not None:
+        det.cylinder("tailpipe", "chrome", 0.045, 0.10, (-0.55 * hw, l.y - 0.02, zv + 0.04), (math.pi / 2, 0.0, 0.0))
+        det.cylinder("tailpipe_bore", "under", 0.037, 0.102, (-0.55 * hw, l.y - 0.02, zv + 0.04), (math.pi / 2, 0.0, 0.0))
 
 
 def add_sedan_ends(det, d, frame, places, front_belt, rear_belt):
@@ -1347,6 +1478,9 @@ def main():
     body = build_body(d, mats, frame, stations, places)
     if d["style"] == "small":
         flare_arches(d, body, frame)
+    elif d["style"] == "wedge":
+        # Blistered wings over both axles.
+        flare_arches(d, body, frame, inset=0.03)
     cut_arches(d, body)
     bpy.context.view_layer.objects.active = body
     body.select_set(True)
