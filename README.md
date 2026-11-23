@@ -115,6 +115,7 @@ wheel setup** first: assign and calibrate the axes, choose the wheel under
 | Log the force feedback for the next full lap | F5 |
 | Frame time and physics step overlay | F6 |
 | Coach: last lap corner by corner against the best | F7 |
+| Drift judging: last lap corner by corner (drift tracks) | F9 |
 | Starter (engine stalled: clutch down first) | I |
 | Photo mode: free camera, depth of field, high-res stills | F8 |
 | Hide everything on screen | H |

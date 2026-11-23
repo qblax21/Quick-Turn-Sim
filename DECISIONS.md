@@ -2263,3 +2263,58 @@ Tests (`tests/drift_track.rs`): every corner has its inner point and its
 outer zone in the right place, and the Kestrel RC with the path follower
 drives a counted lap (102.7 s). The track joins the shared track list, so
 the smoke and content tests run on it too.
+
+## D-114 Drift judging
+
+The clipping points painted on Harrow Drift Park (D-113) now judge.
+`qts-sim/src/drift.rs` scores each judged corner of a drift track on the
+three things competition drift judging marks: line, angle and style.
+It is display only, read from the session like the lap telemetry. The
+split of 35, 35 and 30 points follows what US professional drifting has
+been reported to use (not verified against a current rulebook); the
+thresholds below are this project's choice.
+
+- **Line** (35): half for the inner clipping point and half for the outer
+  clipping zone.
+  - Inner point: full marks with the nearest corner of the car's body
+    within 0.5 m of it, nothing beyond 4 m.
+  - Outer zone: full marks if the middle of the rear bumper reaches the
+    zone's line while inside it, nothing 4 m or more short.
+- **Angle** (35): the mean body slip angle through the zone, nothing at
+  5 degrees or less, full marks at 35 or more.
+- **Style** (30): the share of the zone spent sliding (10 degrees or
+  more), less 30 % of the marks each time the car straightens (under
+  5 degrees) and slides again.
+- **Penalties** zero the corner: a spin (more than 110 degrees), or all
+  four wheels off the course for more than half a second.
+- **A lap** scores the mean of its corners, out of 100; a corner not
+  passed scores nothing. The best counted lap is kept for the session.
+
+Tracks declare zones in a new optional `[drift]` section: each corner's
+extent, its inner clipping point (distance along the path and offset)
+and its outer zone (extent and offset). Harrow's generator writes them
+from the same geometry as the painted marks. The host samples the car
+at 100 Hz on the physics thread.
+
+**On screen** (drift tracks only):
+
+- Under the map: the live slip angle, the corner being judged, the last
+  corner's score with its line, angle and style marks, and the lap so far.
+- After each lap, for 12 s and on F9: every corner's score with its
+  marks and the reason (mean angle, share sliding, distance to the inner
+  point, the outer zone reached or how far short, or the penalty), plus
+  the lap's score and the best.
+
+**Tests** (`tests/drift_judging.rs`):
+
+- A committed slide on both clipping points scores 100.
+- Driving round on grip scores under 6.
+- Half the angle gives half the angle marks, and 2 m short of the outer
+  zone gives half its marks.
+- Straightening mid-corner costs style.
+- A spin, or 0.7 s off course, zeroes the corner; 0.2 s off does not.
+- Harrow's zones match the painted points to 5 cm.
+- On a lap driven down the centre line on grip, every corner is judged
+  with the inner point about 7 m away, no angle marks and no penalty.
+- During a real power slide the judge's angle follows the car's slip
+  within 3 degrees.

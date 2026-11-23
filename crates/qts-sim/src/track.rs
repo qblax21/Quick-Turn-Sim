@@ -83,6 +83,41 @@ pub struct TrackDef {
     /// Track limits: the road a lap must stay on.
     #[serde(default)]
     pub track_limits: Option<TrackLimitsDef>,
+    /// Drift judging zones, on a track laid out for drifting (D-114).
+    #[serde(default)]
+    pub drift: Option<DriftDef>,
+}
+
+/// Drift judging: one zone per judged corner along a path.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DriftDef {
+    /// Path the zones are measured along.
+    pub path: String,
+    /// Zones in lap order.
+    pub zones: Vec<DriftZoneDef>,
+}
+
+/// One judged corner. Offsets are across the path, positive to the left.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DriftZoneDef {
+    /// Name shown in results, such as "T3".
+    pub name: String,
+    /// Start of the zone along the path, m.
+    pub from_m: f64,
+    /// End of the zone along the path, m.
+    pub to_m: f64,
+    /// Inner clipping point: distance along the path, m.
+    pub icp_at_m: f64,
+    /// Inner clipping point: offset across the path, m.
+    pub icp_offset_m: f64,
+    /// Outer clipping zone: start along the path, m.
+    pub ocz_from_m: f64,
+    /// Outer clipping zone: end along the path, m.
+    pub ocz_to_m: f64,
+    /// Outer clipping zone: offset of its line across the path, m.
+    pub ocz_offset_m: f64,
 }
 
 /// The road a lap must stay on: within `half_width_m` of a path, or on a

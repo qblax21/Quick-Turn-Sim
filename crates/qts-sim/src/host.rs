@@ -458,6 +458,7 @@ struct Published {
 struct Shared {
     stop: AtomicBool,
     coach: Mutex<Option<Arc<Mutex<crate::coach::CoachSlot>>>>,
+    drift: Mutex<Option<Arc<Mutex<crate::drift::DriftSlot>>>>,
     input: Mutex<InputSlot>,
     commands: Mutex<Vec<HostCommand>>,
     published: Mutex<Published>,
@@ -470,6 +471,7 @@ impl Shared {
         Arc::new(Shared {
             stop: AtomicBool::new(false),
             coach: Mutex::new(None),
+            drift: Mutex::new(None),
             input: Mutex::new(InputSlot::default()),
             commands: Mutex::new(Vec::new()),
             published: Mutex::new(Published {
@@ -581,6 +583,14 @@ impl RealtimeHost {
     /// against the best lap before it (D-106).
     pub fn coach(&self) -> crate::coach::CoachSlot {
         lock(&self.shared.coach)
+            .as_ref()
+            .map(|slot| lock(slot).clone())
+            .unwrap_or_default()
+    }
+
+    /// The drift judge's state (D-114): inactive on a track without zones.
+    pub fn drift(&self) -> crate::drift::DriftSlot {
+        lock(&self.shared.drift)
             .as_ref()
             .map(|slot| lock(slot).clone())
             .unwrap_or_default()
@@ -712,6 +722,7 @@ struct SimThread {
     recorder: Option<ReplayRecorder>,
     ghost: GhostRecorder,
     coach: crate::coach::CoachRecorder,
+    drift: crate::drift::DriftJudge,
     row: Vec<f64>,
     // Input interpolation.
     seen_sequence: u64,
@@ -785,7 +796,10 @@ impl SimThread {
                 .map(|p| p.with_extension("coach.csv")),
         );
         *lock(&shared.coach) = Some(coach.slot());
+        let drift = crate::drift::DriftJudge::new(&session);
+        *lock(&shared.drift) = Some(drift.slot());
         Self {
+            drift,
             ghost: GhostRecorder::new(saved),
             coach,
             session,
@@ -1152,6 +1166,7 @@ impl SimThread {
             laps.observe(&self.session, &frame, &sample);
         }
         self.coach.observe(&self.session, &frame);
+        self.drift.observe(&self.session);
         if let Some(recorder) = self.recorder.as_mut() {
             recorder.record(frame, &self.session);
         }

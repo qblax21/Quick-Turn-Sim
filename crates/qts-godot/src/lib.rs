@@ -775,6 +775,58 @@ impl SimBridge {
     /// there is none); `visible` is true while a run is in progress and the
     /// ghost has not finished its lap, and then `transform` and `wheels`
     /// are laid out like `car_transform` and `wheel_states`.
+    /// The drift judge (D-114): `active` (the track has zones), live
+    /// `angle` and `zone`, the `last_zone` result, `lap_so_far` and
+    /// `zones_so_far`, and after each lap `serial`, `lap_total`,
+    /// `lap_counted`, `best` and `zones` (one dictionary per corner).
+    #[func]
+    fn drift(&self) -> VarDictionary {
+        let Some(host) = &self.host else {
+            return VarDictionary::new();
+        };
+        let d = host.drift();
+        let zone_dict = |z: &qts_sim::drift::ZoneScore| {
+            vd! {
+                "name" => gstr(&z.name),
+                "total" => z.total,
+                "line" => z.line,
+                "angle" => z.angle,
+                "style" => z.style,
+                "penalty" => z.penalty.is_some(),
+                "text" => gstr(&z.describe()),
+            }
+        };
+        let mut zones: Array<VarDictionary> = Array::new();
+        let (mut lap_total, mut lap_counted) = (0.0, false);
+        if let Some(lap) = &d.last_lap {
+            lap_total = lap.total;
+            lap_counted = lap.counted;
+            for z in &lap.zones {
+                match z {
+                    Some(z) => zones.push(&zone_dict(z)),
+                    None => {
+                        zones.push(&vd! { "name" => gstr("-"), "total" => 0.0, "missed" => true })
+                    }
+                }
+            }
+        }
+        vd! {
+            "active" => d.active,
+            "angle" => d.angle_deg,
+            "zone" => gstr(d.zone.as_deref().unwrap_or("")),
+            "has_last_zone" => d.last_zone.is_some(),
+            "last_zone" => d.last_zone.as_ref().map(zone_dict).unwrap_or_default(),
+            "lap_so_far" => d.lap_so_far,
+            "zones_so_far" => i64::from(d.zones_so_far),
+            "serial" => i64::from(d.serial),
+            "has_lap" => d.last_lap.is_some(),
+            "lap_total" => lap_total,
+            "lap_counted" => lap_counted,
+            "best" => d.best_total.unwrap_or(-1.0),
+            "zones" => zones,
+        }
+    }
+
     #[func]
     fn coach(&self) -> VarDictionary {
         // The coach's newest report (D-106): `serial` counts reports;

@@ -9,6 +9,7 @@ const FfbMeter := preload("res://scripts/ffb_meter.gd")
 const PerfOverlay := preload("res://scripts/perf_overlay.gd")
 const DeltaBar := preload("res://scripts/delta_bar.gd")
 const CoachPanel := preload("res://scripts/coach_panel.gd")
+const DriftHud := preload("res://scripts/drift_hud.gd")
 
 var main_label: Label
 var time_label: Label
@@ -38,6 +39,7 @@ var ffb_meter
 var perf_overlay
 var delta_bar
 var coach_panel
+var drift_hud
 var coach_poll_at := 0.0
 var sim_ref
 
@@ -111,6 +113,11 @@ func _ready() -> void:
 	coach_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	coach_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	add_child(coach_panel)
+
+	# Drift judging, left, under the map; only on tracks with judged zones.
+	drift_hud = DriftHud.new()
+	drift_hud.position = Vector2(24, 470)
+	add_child(drift_hud)
 
 	# Track limits warning, large, under the time difference.
 	limits_label = Label.new()
@@ -196,6 +203,10 @@ func toggle_ffb_meter() -> void:
 	ffb_meter.visible = not ffb_meter.visible
 
 
+func toggle_drift_panel() -> void:
+	drift_hud.toggle_panel()
+
+
 func toggle_coach() -> void:
 	coach_panel.toggle()
 
@@ -262,6 +273,8 @@ func update(hud: Dictionary, status: Dictionary, input: Dictionary, telemetry_on
 	if sim_ref and now >= coach_poll_at:
 		coach_poll_at = now + 0.25
 		coach_panel.update_from(sim_ref.coach())
+	if sim_ref:
+		drift_hud.update_from(sim_ref.drift())
 
 	# What the physics used, wherever it was read.
 	input_bars["steer"].value = -hud.get("input_steer", input.steer)

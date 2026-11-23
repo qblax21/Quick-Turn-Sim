@@ -19,6 +19,7 @@ pub mod coach;
 pub mod cold_start;
 pub mod data;
 pub mod direct_input;
+pub mod drift;
 pub mod drivers;
 pub mod ffb_log;
 pub mod ghost;

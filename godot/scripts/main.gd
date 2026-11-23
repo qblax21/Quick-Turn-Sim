@@ -631,6 +631,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			hud.toggle_perf_overlay()
 		KEY_F7:
 			hud.toggle_coach()
+		KEY_F9:
+			hud.toggle_drift_panel()
 		KEY_F8:
 			_open_photo_mode()
 		KEY_F5:

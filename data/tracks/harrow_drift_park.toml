@@ -553,6 +553,102 @@ x2 = -138.17
 y2 = -34.66
 label = "OCZ T9"
 
+# Drift judging (D-114): one zone per corner, from 10 m before it (or the end
+# of the corner before) to its end, with the inner clipping point and the
+# outer clipping zone painted above. Offsets are across the path, left positive.
+[drift]
+path = "circuit"
+
+[[drift.zones]]
+name = "T1"
+from_m = 190.0
+to_m = 294.2
+icp_at_m = 247.1
+icp_offset_m = -7.6
+ocz_from_m = 223.6
+ocz_to_m = 270.7
+ocz_offset_m = 6.0
+
+[[drift.zones]]
+name = "T2"
+from_m = 294.2
+to_m = 378.5
+icp_at_m = 336.4
+icp_offset_m = 7.6
+ocz_from_m = 315.3
+ocz_to_m = 357.5
+ocz_offset_m = -6.0
+
+[[drift.zones]]
+name = "T3"
+from_m = 378.5
+to_m = 471.4
+icp_at_m = 425.0
+icp_offset_m = -7.6
+ocz_from_m = 401.8
+ocz_to_m = 448.2
+ocz_offset_m = 6.0
+
+[[drift.zones]]
+name = "T4"
+from_m = 506.4
+to_m = 565.3
+icp_at_m = 540.8
+icp_offset_m = 7.6
+ocz_from_m = 528.6
+ocz_to_m = 553.1
+ocz_offset_m = -6.0
+
+[[drift.zones]]
+name = "T5"
+from_m = 640.3
+to_m = 706.6
+icp_at_m = 678.5
+icp_offset_m = -7.6
+ocz_from_m = 664.4
+ocz_to_m = 692.5
+ocz_offset_m = 6.0
+
+[[drift.zones]]
+name = "T6"
+from_m = 706.6
+to_m = 743.3
+icp_at_m = 725.0
+icp_offset_m = 7.6
+ocz_from_m = 715.8
+ocz_to_m = 734.1
+ocz_offset_m = -6.0
+
+[[drift.zones]]
+name = "T7"
+from_m = 743.3
+to_m = 812.4
+icp_at_m = 777.9
+icp_offset_m = -7.6
+ocz_from_m = 760.6
+ocz_to_m = 795.1
+ocz_offset_m = 6.0
+
+[[drift.zones]]
+name = "T8"
+from_m = 922.4
+to_m = 970.8
+icp_at_m = 951.6
+icp_offset_m = -7.6
+ocz_from_m = 942.0
+ocz_to_m = 961.2
+ocz_offset_m = 6.0
+
+[[drift.zones]]
+name = "T9"
+from_m = 1439.4
+to_m = 1866.7
+icp_at_m = 1658.0
+icp_offset_m = -7.6
+ocz_from_m = 1553.7
+ocz_to_m = 1762.4
+ocz_offset_m = 6.0
+
 [trees]
 seed = 31
 spacing_m = 9.0
