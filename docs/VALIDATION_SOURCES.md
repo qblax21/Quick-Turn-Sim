@@ -414,3 +414,64 @@ validation wait for approval):
    class tire.
 5. **Understeer.** No published data for either car. A steady-state
    steering-angle sweep from a magazine or a measured run would be needed.
+
+## Kestrel RC handbrake torque (D-124)
+
+The placeholder 2,200 N·m per rear wheel is replaced by 1,300 N·m, worked
+out from parts a drift FC RX-7 (the Kestrel's comparable car) would carry:
+a hydraulic handbrake lever feeding the stock rear calipers.
+
+| Input | Value | Source | Confidence |
+|---|---|---|---|
+| Hand pull at full travel | 445 N (100 lb) | handbrake example in the Mark Williams brake pedal calculator; Tolomatic's master cylinder selection guide gives 75 lb as a design figure for lever effort | estimated |
+| Lever ratio | 11:1 | Wilwood hydraulic handbrake lever ("11:1 ratio H beam lever"), Wilwood flyer fl451 | published, for that lever |
+| Master cylinder bore | 3/4 in (2.85 cm²) | the bore hydraulic handbrake kits offer for OEM calipers (Voodoo13 HYHB-0101; a Wilwood handbrake listing with a 3/4 in compact master cylinder) | published, for those kits |
+| Line pressure | 17.2 MPa (2,490 psi) | 445 N × 11 / 2.85 cm² | worked out |
+| Rear caliper | one 33 mm piston, floating | a parts listing for an FC Turbo rear caliper (BuyBrakes, Dynamic Friction 331-80607); not a factory figure | single source, not verified |
+| Rear rotor | 273 mm | several FC rear rotor listings (Centric 121.45024 at 272.9 mm, PowerStop, RDA); one fitment table gives 294 mm for 1989-91, which other listings give for the FD | consistent across listings |
+| Pad friction | 0.40 | typical street pad | estimated |
+| Effective radius | 112 mm | rotor radius less half a 40 mm pad, rounded down | estimated |
+
+Torque per wheel = 2 × 0.40 × 17.2 MPa × 8.55 cm² × 0.112 m ≈ 1,315 N·m,
+rounded to 1,300. A 75 lb pull gives about 990 N·m.
+
+Effect in the simulation:
+- **Clutch down, as drifters pull it:** both rears lock at 14 m/s in second
+  gear while the fronts roll (`drift_car.rs`).
+- **Clutch engaged:** the engine holds them at 20 rad/s.
+- **Lower figures:** an earlier pass with a 5:1 lever (my guess, before
+  Wilwood's 11:1 was found) gave 600 N·m, which locked nothing. The rears
+  here need about 1,100 N·m to lock in a straight line, so a weak pull on a
+  lower-ratio lever would not lock them.
+
+Sources:
+- Wilwood hydraulic handbrake flyer: https://www.wilwood.com/Pdf/Flyers/fl451.pdf
+- Wilwood hydraulic handbrake levers: https://www.wilwood.com/Media/BrakingNewsDetail?id=100
+- Voodoo13 hydraulic handbrake: https://www.maperformance.com/products/voodoo13-hydraulic-handbrake-hyhb-0101
+- Mark Williams brake pedal calculator: https://www.markwilliams.com/brakepedalcalculator.html
+- Tolomatic, master cylinder selection: https://tolomatic.com/wp-content/uploads/2024/10/MasterCylinder_Selection.pdf
+- FC rear caliper listing: https://www.buybrakes.com/dynamic-friction-331-80607-premium-silver-zinc-coated-caliper
+- FC rear rotor: https://www.maperformance.com/products/centric-rear-standard-brake-rotor-1986-1991-mazda-rx-7-121-45024
+- Rear rotor fitment table: https://cararac.com/brake-discs/mazda/rx-7.html
+
+## The weave after a slide (D-124)
+
+No published frequency was found for a car's hands-off oscillation. ISO
+17288-1 (steering release, free-control behaviour) defines the test but its
+results are not public, and the search turned up none. Hands-off steering
+patents rate a yaw damping ratio under about 0.1 as poor. So it was checked
+inside the model instead (`drift_ffb.rs`):
+
+- **Steering held:** the car does not oscillate. The car alone is stable.
+- **Hands off, with the preset's force-feedback damping of 0.03
+  N·m·s/rad:** a lasting yaw oscillation, about 0.8 Hz (1.9 Hz at 0.1), with
+  the throttle closed and with it open. The loop between the force feedback
+  and a free, light rim (0.02 kg·m², estimated) is what oscillates.
+- **Damping:** base friction up to 0.4 N·m does not stop it. Force-feedback
+  damping of 0.2 N·m·s/rad does.
+
+Physics is unchanged. Whether a real CSL Elite weaves depends on its own
+internal damping, which is not published. The preset's damping is left for
+the F5 force-feedback logs, along with the gain.
+
+- ISO 17288-1 (steering release): https://knowledge.bsigroup.com/products/passenger-cars-free-steer-behaviour-steering-release-open-loop-test-method

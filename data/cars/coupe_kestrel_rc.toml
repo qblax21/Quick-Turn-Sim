@@ -90,7 +90,7 @@ torsion_damping_ratio = { value = 0.7, source = "as the Tern GT", confidence = "
 [brakes]
 max_torque_front_nm = { value = 2400.0, source = "vented front discs with four-piston calipers (Carfolio lists vented discs all round; four-piston fronts on the Turbo II from search results, not verified); torque enough to lock the fronts", confidence = "placeholder" }
 max_torque_rear_nm = { value = 1300.0, source = "vented rear discs; about 35 percent rear for a 50:50 car", confidence = "placeholder" }
-handbrake_torque_nm = { value = 2200.0, source = "hydraulic handbrake, as drift builds fit, enough to lock the rears at speed", confidence = "placeholder" }
+handbrake_torque_nm = { value = 1300.0, source = "per rear wheel at full pull, worked out from a hydraulic drift handbrake on the comparable car: 445 N (100 lb) pull on an 11:1 lever (Wilwood), 3/4 in master cylinder bore, 17.2 MPa; one 33 mm rear caliper piston (parts listing), pad friction 0.40 (estimated), effective radius 112 mm on the 273 mm rear rotor; a 75 lb pull gives 990 (D-124, docs/VALIDATION_SOURCES.md)", confidence = "estimated" }
 fade_temp_c = { value = [0.0, 100.0, 350.0, 500.0, 650.0, 800.0], source = "as the Tern GT: a road pad's friction against temperature", confidence = "placeholder" }
 fade_friction_factor = { value = [0.92, 1.0, 1.0, 0.85, 0.6, 0.45], source = "as fade_temp_c", confidence = "placeholder" }
 

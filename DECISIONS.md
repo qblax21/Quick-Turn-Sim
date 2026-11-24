@@ -2663,3 +2663,21 @@ already suggested a gain offline from scripted laps of every car. Added:
   120 s, three runs): 99.6 µs mean and 185 µs p99 before, 95.0 µs and
   179 µs after, within run-to-run noise. The meter's drawing cost was not
   measured on its own.
+
+## D-124 Handbrake torque from real parts; the weave is the FFB loop
+
+- **Handbrake:** 1,300 N·m per rear wheel at full pull (was a 2,200
+  placeholder). Worked out from an 11:1 Wilwood hydraulic lever, a 3/4 in
+  master cylinder, a 100 lb pull, the FC's single 33 mm rear piston and
+  273 mm rotor, pad friction 0.40. Sources and the working are in
+  `docs/VALIDATION_SOURCES.md`.
+  - The lock test now presses the clutch, as drifters do. With the clutch
+    engaged, the engine keeps the rears turning; a new test checks that.
+  - The computer driver's handbrake entry still works (36.6 degrees
+    through T1 and T2).
+- **Weave:** not the car. With the steering held there is none. Hands off,
+  it is the force-feedback loop around a light free rim: about 0.8 Hz at the
+  preset's 0.03 N·m·s/rad of damping, 1.9 Hz at 0.1, and gone at 0.2.
+  - No published hands-off figure was found to compare against.
+  - Physics is unchanged. The preset's damping is a candidate change once
+    the F5 logs arrive.

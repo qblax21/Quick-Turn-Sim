@@ -21,9 +21,18 @@ fn body_slip_deg(s: &Session) -> f64 {
     v[1].atan2(v[0].abs().max(0.5)).to_degrees()
 }
 
-/// One hands-off run. Returns per-ms (time s, rim angle as a fraction of
-/// the car's lock, body slip deg, rim rate rad/s).
-fn hands_off(rim_inertia: f64) -> Vec<(f64, f64, f64, f64)> {
+/// One hands-off run of `ms` milliseconds; from `hold_from_s` on, if
+/// given, the rim is held where it is instead (steering fixed). Returns
+/// per-ms (time s, rim angle as a fraction of the car's lock, body slip
+/// deg, rim rate rad/s, yaw rate rad/s, speed m/s).
+fn run(
+    rim_inertia: f64,
+    base_friction_nm: f64,
+    late_throttle: Option<f64>,
+    ffb_damping: Option<f64>,
+    ms: u32,
+    hold_from_s: Option<f64>,
+) -> Vec<(f64, f64, f64, f64, f64, f64)> {
     let config = SessionConfig {
         assists: Assists {
             auto_clutch: true,
@@ -44,6 +53,9 @@ fn hands_off(rim_inertia: f64) -> Vec<(f64, f64, f64, f64)> {
     // degrees each way) is inside it and the soft lock is the wall.
     let rotation = 1080_f64.to_radians();
     cfg.device_rotation_rad = rotation;
+    if let Some(d) = ffb_damping {
+        cfg.damping_nm_s_per_rad = d;
+    }
     let peak = cfg.device_max_torque_nm;
     let mut pipeline = FfbPipeline::new(cfg.clone(), s.tick_rate_hz()).unwrap();
     let frame = |steer: f64, throttle: f64| {
@@ -66,21 +78,49 @@ fn hands_off(rim_inertia: f64) -> Vec<(f64, f64, f64, f64)> {
     let (mut angle, mut rate) = (turn_in, 0.0_f64);
     let mut late = std::collections::VecDeque::from(vec![0.0; 4]);
     let mut out = Vec::new();
-    for t in 0..3000 {
+    for t in 0..ms {
         let read = (angle / step).round() * step;
         let slip = body_slip_deg(&s);
-        let throttle = (0.6 + 0.03 * (25.0 - slip.abs())).clamp(0.1, 1.0);
+        let mut throttle = (0.6 + 0.03 * (25.0 - slip.abs())).clamp(0.1, 1.0);
+        if let Some(late) = late_throttle.filter(|_| t >= 3000) {
+            throttle = late;
+        }
         s.step(&frame(
             matched_steer(read / (0.5 * rotation), rotation, lock),
             throttle,
         ));
         let sample = pipeline.step(&ffb_input(&s, Some(read)));
         late.push_back(f64::from(sample.device_command(&cfg)) * peak);
-        rate += late.pop_front().unwrap() / rim_inertia * 0.001;
+        let torque = late.pop_front().unwrap();
+        if hold_from_s.is_some_and(|h| f64::from(t) * 0.001 >= h) {
+            rate = 0.0;
+        } else {
+            // The base's own friction (belt and bearings), not published:
+            // it opposes motion and holds a still rim against small torques.
+            let moved = rate + torque / rim_inertia * 0.001;
+            let slow = base_friction_nm / rim_inertia * 0.001;
+            rate = if moved.abs() <= slow {
+                0.0
+            } else {
+                moved - slow * moved.signum()
+            };
+        }
         angle += rate * 0.001;
-        out.push((f64::from(t) * 0.001, angle / lock, slip, rate));
+        let o = s.car().output();
+        out.push((
+            f64::from(t) * 0.001,
+            angle / lock,
+            slip,
+            rate,
+            o.yaw_rate,
+            o.drive.engine_rpm,
+        ));
     }
     out
+}
+
+fn hands_off(rim_inertia: f64) -> Vec<(f64, f64, f64, f64, f64, f64)> {
+    run(rim_inertia, 0.0, None, None, 3000, None)
 }
 
 struct Summary {
@@ -94,7 +134,7 @@ struct Summary {
     wall_reversals: usize,
 }
 
-fn summarise(run: &[(f64, f64, f64, f64)]) -> Summary {
+fn summarise(run: &[(f64, f64, f64, f64, f64, f64)]) -> Summary {
     let to_counter_s = run
         .iter()
         .find(|r| r.1 < -1.0 / 3.0)
@@ -149,4 +189,88 @@ fn let_go_in_a_slide_the_wheel_snaps_into_opposite_lock() {
             m.wall_reversals
         );
     }
+}
+
+/// Frequency (Hz) and damping ratio of the yaw-rate oscillation from
+/// `from_s` on: zero crossings of the yaw rate about its mean, and the
+/// logarithmic decrement of successive peaks. `None` without two cycles.
+fn yaw_mode(run: &[(f64, f64, f64, f64, f64, f64)], from_s: f64) -> Option<(f64, f64, f64)> {
+    let part: Vec<_> = run.iter().filter(|r| r.0 >= from_s).collect();
+    let mean = part.iter().map(|r| r.4).sum::<f64>() / part.len() as f64;
+    let mut crossings = Vec::new();
+    for w in part.windows(2) {
+        if (w[0].4 - mean) < 0.0 && (w[1].4 - mean) >= 0.0 {
+            crossings.push(w[1].0);
+        }
+    }
+    if crossings.len() < 3 {
+        return None;
+    }
+    let period = (crossings[crossings.len() - 1] - crossings[0]) / (crossings.len() - 1) as f64;
+    // Peak of each cycle.
+    let peaks: Vec<f64> = crossings
+        .windows(2)
+        .map(|c| {
+            part.iter()
+                .filter(|r| r.0 >= c[0] && r.0 < c[1])
+                .map(|r| (r.4 - mean).abs())
+                .fold(0.0, f64::max)
+        })
+        .collect();
+    let n = peaks.len() - 1;
+    let delta = (peaks[0] / peaks[n].max(1e-9)).ln() / n as f64;
+    let zeta = delta / (4.0 * std::f64::consts::PI.powi(2) + delta * delta).sqrt();
+    let speed = part.iter().map(|r| r.5).sum::<f64>() / part.len() as f64;
+    Some((1.0 / period, zeta, speed))
+}
+
+/// The weave after the slide (D-124). Let go of the wheel once the slide
+/// is caught, throttle closed: with the preset's small force-feedback
+/// damping (0.03 N.m.s/rad) the free rim and the car keep a yaw oscillation
+/// going (0.8 Hz, about 0.8 rad/s; 1.9 Hz at 0.1); held steering shows none,
+/// so the car itself is stable and the oscillation is the force-feedback
+/// loop around a light free rim. At 0.2 N.m.s/rad it dies away. Real
+/// hands-off (ISO 17288-1 steering release) behaviour depends on steering
+/// friction and damping that are not published for this base, so physics
+/// is not changed; the preset's damping waits for the F5 logs with the
+/// gain.
+#[test]
+fn the_weave_after_a_slide_is_the_force_feedback_loop_not_the_car() {
+    let held = run(0.02, 0.0, Some(0.0), None, 8000, Some(3.0));
+    let amp = |r: &[(f64, f64, f64, f64, f64, f64)]| {
+        r.iter()
+            .filter(|x| x.0 >= 6.0)
+            .map(|x| x.4.abs())
+            .fold(0.0, f64::max)
+    };
+    eprintln!(
+        "steering held: {:?}, yaw amplitude after 6 s {:.3} rad/s",
+        yaw_mode(&held, 3.0),
+        amp(&held)
+    );
+    let mut amps = Vec::new();
+    for d in [0.03, 0.1, 0.2] {
+        let free = run(0.02, 0.0, Some(0.0), Some(d), 8000, None);
+        eprintln!(
+            "hands off, FFB damping {d}: {:?} (Hz, damping ratio, mean rpm); yaw amplitude after 6 s {:.3} rad/s",
+            yaw_mode(&free, 3.0),
+            amp(&free)
+        );
+        amps.push(amp(&free));
+    }
+    // Held where it was at 3 s, the car turns steadily: no oscillation.
+    assert!(
+        yaw_mode(&held, 3.0).is_none(),
+        "the car weaves with the steering held"
+    );
+    assert!(
+        amps[0] > 0.3,
+        "no weave at the preset's damping: {:.3}",
+        amps[0]
+    );
+    assert!(
+        amps[2] < 0.1,
+        "still weaving at 0.2 N.m.s/rad: {:.3}",
+        amps[2]
+    );
 }

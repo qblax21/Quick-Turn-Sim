@@ -120,11 +120,43 @@ fn power_breaks_the_rear_loose_and_the_slide_can_be_held() {
 }
 
 /// The handbrake through the whole input path (D-116): the handbrake axis
-/// of an input frame, full on at speed in second gear with the clutch left
-/// to the automatic, locks both rear wheels while the fronts keep rolling.
-/// The mapped button sets the same axis to full (direct_input.rs).
+/// of an input frame, pulled at speed in second gear with the clutch down
+/// as drifters do, locks both rear wheels while the fronts keep rolling.
+/// The mapped button sets the same axis to full (direct_input.rs). With
+/// the torque worked out from real parts (D-124) the clutch matters: left
+/// engaged, the engine turning through second gear keeps the rears turning
+/// (see `with_the_clutch_engaged_the_engine_keeps_the_rears_turning`).
 #[test]
 fn the_handbrake_locks_the_rear_wheels_at_speed() {
+    let mut s = manual_session(CAR);
+    let (x, y, h) = s.track().spawn();
+    s.car_mut().place(x, y, h, 0.0);
+    s.car_mut().set_forward_speed(15.0);
+    let mut second = InputFrame::from_analog(0.0, 0.2, 0.0, 0.0, 0.0);
+    second.gear_request = 2;
+    for _ in 0..800 {
+        s.step(&second);
+    }
+    let mut pull = InputFrame::from_analog(0.0, 0.0, 0.0, 1.0, 1.0);
+    pull.gear_request = 2;
+    for _ in 0..300 {
+        s.step(&pull);
+    }
+    let o = s.car().output();
+    let w: Vec<f64> = o.wheels.iter().map(|w| w.omega).collect();
+    eprintln!(
+        "handbrake at {:.1} m/s: wheel speeds {:.1} {:.1} {:.1} {:.1} rad/s",
+        o.speed, w[0], w[1], w[2], w[3]
+    );
+    assert!(o.speed > 8.0, "the car stopped: {:.1} m/s", o.speed);
+    assert!(w[2].abs() < 0.5 && w[3].abs() < 0.5, "rears turning: {w:?}");
+    assert!(w[0] > 20.0 && w[1] > 20.0, "fronts not rolling: {w:?}");
+}
+
+/// The same pull with the clutch left engaged (D-124): the engine, turning
+/// through second gear, holds the rears up against the handbrake.
+#[test]
+fn with_the_clutch_engaged_the_engine_keeps_the_rears_turning() {
     let mut s = manual_session(CAR);
     let (x, y, h) = s.track().spawn();
     s.car_mut().place(x, y, h, 0.0);
@@ -139,13 +171,10 @@ fn the_handbrake_locks_the_rear_wheels_at_speed() {
     for _ in 0..300 {
         s.step(&pull);
     }
-    let o = s.car().output();
-    let w: Vec<f64> = o.wheels.iter().map(|w| w.omega).collect();
+    let w: Vec<f64> = s.car().output().wheels.iter().map(|w| w.omega).collect();
     eprintln!(
-        "handbrake at {:.1} m/s: wheel speeds {:.1} {:.1} {:.1} {:.1} rad/s",
-        o.speed, w[0], w[1], w[2], w[3]
+        "clutch engaged: wheel speeds {:.1} {:.1} {:.1} {:.1} rad/s",
+        w[0], w[1], w[2], w[3]
     );
-    assert!(o.speed > 8.0, "the car stopped: {:.1} m/s", o.speed);
-    assert!(w[2].abs() < 0.5 && w[3].abs() < 0.5, "rears turning: {w:?}");
-    assert!(w[0] > 20.0 && w[1] > 20.0, "fronts not rolling: {w:?}");
+    assert!(w[2] > 10.0 && w[3] > 10.0, "rears locked: {w:?}");
 }
