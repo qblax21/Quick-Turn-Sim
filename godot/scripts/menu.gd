@@ -103,6 +103,13 @@ func _ready() -> void:
 	damage.button_pressed = settings.get_value("menu/engine_damage")
 	damage.toggled.connect(func(on: bool) -> void: settings.set_value("menu/engine_damage", on))
 	box.add_child(damage)
+	# A computer-driven car on the same track (D-122): no contact with yours.
+	var computer := OptionButton.new()
+	for item in ["None", "Opponent (starts beside you)", "Tandem lead (starts 30 m ahead)"]:
+		computer.add_item(item)
+	computer.select(clampi(settings.get_value("menu/computer_car"), 0, 2))
+	computer.item_selected.connect(func(i: int) -> void: settings.set_value("menu/computer_car", i))
+	_add_row(box, "Computer car", computer)
 
 	box.add_child(HSeparator.new())
 	preset_ids = sim.list_ids("ffb")

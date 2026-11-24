@@ -347,8 +347,36 @@ pub struct HostStatus {
     pub input_delay: InputDelay,
 }
 
+/// A second car driven by the computer (D-122): an opponent or a tandem
+/// lead. It runs its own session on the same track, stepped with the
+/// player's, and does not touch the player's car: there is no contact
+/// between the two.
+pub struct Opponent {
+    /// Its session.
+    pub session: Session,
+    /// Its driver.
+    pub driver: crate::ai::AiDriver,
+}
+
+impl Opponent {
+    /// An opponent in `session`, starting `ahead_m` along the line from the
+    /// start (a tandem lead starts ahead of the player).
+    pub fn new(mut session: Session, mut driver: crate::ai::AiDriver, ahead_m: f64) -> Self {
+        if ahead_m > 0.0 {
+            driver.place_ahead(&mut session, ahead_m);
+        }
+        Self { session, driver }
+    }
+}
+
 /// Instructions for the sim thread.
 pub enum HostCommand {
+    /// Let the computer drive the player's car through the same inputs
+    /// (D-122), or hand it back with `None`. For the render bench and
+    /// demonstrations; the session should have no assists.
+    SetAiDriver(Option<crate::ai::AiConfig>),
+    /// Add a computer-driven car beside the player's, or remove it.
+    SetOpponent(Option<Box<Opponent>>),
     /// Open a steering device by identifier. `window` is the native handle
     /// of the application window.
     OpenDevice {
@@ -425,6 +453,8 @@ impl std::fmt::Debug for HostCommand {
             HostCommand::SetLapTelemetry(_) => "SetLapTelemetry",
             HostCommand::StartReplay { .. } => "StartReplay",
             HostCommand::StopReplay { .. } => "StopReplay",
+            HostCommand::SetAiDriver(_) => "SetAiDriver",
+            HostCommand::SetOpponent(_) => "SetOpponent",
             HostCommand::SaveReplay { .. } => "SaveReplay",
             HostCommand::SetPaused(_) => "SetPaused",
             HostCommand::StartFfbLog { .. } => "StartFfbLog",
@@ -450,6 +480,7 @@ struct Published {
     hud: HudState,
     cones_down: Vec<bool>,
     ghost: Option<RenderPose>,
+    opponent: Option<RenderPose>,
     ghost_time_s: f64,
     ghost_score: Option<f64>,
     ghost_delta_s: Option<f64>,
@@ -482,6 +513,7 @@ impl Shared {
                 hud: HudState::of(session),
                 cones_down: session.timing().cone_down.clone(),
                 ghost: None,
+                opponent: None,
                 ghost_time_s: 0.0,
                 ghost_score: None,
                 ghost_delta_s: None,
@@ -618,6 +650,11 @@ impl RealtimeHost {
         (p.ghost, p.ghost_time_s)
     }
 
+    /// Pose of the computer-driven car, if there is one (D-122).
+    pub fn opponent(&self) -> Option<RenderPose> {
+        lock(&self.shared.published).opponent
+    }
+
     /// Drift score of the ghost's lap, on a track with judged corners.
     pub fn ghost_score(&self) -> Option<f64> {
         lock(&self.shared.published).ghost_score
@@ -728,6 +765,10 @@ struct SimThread {
     laps: Option<LapRecorder>,
     recorder: Option<ReplayRecorder>,
     ghost: GhostRecorder,
+    ai: Option<crate::ai::AiDriver>,
+    opponent: Option<Box<Opponent>>,
+    opponent_prev: Option<RenderPose>,
+    opponent_cur: Option<RenderPose>,
     coach: crate::coach::CoachRecorder,
     drift: crate::drift::DriftJudge,
     row: Vec<f64>,
@@ -808,6 +849,10 @@ impl SimThread {
         Self {
             drift,
             // On a drift track the ghost is the best-scored lap (D-118).
+            ai: None,
+            opponent: None,
+            opponent_prev: None,
+            opponent_cur: None,
             ghost: if session.track().def().drift.is_some() {
                 GhostRecorder::by_drift_score(saved)
             } else {
@@ -889,6 +934,26 @@ impl SimThread {
             }
             HostCommand::SetDirectSteering(enabled) => self.direct_steering = enabled,
             HostCommand::SetMatchRotation(on) => self.match_rotation = on,
+            HostCommand::SetAiDriver(config) => {
+                self.ai = match config {
+                    Some(c) => match crate::ai::AiDriver::new(self.session.track(), c) {
+                        Ok(mut ai) => {
+                            ai.sync(&self.session);
+                            Some(ai)
+                        }
+                        Err(e) => {
+                            self.last_error = Some(format!("AI driver: {e}"));
+                            None
+                        }
+                    },
+                    None => None,
+                }
+            }
+            HostCommand::SetOpponent(opponent) => {
+                self.opponent_prev = opponent.as_ref().map(|o| RenderPose::of(&o.session));
+                self.opponent_cur = self.opponent_prev;
+                self.opponent = opponent;
+            }
             HostCommand::StartTelemetry {
                 path,
                 sample_rate_hz,
@@ -1097,7 +1162,13 @@ impl SimThread {
         let angle = self
             .device_angle()
             .or_else(|| direct_steer.map(|s| f64::from(s) * 0.5 * rotation));
-        if self.direct_steering {
+        // The computer at the wheel: its frame replaces everything the
+        // player's devices made, gear lever included.
+        if let Some(ai) = self.ai.as_mut() {
+            use crate::drivers::Driver;
+            frame = ai.frame(&self.session);
+        }
+        if self.direct_steering && self.ai.is_none() {
             if let Some(a) = angle {
                 let lock_angle = self.session.car().params().steering.max_wheel_angle_rad;
                 let steer = (a / lock_angle).clamp(-1.0, 1.0);
@@ -1184,6 +1255,13 @@ impl SimThread {
         }
         self.previous = self.current;
         self.current = RenderPose::of(&self.session);
+        if let Some(o) = self.opponent.as_mut() {
+            use crate::drivers::Driver;
+            let f = o.driver.frame(&o.session);
+            o.session.step(&f);
+            self.opponent_prev = self.opponent_cur;
+            self.opponent_cur = Some(RenderPose::of(&o.session));
+        }
         let score = self.drift.just_counted();
         if self
             .ghost
@@ -1284,6 +1362,10 @@ impl SimThread {
                 p.cones_down
                     .extend_from_slice(&self.session.timing().cone_down);
                 p.ghost = self.ghost.pose_now(&self.session, p.alpha);
+                p.opponent = match (self.opponent_prev, self.opponent_cur) {
+                    (Some(a), Some(b)) => Some(RenderPose::lerp(&a, &b, p.alpha)),
+                    _ => None,
+                };
                 p.ghost_time_s = self.ghost.best().map_or(0.0, GhostLap::seconds);
                 p.ghost_delta_s = self.ghost.delta_s();
                 p.ghost_score = self.ghost.best().and_then(|b| b.drift_score);

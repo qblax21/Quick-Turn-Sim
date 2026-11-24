@@ -15,6 +15,7 @@
 //!
 //! The `qts-sim` binary in this crate is a thin command-line wrapper.
 
+pub mod ai;
 pub mod coach;
 pub mod cold_start;
 pub mod data;

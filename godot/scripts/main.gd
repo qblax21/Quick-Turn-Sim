@@ -63,6 +63,7 @@ var session_track := ""
 var world
 var car_view
 var ghost_view
+var opponent_view
 var skid_marks
 var tyre_smoke
 var hud
@@ -270,20 +271,26 @@ func _self_test() -> void:
 # renderer's. After 5 s to warm up it records 30 s of frames, prints the
 # mean, the 1 % low and the GPU time, saves a still at 20 s to
 # user://bench, and quits. Not saved to settings.
+const BENCH_MAX_S := 300
+
+
 func _render_bench(preset: String) -> void:
 	var kept: Dictionary = settings.values.duplicate()
 	settings.apply_graphics_preset(preset)
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	Engine.max_fps = 0
 	self_testing = true
-	_start_driving("coupe_kestrel_rc", "harrow_drift_park", true, false, sim.list_ids("ffb")[0], "", false)
+	# The computer drives a real drift lap of Harrow (D-122), with no assists,
+	# as a player would have to.
+	settings.values["menu/traction_control"] = false
+	_start_driving("coupe_kestrel_rc", "harrow_drift_park", false, false, sim.list_ids("ffb")[0], "", false)
 	if not sim.is_running():
 		printerr("render bench: session did not start: " + sim.last_error())
 		get_tree().quit(1)
 		return
 	# From the chase camera: inside the cloud, the cockpit view is all smoke.
 	cockpit_view = false
-	fixed_input = {"steer": 1.0, "throttle": 0.0, "brake": 0.0, "clutch": 0.0, "handbrake": 0.0, "buttons": 0, "gear": 2}
+	sim.set_ai_driver("drift", 0.9)
 	var rid := get_viewport().get_viewport_rid()
 	RenderingServer.viewport_set_measure_render_time(rid, true)
 	var frames := PackedFloat32Array()
@@ -291,13 +298,18 @@ func _render_bench(preset: String) -> void:
 	var began := Time.get_ticks_usec()
 	var last := began
 	var shot := false
-	while Time.get_ticks_usec() - began < 35_000_000:
+	# From the standing start through one full lap: until the lap ends, or
+	# BENCH_MAX_S if the driver loses it.
+	var h0: Dictionary = sim.hud()
+	var laps_before: int = int(h0.get("runs", 0)) + int(h0.get("invalid_runs", 0))
+	var lap_done := false
+	while Time.get_ticks_usec() - began < BENCH_MAX_S * 1_000_000 and not lap_done:
 		await get_tree().process_frame
 		var now := Time.get_ticks_usec()
 		var t := (now - began) / 1.0e6
-		# Roll off, then floor it on full lock.
-		fixed_input.throttle = 0.3 if t < 1.5 else 0.85
-		if t > 20.0 and not shot:
+		var h: Dictionary = sim.hud()
+		lap_done = int(h.get("runs", 0)) + int(h.get("invalid_runs", 0)) > laps_before
+		if t > 16.0 and not shot:
 			shot = true
 			DirAccess.make_dir_recursive_absolute("user://bench")
 			get_viewport().get_texture().get_image().save_jpg("user://bench/render_%s.jpg" % preset.to_lower())
@@ -327,6 +339,7 @@ func _render_bench(preset: String) -> void:
 		preset, n, size.x, size.y, settings.get_value("display/render_scale"), settings.get_value("display/smoke")])
 	print("render bench %s: mean %.2f ms (%.0f fps), 1%% low %.2f ms (%.0f fps), worst %.2f ms, GPU mean %.2f ms, rear slide level at the end %.2f" % [
 		preset, total / n, 1000.0 * n / total, worst / count, 1000.0 * count / worst, sorted[n - 1], gpu_total / maxf(gpu.size(), 1), slip])
+	print("render bench %s: %s after %.0f s" % [preset, "lap finished" if lap_done else "lap not finished", (Time.get_ticks_usec() - began) / 1.0e6])
 	var status: Dictionary = sim.status()
 	print("render bench %s: physics + FFB tick mean %.0f us, worst %.0f us of %.0f us, measured %.0f Hz" % [
 		preset, status.get("step_mean_us", 0.0), status.get("step_worst_us", 0.0),
@@ -539,12 +552,13 @@ func _save_session_replay() -> void:
 
 
 func _clear_session() -> void:
-	for node in [world, car_view, ghost_view, skid_marks, tyre_smoke, hud]:
+	for node in [world, car_view, ghost_view, opponent_view, skid_marks, tyre_smoke, hud]:
 		if node:
 			node.queue_free()
 	world = null
 	car_view = null
 	ghost_view = null
+	opponent_view = null
 	skid_marks = null
 	tyre_smoke = null
 	hud = null
@@ -605,6 +619,7 @@ func _start_driving(car_id: String, track_id: String, auto_clutch: bool, auto_sh
 	add_child(ghost_view)
 	ghost_view.build(info)
 	ghost_view.make_ghost()
+	_add_computer_car(info)
 	audio.start(info, sim.track_info())
 	skid_marks = SkidMarks.new()
 	add_child(skid_marks)
@@ -666,10 +681,33 @@ func _process(delta: float) -> void:
 	values["ghost_has_delta"] = ghost.get("has_delta", false)
 	values["ghost_delta"] = ghost.get("delta", 0.0)
 	_update_ghost(ghost, car_xform)
+	if opponent_view:
+		var opp: Dictionary = sim.opponent()
+		opponent_view.visible = opp.get("visible", false)
+		if opponent_view.visible:
+			opponent_view.update(opp.transform, opp.wheels)
 	hud.update_map(car_xform, ghost_view.visible, ghost_view.global_transform)
 	hud.update(values, sim.status(), input, telemetry_on, replay_on)
 	audio.update(values, input, delta, paused)
 	_update_camera(car_xform, delta)
+
+
+# The computer car (D-122): the same model as yours, driven through the
+# same inputs by the core's AI driver. Drift mode where the track has judged
+# zones, grip laps elsewhere.
+func _add_computer_car(info: Dictionary) -> void:
+	var choice: int = settings.get_value("menu/computer_car")
+	if choice == 0 or self_testing:
+		return
+	var ahead := 30.0 if choice == 2 else 0.0
+	if not sim.set_opponent(session_car, "drift", 0.85, ahead):
+		if not sim.set_opponent(session_car, "grip", 0.85, ahead):
+			push_warning("computer car: " + sim.last_error())
+			return
+	opponent_view = CarView.new()
+	add_child(opponent_view)
+	opponent_view.build(info)
+	opponent_view.visible = false
 
 
 func _update_ghost(ghost: Dictionary, car_xform: Transform3D) -> void:

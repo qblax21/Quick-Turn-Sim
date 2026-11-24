@@ -2603,3 +2603,35 @@ Notes:
 - **Budget** (`tools/demo_budget.txt`): the whole install is now ours to
   budget. Install 56 MB (48.9 to 49.5 measured) and our own files 10 MB
   (4.4 to 5.1 measured; was 12).
+## D-122 A computer driver, with no assists
+
+A driver in the core (`crates/qts-sim/src/ai.rs`) that makes the same input
+frame a person does: steering, throttle, brake, the clutch pedal, the
+handbrake and the sequential shift buttons. It runs with automatic clutch,
+automatic gears and traction control all off, and reads only what a driver
+could sense: position on the track, speed, slide, rotation and engine speed.
+Its frames are recorded in replays like a player's.
+
+- **Grip mode:** a racing line pulled tight between the road edges (an
+  elastic band, no car model), corner speeds from curvature and a planned
+  grip of `pace` times 0.9 g (an estimate for road tyres, not measured), and
+  braking points from a backward pass. It eases off when it runs wide of the
+  line. Ridgeline, Tern GT: 2:03.1 at pace 0.6, 1:50.6 at 0.8, 1:44.0 at
+  1.0; every lap counted.
+- **Drift mode:** a line from the outside of each judged zone to its inner
+  clipping point. It pulls the handbrake with the clutch in to start the
+  slide, then holds it with the steering law already proven in the drift_car
+  test (opposite lock of half the slide, against the rotation) plus a little
+  toward the line, throttle for the angle, and the left foot on the brake for
+  speed. Gears are held while sliding and chosen for the zone on the way in.
+- **Result, honestly:** drift mode is not finished. It completes the lap but
+  runs wide in the long corners. Three tyres off in T1, T5, T6 and T9 make
+  the run Incomplete, so its judged score on Harrow is 0. Tuning stopped
+  there: more of it was costing more than the rest of this batch.
+- **Uses:** the render bench (the computer drives a real Harrow drift lap
+  from a standing start instead of a donut), and an optional second car from
+  the menu: an opponent beside you, or a tandem lead 30 m ahead. The second
+  car runs its own session stepped with yours; there is no contact between
+  the two, and replays do not record it.
+- When the computer drives your car, its frame replaces everything your
+  devices make, the gear lever included.

@@ -66,6 +66,10 @@ Commands:
                                          first lap from the pits with cold and
                                          warm tires: lap times, grip and
                                          temperatures corner by corner
+  ai --car ID --track ID [--mode grip|drift] [--pace P] [--laps N] [--replay FILE]
+                                         the computer driver (D-122): no
+                                         assists, own clutch and shifts; prints
+                                         lap times and drift scores
   coach LAP.csv BEST.csv                  the lap corner by corner against the
                                          best: time lost per corner and why
   tire-plots [--out DIR]                 force against slip at three loads and
@@ -400,6 +404,50 @@ fn cmd_cold_start(args: &Args) -> Result<(), String> {
             .map_err(|e| format!("{path}: {e}"))?;
         println!("wrote {path}");
     }
+    Ok(())
+}
+
+fn cmd_ai(args: &Args) -> Result<(), String> {
+    use qts_sim::ai::{run_laps, AiConfig, AiDriver};
+    let root = data_root()?;
+    let car = args.required("car")?;
+    let track = args.required("track")?;
+    let pace = args.number("pace", 0.9)?;
+    let laps = args.number("laps", 2.0)? as u32;
+    let config = match args.text("mode").unwrap_or("grip") {
+        "grip" => AiConfig::grip(pace),
+        "drift" => {
+            let mut c = AiConfig::drift(pace);
+            c.drift_angle_deg = args.number("angle", c.drift_angle_deg)?;
+            c
+        }
+        other => return Err(format!("unknown mode `{other}` (grip or drift)")),
+    };
+    let mut session = Session::from_data(&root, car, track, AiDriver::session_config())?;
+    let mut ai = AiDriver::new(session.track(), config)?;
+    // An out lap to the line, then the timed laps.
+    let run = run_laps(&mut session, &mut ai, laps + 1, 120.0 * f64::from(laps + 1));
+    for (i, (time, counted, score)) in run.laps.iter().enumerate() {
+        let label = if i == 0 {
+            "out lap".to_string()
+        } else {
+            format!("lap {i}")
+        };
+        let score = score.map_or(String::new(), |s| format!("   drift score {s:.1}"));
+        println!(
+            "{label:<8} {}:{:06.3}{}{score}",
+            (*time / 60.0) as u32,
+            time % 60.0,
+            if *counted { "" } else { "  (not counted)" }
+        );
+    }
+    for (name, score, why) in &run.zones {
+        println!("  {name:<4} {score:5.1}  {why}");
+    }
+    if let Some(note) = &run.coach {
+        println!("coach: {note}");
+    }
+    println!("{:.1} s driven, {} resets", run.seconds, ai.resets);
     Ok(())
 }
 
@@ -1452,6 +1500,7 @@ fn main() -> ExitCode {
         "ffb-gain" => cmd_ffb_gain(&args).map(|()| true),
         "lap-compare" => cmd_lap_compare(&args).map(|()| true),
         "coach" => cmd_coach(&args).map(|()| true),
+        "ai" => cmd_ai(&args).map(|()| true),
         "cold-start" => cmd_cold_start(&args).map(|()| true),
         "setup-sheet" => cmd_setup_sheet(&args).map(|()| true),
         "tire-plots" => cmd_tire_plots(&args).map(|()| true),

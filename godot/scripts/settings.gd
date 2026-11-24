@@ -31,6 +31,8 @@ const DEFAULTS := {
 	"menu/auto_shift": true,
 	"menu/traction_control": true,
 	"menu/engine_damage": false,
+	# 0 none, 1 opponent, 2 tandem lead (D-122).
+	"menu/computer_car": 0,
 	"menu/ffb_preset": "",
 	"ffb/wheel_model": "",
 	"ffb/match_rotation": true,

@@ -24,11 +24,12 @@ use qts_core::constants::{CORE_VERSION, PRODUCT_NAME, PRODUCT_SHORT_NAME};
 use qts_core::input::{InputFrame, GEAR_NO_REQUEST};
 use qts_ffb::FfbConfig;
 use qts_ffb::InputSource;
+use qts_sim::ai::{AiConfig, AiDriver};
 use qts_sim::direct_input::{
     AxisAction, AxisBinding, ButtonAction, ButtonBinding, DirectInputMap, DirectInputs, PedalShape,
 };
 use qts_sim::ffb_log::FfbLogStatus;
-use qts_sim::host::{HostCommand, HostOptions, RealtimeHost};
+use qts_sim::host::{HostCommand, HostOptions, Opponent, RealtimeHost};
 use qts_sim::playback::Playback;
 use qts_sim::session::{Session, SessionAssets, SessionConfig};
 use qts_sim::setup::{setup_items, Setup};
@@ -900,6 +901,95 @@ impl SimBridge {
             "setup" => gstr(&setup_name),
             "has_delta" => delta.is_some(),
             "delta" => delta.unwrap_or(0.0),
+            "transform" => Transform3D::new(
+                Basis::from_quaternion(quat_to_godot(pose.rot)),
+                to_godot(pose.pos),
+            ),
+            "wheels" => PackedFloat32Array::from(wheels),
+        }
+    }
+
+    /// Lets the computer drive the player's car (D-122): `mode` is "grip"
+    /// or "drift", "" hands the car back. `pace` 0.3 to 1.
+    #[func]
+    fn set_ai_driver(&mut self, mode: GString, pace: f64) -> bool {
+        let Some(host) = &self.host else {
+            return false;
+        };
+        let config = match ai_config(&mode.to_string(), pace) {
+            Ok(c) => c,
+            Err(e) => {
+                self.last_error = e;
+                return false;
+            }
+        };
+        host.send(HostCommand::SetAiDriver(config));
+        true
+    }
+
+    /// Adds a computer-driven car on `car_id` (D-122), or removes it with
+    /// `mode` "". `ahead_m` starts it that far ahead along the line, for a
+    /// tandem lead. It has no assists and no contact with the player's car.
+    #[func]
+    fn set_opponent(&mut self, car_id: GString, mode: GString, pace: f64, ahead_m: f64) -> bool {
+        if self.host.is_none() {
+            return false;
+        }
+        let config = match ai_config(&mode.to_string(), pace) {
+            Ok(Some(c)) => c,
+            Ok(None) => {
+                self.send_opponent(None);
+                return true;
+            }
+            Err(e) => {
+                self.last_error = e;
+                return false;
+            }
+        };
+        let Some(root) = self.root() else {
+            return false;
+        };
+        let track_id = self
+            .loaded
+            .as_ref()
+            .map(|l| l.track.def().id.clone())
+            .unwrap_or_default();
+        let made = Session::from_data(
+            &root,
+            &car_id.to_string(),
+            &track_id,
+            AiDriver::session_config(),
+        )
+        .and_then(|session| {
+            let driver = AiDriver::new(session.track(), config)?;
+            Ok(Opponent::new(session, driver, ahead_m))
+        });
+        match made {
+            Ok(o) => {
+                self.send_opponent(Some(Box::new(o)));
+                true
+            }
+            Err(e) => {
+                self.last_error = e;
+                false
+            }
+        }
+    }
+
+    /// Pose of the computer-driven car: "visible", "transform", "wheels"
+    /// as in [`Self::ghost`].
+    #[func]
+    fn opponent(&self) -> VarDictionary {
+        let Some(pose) = self.host.as_ref().and_then(|h| h.opponent()) else {
+            return vd! { "visible" => false };
+        };
+        let mut wheels = Vec::with_capacity(20);
+        for w in &pose.wheels {
+            let p = to_godot(w.center_body);
+            wheels.extend_from_slice(&[p.x, p.y, p.z, w.steer_angle as f32, w.spin_angle as f32]);
+        }
+        vd! {
+            "visible" => true,
             "transform" => Transform3D::new(
                 Basis::from_quaternion(quat_to_godot(pose.rot)),
                 to_godot(pose.pos),
@@ -2018,6 +2108,24 @@ impl SimBridge {
         self.send(HostCommand::StopReplay {
             path: path.to_string().into(),
         });
+    }
+}
+
+/// AI settings from a mode name (D-122): "" for none.
+fn ai_config(mode: &str, pace: f64) -> Result<Option<AiConfig>, String> {
+    match mode {
+        "" => Ok(None),
+        "grip" => Ok(Some(AiConfig::grip(pace))),
+        "drift" => Ok(Some(AiConfig::drift(pace))),
+        other => Err(format!("unknown AI mode `{other}` (grip or drift)")),
+    }
+}
+
+impl SimBridge {
+    fn send_opponent(&self, opponent: Option<Box<Opponent>>) {
+        if let Some(host) = &self.host {
+            host.send(HostCommand::SetOpponent(opponent));
+        }
     }
 }
 
