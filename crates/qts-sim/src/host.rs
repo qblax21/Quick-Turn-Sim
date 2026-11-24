@@ -303,6 +303,9 @@ pub struct HostStatus {
     pub clip_lap_percent: f64,
     /// Share of the last finished lap spent clipping, percent.
     pub clip_last_lap_percent: Option<f64>,
+    /// The gain that keeps clipping under [`GAIN_TARGET_CLIP_PERCENT`] on
+    /// this lap (D-123), once there are enough samples.
+    pub suggested_gain: Option<f64>,
     /// Largest `|requested|` force over the last two seconds or so, as a
     /// fraction of the device's peak. Above the soft-clip knee the wheel is
     /// being compressed; above one it is saturated.
@@ -368,6 +371,10 @@ impl Opponent {
         Self { session, driver }
     }
 }
+
+/// Clipping the gain helper aims under, percent of a lap (D-123); a little
+/// under the 2 percent asked for, as the estimate is not exact.
+pub const GAIN_TARGET_CLIP_PERCENT: f64 = 1.5;
 
 /// Instructions for the sim thread.
 pub enum HostCommand {
@@ -792,6 +799,7 @@ struct SimThread {
     last_error: Option<String>,
     clip_fraction: f64,
     clip_lap: crate::lap_telemetry::LapClipMeter,
+    gain_helper: crate::lap_telemetry::GainHelper,
     // Peak requested force: the current and previous one-second windows.
     peak_now: f64,
     peak_before: f64,
@@ -889,6 +897,7 @@ impl SimThread {
             last_error: None,
             clip_fraction: 0.0,
             clip_lap: Default::default(),
+            gain_helper: Default::default(),
             peak_now: 0.0,
             peak_before: 0.0,
             peak_ticks: 0,
@@ -1207,6 +1216,8 @@ impl SimThread {
             let t = self.session.timing();
             self.clip_lap
                 .observe((t.runs, t.invalid_runs), t.running, sample.clipped);
+            self.gain_helper
+                .observe((t.runs, t.invalid_runs), t.running, sample.requested);
         }
         self.peak_now = self.peak_now.max(sample.requested.abs());
         self.peak_ticks += 1;
@@ -1384,6 +1395,13 @@ impl SimThread {
                 s.clip_fraction = self.clip_fraction;
                 s.clip_lap_percent = self.clip_lap.this_lap_percent();
                 s.clip_last_lap_percent = self.clip_lap.last_lap_percent;
+                let cfg = self.pipeline.config();
+                s.suggested_gain = self.gain_helper.suggest(
+                    cfg.gain,
+                    cfg.soft_clip_knee,
+                    GAIN_TARGET_CLIP_PERCENT,
+                    f64::from(self.session.tick_rate_hz()),
+                );
                 s.peak_requested = self.peak_now.max(self.peak_before);
                 if let Some(log) = self.ffb_log.as_mut() {
                     self.ffb_log_status = log.status();

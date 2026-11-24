@@ -185,6 +185,22 @@ func _ready() -> void:
 			_render_bench.call_deferred(arg.get_slice("=", 1))
 		elif arg.begins_with("--title-shot="):
 			_title_shot.call_deferred(arg.get_slice("=", 1))
+		elif arg.begins_with("--ffb-meter-shot="):
+			_ffb_meter_shot.call_deferred(arg.get_slice("=", 1))
+
+
+# The computer drives Ridgeline with the force-feedback meter open; a
+# picture after 40 s, then quit (D-123: checks the meter's layout).
+func _ffb_meter_shot(path: String) -> void:
+	self_testing = true
+	_start_driving("hatch_tern_gt", "ridgeline_circuit", false, false, "fanatec_csl_elite", "", false)
+	sim.set_ai_driver("grip", 0.8)
+	hud.toggle_ffb_meter()
+	await get_tree().create_timer(40.0).timeout
+	get_viewport().get_texture().get_image().save_png(path)
+	print("ffb meter shot saved: ", path, " suggested gain ", sim.status().get("suggested_gain", -1.0))
+	sim.stop_session()
+	get_tree().quit()
 
 
 # Saves a picture of the title screen and quits, for checking its layout
@@ -630,6 +646,7 @@ func _start_driving(car_id: String, track_id: String, auto_clutch: bool, auto_sh
 	hud = Hud.new()
 	add_child(hud)
 	hud.setup(sim)
+	hud.ffb_meter.gain_requested.connect(_apply_suggested_gain)
 	hud.set_map_mode(map_mode)
 	if device_id != "":
 		sim.ffb_open(device_id, DisplayServer.window_get_native_handle(DisplayServer.WINDOW_HANDLE))
@@ -789,6 +806,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			else:
 				sim.ffb_log_start(_recording_path("ffb_" + session_car + "_" + session_track, "csv"))
 				hud.flash("FFB log armed: it records the next full lap")
+		KEY_K:
+			_apply_suggested_gain()
 		KEY_BRACKETLEFT:
 			_nudge_ffb("gain", -0.01, 0.0, 1.5)
 		KEY_BRACKETRIGHT:
@@ -810,6 +829,21 @@ func _nudge_ffb(name: String, step: float, lowest: float, highest: float) -> voi
 		settings.set_ffb(config.get("id", ""), name, value)
 		settings.save()
 		hud.flash("%s %.2f" % [name.replace("_", " "), value])
+
+
+# The gain the core suggests for clipping under 2 % of this lap (D-123).
+func _apply_suggested_gain() -> void:
+	if not hud.ffb_meter_visible():
+		return
+	var g: float = sim.status().get("suggested_gain", -1.0)
+	if g <= 0.0:
+		hud.flash("No gain suggestion yet: drive 5 s of a timed lap")
+		return
+	var config: Dictionary = sim.ffb_config()
+	if sim.ffb_set("gain", snappedf(g, 0.01)):
+		settings.set_ffb(config.get("id", ""), "gain", snappedf(g, 0.01))
+		settings.save()
+		hud.flash("gain %.2f, for clipping under 2%% of a lap like this one" % g)
 
 
 # Photo mode: the session is paused while it is open and resumes after,

@@ -75,6 +75,116 @@ impl LapClipMeter {
     }
 }
 
+/// Requests above this, as a share of the wheel's peak, all land in the
+/// last bin of the [`GainHelper`].
+const HELPER_MAX: f64 = 4.0;
+/// Bins of the [`GainHelper`]'s histogram.
+const HELPER_BINS: usize = 400;
+/// The helper needs this much of a lap before it suggests anything, s.
+pub const HELPER_MIN_S: f64 = 5.0;
+
+/// The gain that keeps clipping under a target on this lap (D-123): a
+/// histogram of the force asked of the wheel (`|requested|`, before the soft
+/// clip) over the lap in progress, and of the last finished lap. Fixed size
+/// and one increment a tick, so it costs the physics thread nothing it
+/// would notice.
+#[derive(Clone, Debug)]
+pub struct GainHelper {
+    seen: Option<(u32, u32)>,
+    bins: Vec<u32>,
+    ticks: u64,
+    last: Option<(Vec<u32>, u64)>,
+}
+
+impl Default for GainHelper {
+    fn default() -> Self {
+        Self {
+            seen: None,
+            bins: vec![0; HELPER_BINS],
+            ticks: 0,
+            last: None,
+        }
+    }
+}
+
+impl GainHelper {
+    /// As [`LapClipMeter::observe`], with the sample's `requested`.
+    pub fn observe(&mut self, finished: (u32, u32), running: bool, requested: f64) {
+        if let Some(before) = self.seen {
+            if finished != before && self.ticks > 0 {
+                self.last = Some((self.bins.clone(), self.ticks));
+                self.bins.iter_mut().for_each(|b| *b = 0);
+                self.ticks = 0;
+            }
+        }
+        self.seen = Some(finished);
+        if !running {
+            return;
+        }
+        let i = ((requested.abs() / HELPER_MAX) * HELPER_BINS as f64) as usize;
+        self.bins[i.min(HELPER_BINS - 1)] += 1;
+        self.ticks += 1;
+    }
+
+    /// The gain that would have kept clipping under `target_percent` of
+    /// this lap (of the last one until this lap has [`HELPER_MIN_S`] of
+    /// samples), from the gain the samples were taken at. `None` without
+    /// enough samples. The request scales with the gain, so the new gain is
+    /// the old one times the ratio of where clipping starts to the request
+    /// that `target_percent` of the lap stays above. A minimum force or
+    /// other fixed effects make it a little off; driving another lap at the
+    /// new gain shows the result.
+    pub fn suggest(
+        &self,
+        gain: f64,
+        knee: f64,
+        target_percent: f64,
+        tick_rate: f64,
+    ) -> Option<f64> {
+        let enough = (HELPER_MIN_S * tick_rate) as u64;
+        let (bins, ticks) = if self.ticks >= enough {
+            (&self.bins, self.ticks)
+        } else {
+            let (b, t) = self.last.as_ref()?;
+            (b, *t)
+        };
+        if ticks < enough {
+            return None;
+        }
+        // The request that only `target_percent` of the lap stays above,
+        // from the top bin down.
+        let allowed = (target_percent / 100.0 * ticks as f64) as u64;
+        let mut above = 0u64;
+        let mut level = 0.0;
+        for i in (0..HELPER_BINS).rev() {
+            above += u64::from(bins[i]);
+            if above > allowed {
+                level = (i + 1) as f64 * HELPER_MAX / HELPER_BINS as f64;
+                break;
+            }
+        }
+        if level <= 0.0 {
+            return None;
+        }
+        Some((gain * clip_onset(knee) / level).clamp(0.05, 1.5))
+    }
+}
+
+/// The request at which the soft clip starts to count as clipping: where it
+/// removes [`CLIP_THRESHOLD`] of force.
+pub fn clip_onset(knee: f64) -> f64 {
+    let (mut lo, mut hi) = (0.0_f64, 4.0_f64);
+    for _ in 0..60 {
+        let mid = 0.5 * (lo + hi);
+        if mid - qts_ffb::soft_clip(mid, knee) > CLIP_THRESHOLD {
+            hi = mid;
+        } else {
+            lo = mid;
+        }
+    }
+    hi
+}
+
 /// Collects the rows of the lap in progress and writes each finished lap.
 #[derive(Debug)]
 pub struct LapRecorder {

@@ -10,7 +10,21 @@
 #   lines    soft-clip knee (dashed) and full scale (solid)
 #   CLIP     lamp at the right end: lit red while the soft clip is removing
 #            force, held for half a second so a short clip is not missed
+#   graph    the last six seconds of output (green) and request (white)
+#            against full scale and the knee (D-123)
+#   gain     K, or the button, sets the gain the core suggests for clipping
+#            under 2 % of this lap (D-123)
+# Cheap to draw: two polylines of at most GRAPH_POINTS points, sampled at
+# GRAPH_HZ whatever the frame rate.
 extends Control
+
+signal gain_requested
+
+const GRAPH_S := 6.0
+const GRAPH_HZ := 60.0
+const GRAPH_POINTS := int(GRAPH_S * GRAPH_HZ)
+const GRAPH_H := 64.0
+const BAR_H := 30.0
 
 # The bar spans this many times the wheel's peak torque each way, so an
 # overdriven request is still visible.
@@ -26,14 +40,26 @@ var knee := 0.75
 var clipping := false
 var clip_hold := 0.0
 var text_label: Label
+var gain_button: Button
+var hist_out := PackedFloat32Array()
+var hist_req := PackedFloat32Array()
+var hist_head := 0
+var sample_wait := 0.0
 
 
 func _ready() -> void:
-	custom_minimum_size = Vector2(520, 118)
+	custom_minimum_size = Vector2(560, 230)
+	hist_out.resize(GRAPH_POINTS)
+	hist_req.resize(GRAPH_POINTS)
 	text_label = Label.new()
 	text_label.add_theme_font_size_override("font_size", 14)
-	text_label.position = Vector2(0, 40)
+	text_label.position = Vector2(0, BAR_H + GRAPH_H + 16)
 	add_child(text_label)
+	gain_button = Button.new()
+	gain_button.text = "Set gain (K)"
+	gain_button.focus_mode = Control.FOCUS_NONE
+	gain_button.pressed.connect(func() -> void: gain_requested.emit())
+	add_child(gain_button)
 
 
 func update_from(status: Dictionary, config: Dictionary) -> void:
@@ -55,6 +81,12 @@ func update_from(status: Dictionary, config: Dictionary) -> void:
 		status.get("ffb_raw_nm", 0.0), requested * wheel_nm, output * wheel_nm, wheel_nm, peak * wheel_nm])
 	lines.append("gain %.2f (wheel N·m per column N·m)  [ ]     min force %.2f  ; '     knee %.2f" % [
 		config.get("gain", 0.0), config.get("min_force", 0.0), knee])
+	var suggested: float = status.get("suggested_gain", -1.0)
+	gain_button.disabled = suggested <= 0.0
+	if suggested > 0.0:
+		lines.append("K: gain %.2f keeps clipping under 2%% of this lap (from %.2f)" % [suggested, config.get("gain", 0.0)])
+	else:
+		lines.append("K: drive 5 s of a timed lap for a gain suggestion")
 	var log_line := "F5 logs the next full lap"
 	match status.get("ffb_log_state", "off"):
 		"waiting":
@@ -75,6 +107,17 @@ func update_from(status: Dictionary, config: Dictionary) -> void:
 
 
 func _process(delta: float) -> void:
+	if not visible:
+		return
+	sample_wait -= delta
+	if sample_wait <= 0.0:
+		sample_wait += 1.0 / GRAPH_HZ
+		if sample_wait < 0.0:
+			sample_wait = 0.0
+		hist_out[hist_head] = output
+		hist_req[hist_head] = requested
+		hist_head = (hist_head + 1) % GRAPH_POINTS
+		queue_redraw()
 	if clip_hold > 0.0:
 		clip_hold = maxf(clip_hold - delta, 0.0)
 		if clip_hold == 0.0:
@@ -118,3 +161,30 @@ func _draw() -> void:
 	draw_line(Vector2(mid, 0), Vector2(mid, h), Color(1, 1, 1, 0.35), 1.0)
 	var r := _x(requested, w)
 	draw_line(Vector2(r, -3), Vector2(r, h + 3), Color(1, 1, 1), 2.0)
+	# The graph leaves room on its right for the gain button.
+	var gw := size.x - gain_button.size.x - 12.0
+	_draw_graph(gw)
+	gain_button.position = Vector2(gw + 12.0, BAR_H + 8.0 + (GRAPH_H - gain_button.size.y) * 0.5)
+
+
+# Six seconds of output and request: time runs left to right, full scale
+# each way at the top and bottom edges of the band SCALE allows.
+func _draw_graph(w: float) -> void:
+	var top := BAR_H + 8.0
+	var mid := top + GRAPH_H * 0.5
+	var k := GRAPH_H * 0.5 / SCALE
+	draw_rect(Rect2(0, top, w, GRAPH_H), Color(0, 0, 0, 0.55))
+	for side in [-1.0, 1.0]:
+		draw_line(Vector2(0, mid - side * k), Vector2(w, mid - side * k), Color(1, 1, 1, 0.7), 1.0)
+		draw_dashed_line(Vector2(0, mid - side * knee * k), Vector2(w, mid - side * knee * k), Color(1, 1, 1, 0.35), 1.0, 4.0)
+	var out_pts := PackedVector2Array()
+	var req_pts := PackedVector2Array()
+	out_pts.resize(GRAPH_POINTS)
+	req_pts.resize(GRAPH_POINTS)
+	var dx := w / float(GRAPH_POINTS - 1)
+	for i in GRAPH_POINTS:
+		var j := (hist_head + i) % GRAPH_POINTS
+		out_pts[i] = Vector2(i * dx, mid - clampf(hist_out[j], -SCALE, SCALE) * k)
+		req_pts[i] = Vector2(i * dx, mid - clampf(hist_req[j], -SCALE, SCALE) * k)
+	draw_polyline(req_pts, Color(1, 1, 1, 0.8), 1.0)
+	draw_polyline(out_pts, Color(0.35, 0.85, 0.4), 1.5)

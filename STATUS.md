@@ -105,6 +105,9 @@ sees in the demo is described in `DEMO.md`.
 - **Slimmed runtime** (D-121): the demo ships a Godot runtime built
   without unused modules: 18.9 MB download, 48.9 MB installed (was 39.6
   and 110.7).
+- **Clipping helper** (D-123): the F4 meter has a six-second graph of
+  output against request, and K (or its button) sets the gain that keeps
+  clipping under 2 % of the lap just driven.
 
 ### Telemetry, import, validation
 - Telemetry CSV with 116 documented channels; a test keeps the document and

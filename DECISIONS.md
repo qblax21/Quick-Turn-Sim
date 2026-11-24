@@ -2635,3 +2635,31 @@ Its frames are recorded in replays like a player's.
   the two, and replays do not record it.
 - When the computer drives your car, its frame replaces everything your
   devices make, the gear lever included.
+
+## D-123 Force-feedback graph and a gain for under 2 % clipping
+
+Checked first: the F4 meter already showed output against the wheel's
+maximum (in N·m, 6.0 on the CSL Elite preset), a CLIP lamp, and the share
+of this lap and the last spent clipping (D-046, D-078). `qts-sim ffb-gain`
+already suggested a gain offline from scripted laps of every car. Added:
+
+- **Graph:** the last six seconds of output (green) and request (white)
+  against full scale and the soft-clip knee. Sampled at 60 Hz whatever the
+  frame rate; two polylines of 360 points.
+- **Gain helper:** the core keeps a histogram of the force asked of the
+  wheel over the lap in progress (400 bins, one increment a tick) and of
+  the last lap. K, or the button on the meter, sets the gain that would
+  have kept clipping under 2 % of that lap: the current gain times the
+  ratio of where clipping starts (the soft clip removing 0.02) to the
+  request that 1.5 % of the lap stays above (a margin under 2 %, as fixed
+  effects such as the minimum force make the scaling inexact). It needs
+  5 s of a timed lap. It raises the gain as well as lowering it.
+- **Checked:** a computer-driven Tern GT lap of Ridgeline through the CSL
+  Elite preset at gain 1.40 clipped 53.2 % of the lap; the helper
+  suggested 0.460, and the same lap at 0.460 clipped 1.55 %
+  (`tests/ffb_gain_helper.rs`).
+- **Cost:** the helper reads the force-feedback sample after it is made, so
+  physics cannot change. Host tick (`qts-sim bench`, Kestrel on Ridgeline,
+  120 s, three runs): 99.6 µs mean and 185 µs p99 before, 95.0 µs and
+  179 µs after, within run-to-run noise. The meter's drawing cost was not
+  measured on its own.
