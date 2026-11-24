@@ -2535,3 +2535,19 @@ Not like the rulebook, and marked unverified there:
   straightening); the rulebook has it judged by people.
 - These choices are this project's: the 35-degree maximum, the 150-degree
   spin, the 0.5 s opposite drift and the 0.5 m No-Go start.
+
+## D-120 Bought once, with an optional donation link
+
+Quick Turn Sim is sold once and every later improvement is free. There is
+no subscription and no paid add-on, and nothing in the code or data may
+assume either: no store hooks, no locked content, no entitlement checks.
+
+Development can be funded by optional donations:
+
+- **Where:** a small "Support development" link in the top-right corner of
+  the title screen, and a section in the README. Nothing else: no reminders,
+  no pop-ups, no counters, nothing in a driving session.
+- **What it gives:** nothing. A donation unlocks no content or feature.
+- **Address:** one constant, `DONATE_URL` in
+  `crates/qts-core/src/constants.rs`, beside the product name. It is a
+  placeholder until a real page exists. An empty string hides the link.

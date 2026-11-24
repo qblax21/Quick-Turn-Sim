@@ -11,6 +11,13 @@ pub const PRODUCT_NAME: &str = "Quick Turn Sim";
 /// Short product name for compact UI.
 pub const PRODUCT_SHORT_NAME: &str = "QTS";
 
+/// Where the optional "Support development" link points (D-120). The game
+/// is bought once with every later improvement free: no subscription, no
+/// paid add-ons. Donations are optional and unlock nothing. Placeholder
+/// until a real page exists; the README links the same address. An empty
+/// string hides the link.
+pub const DONATE_URL: &str = "https://example.com/quick-turn-sim/support";
+
 /// Version of the simulation core, taken from the crate version.
 pub const CORE_VERSION: &str = env!("CARGO_PKG_VERSION");
 

@@ -182,6 +182,18 @@ func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--render-bench="):
 			_render_bench.call_deferred(arg.get_slice("=", 1))
+		elif arg.begins_with("--title-shot="):
+			_title_shot.call_deferred(arg.get_slice("=", 1))
+
+
+# Saves a picture of the title screen and quits, for checking its layout
+# without a person at the screen.
+func _title_shot(path: String) -> void:
+	for i in 30:
+		await get_tree().process_frame
+	get_viewport().get_texture().get_image().save_png(path)
+	print("title shot saved: ", path)
+	get_tree().quit()
 
 
 # The data folder sits beside the executable in a packaged build and beside

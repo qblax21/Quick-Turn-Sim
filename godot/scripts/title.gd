@@ -65,6 +65,20 @@ func _ready() -> void:
 	footer.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	add_child(footer)
 
+	# Optional donations (D-120): a quiet link in the corner, nothing else.
+	# The game is bought once and every later improvement is free.
+	var url: String = sim.donate_url()
+	if url != "":
+		var support := LinkButton.new()
+		support.text = "Support development"
+		support.tooltip_text = "Optional. Opens %s in your browser. Donations unlock nothing; every update stays free." % url
+		support.add_theme_font_size_override("font_size", 13)
+		support.underline = LinkButton.UNDERLINE_MODE_ON_HOVER
+		support.pressed.connect(func() -> void: OS.shell_open(url))
+		support.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, 16)
+		support.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+		add_child(support)
+
 
 func _button(text: String, height: float, font_size: int) -> Button:
 	var b := Button.new()

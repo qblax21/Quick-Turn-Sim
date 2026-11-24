@@ -292,6 +292,17 @@ produces the same state hash on every tick. That is tested. Bit-identical
 results across operating systems, CPU types or compiler versions are **not**
 guaranteed and are not solved; `ARCHITECTURE.md` section 5 gives the plan.
 
+## Price and support
+
+Quick Turn Sim is bought once, and every later improvement is free. There is
+no subscription and there are no paid add-ons. If you'd like to help fund
+development, there is an optional donation page:
+[Support development](https://example.com/quick-turn-sim/support)
+(placeholder address). A donation unlocks nothing. The same link sits in the
+corner of the title screen, with no reminders or pop-ups. The address is set
+in one place, `DONATE_URL` in `crates/qts-core/src/constants.rs`; an empty
+string hides the link in the game.
+
 ## Licence
 
 - Code: Apache-2.0, see `LICENSE`.

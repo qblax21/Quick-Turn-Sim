@@ -302,6 +302,12 @@ impl SimBridge {
         gstr(PRODUCT_SHORT_NAME)
     }
 
+    /// Address of the optional donate page, or "" for none (D-120).
+    #[func]
+    fn donate_url() -> GString {
+        gstr(qts_core::constants::DONATE_URL)
+    }
+
     /// Version of the simulation core.
     #[func]
     fn version() -> GString {
