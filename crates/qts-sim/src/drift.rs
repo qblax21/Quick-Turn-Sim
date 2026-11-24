@@ -23,23 +23,38 @@ use qts_core::math::Vec3;
 use qts_core::step::Simulation;
 use std::sync::{Arc, Mutex};
 
-/// Weights of line, angle and style in a corner's score, out of 100.
-pub const WEIGHTS: [f64; 3] = [35.0, 35.0, 30.0];
+/// Weights of line, angle and style, out of 100: Formula DRIFT's 2026
+/// qualifying split (Judging Regulations 2026 v1.3, 3.1; D-119).
+pub const WEIGHTS: [f64; 3] = [40.0, 40.0, 20.0];
 /// Slip angle that counts as sliding, degrees.
 pub const SLIDE_DEG: f64 = 10.0;
 /// Below this the car is taken to have straightened, degrees.
 pub const STRAIGHT_DEG: f64 = 5.0;
-/// Mean slip angle for no angle marks, and for full marks, degrees.
-pub const ANGLE_RANGE_DEG: (f64, f64) = (5.0, 35.0);
-/// Slip angle that is a spin, degrees.
-pub const SPIN_DEG: f64 = 110.0;
+/// Mean slip angle for no angle marks, and for full marks, degrees. As
+/// in the rulebook, the score is the average angle over a maximum, with
+/// no floor; the rulebook sets the maximum per event from the field's
+/// data, this project fixes it at 35.
+pub const ANGLE_RANGE_DEG: (f64, f64) = (0.0, 35.0);
+/// Slip angle that is a spin, degrees: the rulebook's "approximately 180
+/// degrees" of over-rotation, taken from 150.
+pub const SPIN_DEG: f64 = 150.0;
+/// Tyres off the course at once that make the run Incomplete (rulebook
+/// 3.2: three tyres off in the zones).
+pub const TYRES_OFF_INCOMPLETE: u8 = 3;
+/// Time sliding the wrong way for the corner that makes the run
+/// Incomplete ("opposite drift"), s. The rulebook gives no time; this
+/// leaves room for a transition at a zone's edge.
+pub const OPPOSITE_S: f64 = 0.5;
+/// Past the outer zone's line the tail is in the "No-Go" area, which the
+/// rulebook deducts from the zone's fill. The deduction starts this far
+/// past the line (the line's width and the bumper's curve) and takes the
+/// whole outer half at [`OCZ_SHORT_M`] further, m.
+pub const NO_GO_FROM_M: f64 = 0.5;
 /// Gap to the inner clipping point for full marks, and for none, m.
 pub const ICP_RANGE_M: (f64, f64) = (0.5, 4.0);
 /// How far short of the outer clipping zone's line the tail may stay and
 /// still score anything, m.
 pub const OCZ_SHORT_M: f64 = 4.0;
-/// Time off the course that zeroes a corner, s.
-pub const OFF_COURSE_S: f64 = 0.5;
 /// Below this speed slip angle means nothing, m/s.
 pub const MIN_SPEED: f64 = 5.0;
 /// Rows a second the judge keeps.
@@ -58,17 +73,21 @@ pub struct Sample {
     /// Offset of the middle of the rear bumper across the path, m,
     /// positive to the left.
     pub tail_offset_m: f64,
-    /// True unless all four wheels are off the course.
-    pub on_course: bool,
+    /// Tyres off the course.
+    pub tyres_off: u8,
+    /// True when sliding (over [`SLIDE_DEG`]) the wrong way for the corner.
+    pub wrong_way: bool,
 }
 
-/// Why a corner scored nothing.
+/// Why a run is Incomplete: it scores nothing (rulebook 3.2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Penalty {
     /// More than [`SPIN_DEG`] of slip.
     Spin,
-    /// All four wheels off for more than [`OFF_COURSE_S`].
+    /// [`TYRES_OFF_INCOMPLETE`] or more tyres off the course.
     OffCourse,
+    /// Sliding the wrong way for the corner for [`OPPOSITE_S`] or more.
+    Opposite,
 }
 
 /// One corner's result.
@@ -89,6 +108,10 @@ pub struct ZoneScore {
     /// How far short of the outer clipping zone's line the tail stayed at
     /// best, m (0 or less: reached it).
     pub ocz_short_m: f64,
+    /// How far past the outer zone's line the tail went, m (0 if not).
+    pub no_go_m: f64,
+    /// Samples taken in the zone.
+    pub samples: usize,
     /// Mean slip angle, degrees.
     pub mean_angle_deg: f64,
     /// Share of the zone spent sliding.
@@ -103,8 +126,9 @@ impl ZoneScore {
     /// A short account for the screen.
     pub fn describe(&self) -> String {
         match self.penalty {
-            Some(Penalty::Spin) => "spin: no score".into(),
-            Some(Penalty::OffCourse) => "off course: no score".into(),
+            Some(Penalty::Spin) => "spin: run Incomplete".into(),
+            Some(Penalty::OffCourse) => "three tyres off: run Incomplete".into(),
+            Some(Penalty::Opposite) => "opposite drift: run Incomplete".into(),
             None => format!(
                 "{:.0} deg mean, {:.0} % sliding, ICP {:.1} m, OCZ {}",
                 self.mean_angle_deg,
@@ -122,6 +146,38 @@ impl ZoneScore {
 
 fn ramp(x: f64, zero: f64, full: f64) -> f64 {
     ((x - zero) / (full - zero)).clamp(0.0, 1.0)
+}
+
+/// Share of the outer zone filled, from how far short of its line the tail
+/// stayed (negative: past it, into the No-Go area, which is deducted).
+fn outer_fill(short: f64) -> f64 {
+    if short >= 0.0 {
+        1.0 - ramp(short, 0.0, OCZ_SHORT_M)
+    } else {
+        1.0 - ramp(-short, NO_GO_FROM_M, NO_GO_FROM_M + OCZ_SHORT_M)
+    }
+}
+
+/// A lap's score out of 100 the rulebook's way (3.1): line is the mean
+/// fill over all zones (a zone not passed fills nothing), angle the mean
+/// slip over every judged sample against the maximum, style the mean over
+/// the zones; any Incomplete scores nothing.
+pub fn lap_total(zones: &[Option<ZoneScore>]) -> f64 {
+    let n = zones.len().max(1) as f64;
+    if zones.iter().flatten().any(|z| z.penalty.is_some()) {
+        return 0.0;
+    }
+    let line = zones.iter().flatten().map(|z| z.line).sum::<f64>() / n;
+    let style = zones.iter().flatten().map(|z| z.style).sum::<f64>() / n;
+    let samples: usize = zones.iter().flatten().map(|z| z.samples).sum();
+    let angle_sum: f64 = zones
+        .iter()
+        .flatten()
+        .map(|z| z.mean_angle_deg * z.samples as f64)
+        .sum();
+    let mean_angle = angle_sum / samples.max(1) as f64;
+    let angle = ramp(mean_angle, ANGLE_RANGE_DEG.0, ANGLE_RANGE_DEG.1);
+    WEIGHTS[0] * line + WEIGHTS[1] * angle + WEIGHTS[2] * style
 }
 
 /// Scores one zone from the samples taken in it, `dt` seconds apart.
@@ -156,9 +212,10 @@ pub fn score_zone(zone: &DriftZoneDef, samples: &[Sample], dt: f64) -> ZoneScore
         .map(|x| outward * x.tail_offset_m)
         .fold(f64::NEG_INFINITY, f64::max);
     let short = target - reach;
+    let no_go = (-short).max(0.0);
     let icp = 1.0 - ramp(icp_gap, ICP_RANGE_M.0, ICP_RANGE_M.1);
     let ocz = if reach.is_finite() {
-        1.0 - ramp(short, 0.0, OCZ_SHORT_M)
+        outer_fill(short)
     } else {
         0.0
     };
@@ -167,16 +224,18 @@ pub fn score_zone(zone: &DriftZoneDef, samples: &[Sample], dt: f64) -> ZoneScore
     let style = (sliding - 0.3 * f64::from(straightened)).clamp(0.0, 1.0);
     // Penalties.
     let spun = samples.iter().any(|x| x.slip_deg > SPIN_DEG);
-    let mut off = 0.0_f64;
-    let mut worst_off = 0.0_f64;
+    let off = samples.iter().any(|x| x.tyres_off >= TYRES_OFF_INCOMPLETE);
+    let (mut wrong, mut worst_wrong) = (0.0_f64, 0.0_f64);
     for x in samples {
-        off = if x.on_course { 0.0 } else { off + dt };
-        worst_off = worst_off.max(off);
+        wrong = if x.wrong_way { wrong + dt } else { 0.0 };
+        worst_wrong = worst_wrong.max(wrong);
     }
     let penalty = if spun {
         Some(Penalty::Spin)
-    } else if worst_off > OFF_COURSE_S {
+    } else if off {
         Some(Penalty::OffCourse)
+    } else if worst_wrong >= OPPOSITE_S - 1e-9 {
+        Some(Penalty::Opposite)
     } else {
         None
     };
@@ -197,6 +256,8 @@ pub fn score_zone(zone: &DriftZoneDef, samples: &[Sample], dt: f64) -> ZoneScore
         } else {
             f64::INFINITY
         },
+        no_go_m: if reach.is_finite() { no_go } else { 0.0 },
+        samples: samples.len(),
         mean_angle_deg: mean,
         sliding,
         straightened,
@@ -206,14 +267,22 @@ pub fn score_zone(zone: &DriftZoneDef, samples: &[Sample], dt: f64) -> ZoneScore
 
 /// Where a lap lost the most points, and why (D-118): the corner with the
 /// lowest score, and the part of its score that lost most, in words. A
-/// corner not passed counts as all points lost. `None` for a lap of 100.
+/// corner not passed counts as all points lost; a corner that made the run
+/// Incomplete comes first. `None` for a lap of 100.
 pub fn coach_note(lap: &LapScore, def: &DriftDef) -> Option<String> {
-    let (i, lost) = lap
+    let incomplete = lap
         .zones
         .iter()
-        .enumerate()
-        .map(|(i, z)| (i, 100.0 - z.as_ref().map_or(0.0, |z| z.total)))
-        .max_by(|a, b| a.1.total_cmp(&b.1))?;
+        .position(|z| z.as_ref().is_some_and(|z| z.penalty.is_some()));
+    let (i, lost) = match incomplete {
+        Some(i) => (i, 100.0),
+        None => lap
+            .zones
+            .iter()
+            .enumerate()
+            .map(|(i, z)| (i, 100.0 - z.as_ref().map_or(0.0, |z| z.total)))
+            .max_by(|a, b| a.1.total_cmp(&b.1))?,
+    };
     if lost < 0.5 {
         return None;
     }
@@ -228,15 +297,18 @@ pub fn coach_note(lap: &LapScore, def: &DriftDef) -> Option<String> {
 /// The biggest loss inside one judged corner, in words.
 fn zone_reason(z: &ZoneScore) -> String {
     match z.penalty {
-        Some(Penalty::Spin) => return format!("a spin (over {SPIN_DEG:.0} deg) zeroed it"),
-        Some(Penalty::OffCourse) => {
-            return format!("off the course for over {OFF_COURSE_S:.1} s zeroed it")
+        Some(Penalty::Spin) => {
+            return format!("a spin (over {SPIN_DEG:.0} deg) made the run Incomplete")
         }
+        Some(Penalty::OffCourse) => {
+            return format!("{TYRES_OFF_INCOMPLETE} tyres off the course made the run Incomplete")
+        }
+        Some(Penalty::Opposite) => return "an opposite drift made the run Incomplete".to_string(),
         None => {}
     }
     let icp = 1.0 - ramp(z.icp_gap_m, ICP_RANGE_M.0, ICP_RANGE_M.1);
     let ocz = if z.ocz_short_m.is_finite() {
-        1.0 - ramp(z.ocz_short_m, 0.0, OCZ_SHORT_M)
+        outer_fill(z.ocz_short_m)
     } else {
         0.0
     };
@@ -254,6 +326,10 @@ fn zone_reason(z: &ZoneScore) -> String {
         0 => format!(
             "line: missed the inner clipping point by {:.1} m (-{pts:.0})",
             (z.icp_gap_m - ICP_RANGE_M.0).max(0.0)
+        ),
+        1 if z.no_go_m > NO_GO_FROM_M => format!(
+            "line: the tail went {:.1} m past the outer zone into the No-Go area (-{pts:.0})",
+            z.no_go_m
         ),
         1 if z.ocz_short_m.is_finite() => format!(
             "line: the tail stopped {:.1} m short of the outer zone (-{pts:.0})",
@@ -448,6 +524,10 @@ impl DriftJudge {
                 (p.x - icp[0]).hypot(p.y - icp[1])
             })
             .fold(f64::INFINITY, f64::min);
+        // Sliding the wrong way: the body slip's side is the corner's side
+        // (a right-hander, ICP on the right, slides with the car moving to
+        // the left of where it points).
+        let wrong_way = slip >= SLIDE_DEG && v[1].signum() == zone.icp_offset_m.signum();
         let tail = world(cx - hl, 0.0);
         let tail_offset = path
             .project(
@@ -458,17 +538,22 @@ impl DriftJudge {
                 40.0,
             )
             .map_or(0.0, |(_, o)| o);
-        let on_course = out.wheels.iter().any(|w| {
-            let [x, y, z] = w.center_body;
-            let c = st.pos + st.rot.rotate(Vec3::new(x, y, z));
-            !track.has_limits() || track.within_limits(c.x, c.y)
-        });
+        let tyres_off = out
+            .wheels
+            .iter()
+            .filter(|w| {
+                let [x, y, z] = w.center_body;
+                let c = st.pos + st.rot.rotate(Vec3::new(x, y, z));
+                track.has_limits() && !track.within_limits(c.x, c.y)
+            })
+            .count() as u8;
         Some(Sample {
             s,
             slip_deg: slip,
             icp_gap_m: icp_gap,
             tail_offset_m: tail_offset,
-            on_course,
+            tyres_off,
+            wrong_way,
         })
     }
 
@@ -482,10 +567,11 @@ impl DriftJudge {
         }
         let score = score_zone(&def.zones[i], &samples, self.dt);
         self.lap[i] = Some(score.clone());
-        let judged: Vec<f64> = self.lap.iter().flatten().map(|z| z.total).collect();
+        let judged: Vec<Option<ZoneScore>> =
+            self.lap.iter().filter(|z| z.is_some()).cloned().collect();
         let mut s = self.lock();
         s.zone = None;
-        s.lap_so_far = judged.iter().sum::<f64>() / judged.len().max(1) as f64;
+        s.lap_so_far = lap_total(&judged);
         s.zones_so_far = judged.len() as u32;
         s.last_zone = Some(score);
     }
@@ -498,7 +584,7 @@ impl DriftJudge {
 
     fn finish_lap(&mut self, counted: bool) {
         let n = self.lap.len();
-        let total = self.lap.iter().flatten().map(|z| z.total).sum::<f64>() / n.max(1) as f64;
+        let total = lap_total(&self.lap);
         let lap = LapScore {
             zones: std::mem::replace(&mut self.lap, vec![None; n]),
             total,

@@ -39,7 +39,8 @@ fn sample(s: f64, slip: f64, gap: f64, tail: f64) -> Sample {
         slip_deg: slip,
         icp_gap_m: gap,
         tail_offset_m: tail,
-        on_course: true,
+        tyres_off: 0,
+        wrong_way: false,
     }
 }
 
@@ -60,17 +61,18 @@ fn a_committed_slide_on_both_clipping_points_scores_full_marks() {
 fn driving_round_on_grip_scores_little() {
     let z = zone();
     let r = score_zone(&z, &run(|s| sample(s, 2.0, 3.0, 2.0)), DT);
-    assert_eq!(r.angle, 0.0);
+    // The rulebook's angle has no floor: 2 of 35 degrees is 2/35 (D-119).
+    assert!((r.angle - 2.0 / 35.0).abs() < 1e-9, "{r:?}");
     assert_eq!(r.style, 0.0);
     // 3 m from the ICP: 0.29 of its half; 4 m short of the OCZ: nothing.
     assert!((r.line - 0.5 * (1.0 - 2.5 / 3.5)).abs() < 1e-9, "{r:?}");
-    assert!(r.total < 6.0, "{r:?}");
+    assert!(r.total < 10.0, "{r:?}");
 }
 
 #[test]
 fn angle_and_line_are_marked_on_a_sliding_scale() {
     let z = zone();
-    let half_angle = score_zone(&z, &run(|s| sample(s, 20.0, 0.4, 6.2)), DT);
+    let half_angle = score_zone(&z, &run(|s| sample(s, 17.5, 0.4, 6.2)), DT);
     assert!((half_angle.angle - 0.5).abs() < 1e-9, "{half_angle:?}");
     let short = score_zone(&z, &run(|s| sample(s, 40.0, 0.4, 4.0)), DT);
     assert!((short.ocz_short_m - 2.0).abs() < 1e-9);
@@ -97,35 +99,98 @@ fn straightening_mid_corner_costs_style() {
 }
 
 #[test]
-fn a_spin_or_running_off_zeroes_the_corner() {
+fn a_spin_three_tyres_off_or_an_opposite_drift_is_incomplete() {
+    // Formula DRIFT 2026 Judging Regulations v1.3, 3.2 (D-119).
     let z = zone();
     let spun = score_zone(
         &z,
-        &run(|s| sample(s, if s > 60.0 { 130.0 } else { 40.0 }, 0.4, 6.2)),
+        &run(|s| sample(s, if s > 60.0 { 160.0 } else { 40.0 }, 0.4, 6.2)),
         DT,
     );
     assert_eq!(spun.penalty, Some(Penalty::Spin));
     assert_eq!(spun.total, 0.0);
-    // 70 samples off at 0.01 s: 0.7 s, over the half second allowed.
-    let off = score_zone(
+    // 130 degrees and caught: not a spin.
+    let caught = score_zone(
         &z,
-        &run(|s| Sample {
-            on_course: !(60.0..67.0).contains(&s),
-            ..sample(s, 40.0, 0.4, 6.2)
+        &run(|s| {
+            sample(
+                s,
+                if (60.0..62.0).contains(&s) {
+                    130.0
+                } else {
+                    40.0
+                },
+                0.4,
+                6.2,
+            )
         }),
         DT,
     );
-    assert_eq!(off.penalty, Some(Penalty::OffCourse));
-    // A brief excursion is allowed.
-    let brief = score_zone(
-        &z,
-        &run(|s| Sample {
-            on_course: !(60.0..62.0).contains(&s),
-            ..sample(s, 40.0, 0.4, 6.2)
-        }),
-        DT,
+    assert_eq!(caught.penalty, None);
+    // Three tyres off, even briefly: Incomplete. Two: not.
+    let tyres = |n: u8| {
+        score_zone(
+            &z,
+            &run(|s| Sample {
+                tyres_off: if (60.0..60.5).contains(&s) { n } else { 0 },
+                ..sample(s, 40.0, 0.4, 6.2)
+            }),
+            DT,
+        )
+    };
+    assert_eq!(tyres(3).penalty, Some(Penalty::OffCourse));
+    assert_eq!(tyres(2).penalty, None);
+    // Sliding the wrong way for 0.6 s is an opposite drift; 0.2 s at a
+    // transition is not.
+    let wrong = |to: f64| {
+        score_zone(
+            &z,
+            &run(|s| Sample {
+                wrong_way: (10.0..to).contains(&s),
+                ..sample(s, 40.0, 0.4, 6.2)
+            }),
+            DT,
+        )
+    };
+    assert_eq!(wrong(16.0).penalty, Some(Penalty::Opposite));
+    assert_eq!(wrong(12.0).penalty, None);
+}
+
+/// The lap is scored the rulebook's way: 40 line, 40 angle, 20 style over
+/// the whole run, and an Incomplete anywhere scores nothing (D-119).
+#[test]
+fn the_lap_is_scored_over_the_run_and_an_incomplete_scores_nothing() {
+    use qts_sim::drift::lap_total;
+    let z = zone();
+    let full = score_zone(&z, &run(|s| sample(s, 40.0, 0.4, 6.2)), DT);
+    let half_angle = score_zone(&z, &run(|s| sample(s, 17.5, 0.4, 6.2)), DT);
+    let total = lap_total(&[Some(full.clone()), Some(half_angle.clone())]);
+    // Angle: mean of 40 and 17.5 over a 35 maximum is 0.82 of 40; line
+    // full; style: both slide the whole zone.
+    let expected = 40.0 + 40.0 * (28.75_f64 / 35.0).min(1.0) + 20.0;
+    assert!(
+        (total - expected).abs() < 0.05,
+        "{total} against {expected}"
     );
-    assert_eq!(brief.penalty, None);
+    // The rulebook's own angle example: 25 of a 50 maximum is half.
+    assert!((half_angle.angle - 0.5).abs() < 1e-9);
+    let spun = score_zone(&z, &run(|s| sample(s, 170.0, 0.4, 6.2)), DT);
+    assert_eq!(lap_total(&[Some(full.clone()), Some(spun)]), 0.0);
+    // A corner not passed fills nothing and slides nothing.
+    let missed = lap_total(&[Some(full), None]);
+    assert!((missed - (20.0 + 40.0 + 10.0)).abs() < 0.05, "{missed}");
+}
+
+/// Past the outer zone's line the tail is in the No-Go area, deducted
+/// from the fill (D-119).
+#[test]
+fn overfilling_into_the_no_go_area_is_deducted() {
+    let z = zone();
+    let on = score_zone(&z, &run(|s| sample(s, 40.0, 0.4, 6.3)), DT);
+    assert!((on.line - 1.0).abs() < 1e-9, "{on:?}");
+    let over = score_zone(&z, &run(|s| sample(s, 40.0, 0.4, 8.5)), DT);
+    assert!((over.no_go_m - 2.5).abs() < 1e-9);
+    assert!((over.line - 0.5 * (1.0 + 0.5)).abs() < 1e-9, "{over:?}");
 }
 
 #[test]

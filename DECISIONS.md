@@ -2493,3 +2493,45 @@ Tests: the coach on synthetic corners (inner point missed, angle short,
 two straightenings, a corner not passed, nothing to say about a perfect
 lap); and the ghost ranked by score over three driven runs, through a
 save and load.
+
+## D-119 Drift scoring matched to the Formula DRIFT 2026 rulebook
+
+D-114's 35/35/30 split was reported practice, not checked. It is now
+matched to the current published rulebook: Formula DRIFT *Judging
+Regulations* 2026 v1.3, sections 3.1 and 3.2. The comparison, rule by
+rule, is in `docs/VALIDATION_SOURCES.md`.
+
+Changed:
+
+- **Weights:** line 40, angle 40, style 20 (were 35, 35, 30).
+- **Angle:** the average slip divided by the maximum, with no floor (was
+  nothing below 5 degrees). The rulebook sets the maximum per event from
+  the field's data; here it stays fixed at 35 degrees.
+- **Lap score:** over the whole run, as the rulebook does, not the mean
+  of the corners.
+  - Line: the mean fill over every zone (a zone not passed fills nothing).
+  - Angle: the mean slip over every judged sample.
+  - Style: the mean over the zones.
+  - Each corner still gets its own score, for the panel and the coach.
+- **No-Go:** a tail that goes past the outer zone's line is overfilling.
+  The deduction starts 0.5 m past it and takes the whole outer half at
+  4.5 m. Before, going further out cost nothing.
+- **Incomplete:** any of these now scores nothing for the whole run (was
+  only that corner):
+  - a spin, now over 150 degrees (was 110), for the rulebook's
+    "approximately 180";
+  - three tyres off the course at any judged moment (was all four for
+    over 0.5 s);
+  - an opposite drift, new: sliding the wrong way for the corner for
+    0.5 s.
+- The coach names the corner that made a run Incomplete first, and the
+  No-Go overshoot when that cost most.
+
+Not like the rulebook, and marked unverified there:
+
+- Line is measured as distances to the clipping point and the zone's
+  line, not the share of the zone's area filled.
+- Style is automated (the share of time sliding, less a deduction per
+  straightening); the rulebook has it judged by people.
+- These choices are this project's: the 35-degree maximum, the 150-degree
+  spin, the 0.5 s opposite drift and the 0.5 m No-Go start.

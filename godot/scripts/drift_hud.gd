@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Drift judging on screen (D-114), on tracks with judged zones only:
 #   readout  live slip angle, the zone being judged, the last corner's score
-#            (line, angle, style out of 35, 35, 30) and the lap so far
+#            (line, angle, style out of 40, 40, 20; D-119) and the lap so far
 #   panel    after each lap, and on F9: every corner's score and why, the
 #            lap's score and the best, and the corner that cost the most
 # Display only; the judging is in the core (qts-sim/src/drift.rs).
@@ -49,7 +49,7 @@ func _row(text: String, size: int, colour := Color(1, 1, 1)) -> void:
 
 
 static func _parts(z: Dictionary) -> String:
-	return "line %2.0f  angle %2.0f  style %2.0f" % [z.line * 35.0, z.angle * 35.0, z.style * 30.0]
+	return "line %2.0f  angle %2.0f  style %2.0f" % [z.line * 40.0, z.angle * 40.0, z.style * 20.0]
 
 
 func update_from(d: Dictionary) -> void:

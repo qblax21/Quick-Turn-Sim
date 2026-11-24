@@ -174,6 +174,28 @@ that uses it** (all four do; each file can be tuned on its own).
 Not found: a published grip-against-temperature curve for a road summer
 tire below 30 C, and a measured warm-up time for road tires on a car.
 
+## Drift judging and the Formula DRIFT rulebook (D-114, D-119)
+
+Source: Formula DRIFT, *Judging Regulations*, 2026 version 1.3
+(formulad.com, rulebook PDF, read 23 November 2026), sections 3.1
+(qualifying criteria and scoring) and 3.2 (incomplete qualifying runs).
+
+| Rule | Rulebook | Here |
+|---|---|---|
+| Weights | line 40, angle 40, style 20 | the same |
+| Line | share of each zone filled (body outline next to walls, wheelbase otherwise), less any No-Go area beyond it, averaged over the zones | inner zone: nearest body corner to the inner clipping point, full at 0.5 m, none at 4 m. Outer zone: the rear bumper's reach to the zone's line, none 4 m short. Past the line, a No-Go deduction from 0.5 m on, the whole outer half at 4.5 m. Distances stand in for areas |
+| Angle | average angle over the run, from the judged start to the finish, divided by a maximum set per event from the field's data | average body slip over every judged sample divided by 35 degrees, a fixed maximum (the rulebook's example uses 50) |
+| Style | judged by people: front-wheel control, pace, rate of initiation and transitions, handbrake use, throttle, tyres off outside the zones | automated stand-in: share of time sliding, less 30 % per straighten-and-slide-again |
+| Spin | Incomplete, no score for the run ("approximately 180 degrees" of over-rotation, 5.3) | Incomplete above 150 degrees of body slip |
+| Opposite drift | Incomplete | Incomplete after 0.5 s sliding the wrong way for the corner (no time given in the rulebook) |
+| Tyres off | three tyres off in the zones: Incomplete | three tyres off the course at any judged moment |
+| Not in control over the finish, unchaseable lead | Incomplete | not judged |
+
+**Unverified here:** the line and style stand-ins, the 35-degree maximum,
+the 150-degree spin and the 0.5 s opposite-drift time are this project's
+choices. The rulebook scores line and angle by telemetry (the Universal
+Drifting Scoring Method, Race Data Labs) and style by judges.
+
 ## Halden E4 and the Tesla Model 3 Performance (2018 to 2020)
 
 Comparable: Model 3 Dual Motor Performance with the Performance Upgrade
