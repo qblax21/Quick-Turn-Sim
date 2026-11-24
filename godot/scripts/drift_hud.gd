@@ -3,7 +3,7 @@
 #   readout  live slip angle, the zone being judged, the last corner's score
 #            (line, angle, style out of 35, 35, 30) and the lap so far
 #   panel    after each lap, and on F9: every corner's score and why, the
-#            lap's score and the best
+#            lap's score and the best, and the corner that cost the most
 # Display only; the judging is in the core (qts-sim/src/drift.rs).
 extends VBoxContainer
 
@@ -83,6 +83,10 @@ func _build(d: Dictionary) -> void:
 	var best: float = d.get("best", -1.0)
 	_row("Drift lap  %.1f / 100%s%s" % [d.lap_total, "" if d.lap_counted else "   (lap not counted)",
 		("   best %.1f" % best) if best >= 0.0 else ""], 20, Color(1.0, 0.85, 0.4))
+	# Coach (D-118): the corner that cost the most points, and why.
+	var coach: String = d.get("coach", "")
+	if coach != "":
+		_row(coach, 17, Color(0.55, 0.85, 1.0))
 	for z in d.get("zones", []):
 		if z.get("missed", false):
 			_row("--   not judged", 15, Color(0.6, 0.6, 0.6))

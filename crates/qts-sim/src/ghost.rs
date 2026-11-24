@@ -21,7 +21,7 @@ const DELTA_MAX_GAP_M: f64 = 40.0;
 /// Marks a ghost file.
 const MAGIC: &[u8; 4] = b"GLAP";
 /// Version of the ghost file layout.
-const FORMAT_VERSION: u32 = 2;
+const FORMAT_VERSION: u32 = 3;
 
 /// One recorded lap.
 #[derive(Clone, Debug, PartialEq)]
@@ -41,6 +41,10 @@ pub struct GhostLap {
     /// Setup the lap was driven with, as canonical text (empty for the car
     /// as delivered). Files from before setups existed read as empty.
     pub setup: String,
+    /// Drift score of the lap, out of 100, on a track with judged corners
+    /// (D-118); there the ghost is the best-scored lap, not the fastest.
+    /// Files from before version 3 read as `None`.
+    pub drift_score: Option<f64>,
 }
 
 impl GhostLap {
@@ -117,6 +121,8 @@ impl GhostLap {
             }
         }
         w.write_str(&self.setup);
+        w.write_u8(u8::from(self.drift_score.is_some()));
+        w.write_f64(self.drift_score.unwrap_or(0.0));
         w.into_bytes()
     }
 
@@ -177,6 +183,13 @@ impl GhostLap {
         } else {
             String::new()
         };
+        let drift_score = if version >= 3 {
+            let has = r.read_u8()? != 0;
+            let score = r.read_f64()?;
+            (has && score.is_finite()).then_some(score)
+        } else {
+            None
+        };
         r.finish()?;
         Ok(Self {
             car_id,
@@ -186,6 +199,7 @@ impl GhostLap {
             sample_ticks,
             poses,
             setup,
+            drift_score,
         })
     }
 }
@@ -204,6 +218,8 @@ pub struct GhostRecorder {
     /// Time gained (negative) or lost against the best lap at the car's
     /// present position, s.
     delta_s: Option<f64>,
+    /// Keep the best drift score instead of the fastest lap.
+    by_score: bool,
 }
 
 impl GhostRecorder {
@@ -211,6 +227,16 @@ impl GhostRecorder {
     pub fn new(best: Option<GhostLap>) -> Self {
         Self {
             best,
+            ..Self::default()
+        }
+    }
+
+    /// Starts with an earlier best lap, keeping the best drift score from
+    /// here on instead of the fastest lap (D-118).
+    pub fn by_drift_score(best: Option<GhostLap>) -> Self {
+        Self {
+            best,
+            by_score: true,
             ..Self::default()
         }
     }
@@ -223,16 +249,37 @@ impl GhostRecorder {
     /// Call once after every tick with the pose of that tick. Returns true
     /// when the run that just finished became the new best lap.
     pub fn observe(&mut self, session: &Session, pose: &RenderPose) -> bool {
+        self.observe_scored(session, pose, None)
+    }
+
+    /// As [`GhostRecorder::observe`], with the drift score of a counted
+    /// lap finished on this tick. Ranked by score, a lap with no score is
+    /// never kept.
+    pub fn observe_scored(
+        &mut self,
+        session: &Session,
+        pose: &RenderPose,
+        drift_score: Option<f64>,
+    ) -> bool {
+        let by_score = self.by_score;
+        let better = |b: &GhostLap, ticks: u64| {
+            if by_score {
+                drift_score.is_some_and(|s| b.drift_score.is_none_or(|best| s > best))
+            } else {
+                ticks < b.lap_ticks
+            }
+        };
         let timing = session.timing();
         let mut improved = false;
         if timing.runs != self.runs_seen {
             // A run finished on this tick; `current` holds it.
             if timing.runs > self.runs_seen
                 && !self.current.is_empty()
+                && (!by_score || drift_score.is_some())
                 && self
                     .best
                     .as_ref()
-                    .is_none_or(|b| timing.last_ticks < b.lap_ticks)
+                    .is_none_or(|b| better(b, timing.last_ticks))
             {
                 // The finishing pose closes the lap.
                 self.current.push(*pose);
@@ -244,6 +291,7 @@ impl GhostRecorder {
                     sample_ticks: GHOST_SAMPLE_TICKS,
                     poses: std::mem::take(&mut self.current),
                     setup: session.setup().to_text(),
+                    drift_score,
                 };
                 // The session only counts runs that took the course; this
                 // second check guards the file against anything it missed.
@@ -355,6 +403,7 @@ mod tests {
             lap_ticks: (poses as u64 - 1) * 20 + 7,
             sample_ticks: 20,
             setup: "name = test\nfront.camber_deg = -2\n".into(),
+            drift_score: None,
             poses: (0..poses)
                 .map(|i| RenderPose {
                     tick: i as u64 * 20,

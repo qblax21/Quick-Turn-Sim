@@ -2459,3 +2459,37 @@ such hardware:
 - 150 MB disk
 
 Not done: the replay viewer shows no smoke yet.
+
+## D-118 Drift coach and the best-scored ghost
+
+**Coach.** After each lap on a drift track, the lap panel (shown for 12 s,
+and on F9) gets a line naming the corner that lost the most points and the
+part of its score that lost most (`drift::coach_note`, in the core), for
+example:
+
+- "Most points lost: T2 (-10), line: missed the inner clipping point by
+  2.1 m (-10)". The distance is beyond the 0.5 m that still scores full
+  marks.
+- "line: the tail stopped 1.8 m short of the outer zone".
+- "angle under target: 14 deg mean, full marks at 35".
+- "transition not smooth: straightened 2 time(s) mid-corner", or "style:
+  sliding only 60 % of the corner".
+- A spin, running off, or a corner not driven through says so.
+
+Line is split into its two halves (inner point, outer zone) so the note
+says which one cost the points. It reads the scoring constants, so it
+follows any change to the weights.
+
+**Ghost.** On a track with judged corners, the ghost is now the
+best-scored counted lap rather than the fastest. A slower lap with a
+higher score replaces it; a faster one with a lower score does not.
+
+- The score is stored in the ghost file (format version 3; older files
+  read as unscored and are replaced by the first scored lap).
+- The HUD shows "ghost: best drift score 72.5 (lap time, setup)".
+- Elsewhere the ghost is still the fastest lap.
+
+Tests: the coach on synthetic corners (inner point missed, angle short,
+two straightenings, a corner not passed, nothing to say about a perfect
+lap); and the ghost ranked by score over three driven runs, through a
+save and load.

@@ -257,3 +257,65 @@ fn the_judge_reads_a_real_slide() {
     }
     assert!(peak > 15.0, "the slide never showed: {peak:.1} deg");
 }
+
+/// The coach (D-118) names the corner that lost the most points and the
+/// part of its score that lost most.
+#[test]
+fn the_coach_names_the_costliest_corner_and_why() {
+    use qts_sim::drift::{coach_note, LapScore};
+    use qts_sim::track::DriftDef;
+    let names = ["T1", "T2", "T3"];
+    let def = DriftDef {
+        path: "course".into(),
+        zones: names
+            .iter()
+            .map(|n| DriftZoneDef {
+                name: (*n).into(),
+                ..zone()
+            })
+            .collect(),
+    };
+    let z = zone();
+    let good = score_zone(&z, &run(|s| sample(s, 40.0, 0.4, 6.2)), DT);
+    let wide = score_zone(&z, &run(|s| sample(s, 40.0, 2.6, 6.2)), DT);
+    let shallow = score_zone(&z, &run(|s| sample(s, 14.0, 0.4, 6.2)), DT);
+    let jerky = score_zone(
+        &z,
+        &run(|s| {
+            let straight = (30.0..36.0).contains(&s) || (60.0..66.0).contains(&s);
+            sample(s, if straight { 2.0 } else { 40.0 }, 0.4, 6.2)
+        }),
+        DT,
+    );
+    let lap = |zones: Vec<Option<qts_sim::drift::ZoneScore>>| LapScore {
+        total: 0.0,
+        counted: true,
+        zones,
+    };
+    let note = |zones| coach_note(&lap(zones), &def).unwrap();
+    let n = note(vec![Some(good.clone()), Some(wide), Some(good.clone())]);
+    eprintln!("{n}");
+    assert!(
+        n.contains("T2") && n.contains("missed the inner clipping point by 2.1 m"),
+        "{n}"
+    );
+    let n = note(vec![Some(good.clone()), Some(good.clone()), Some(shallow)]);
+    eprintln!("{n}");
+    assert!(
+        n.contains("T3") && n.contains("angle under target: 14 deg"),
+        "{n}"
+    );
+    let n = note(vec![Some(jerky), Some(good.clone()), Some(good.clone())]);
+    eprintln!("{n}");
+    assert!(
+        n.contains("T1") && n.contains("straightened 2 time(s)"),
+        "{n}"
+    );
+    let n = note(vec![Some(good.clone()), None, Some(good.clone())]);
+    assert!(n.contains("T2 (-100)") && n.contains("not passed"), "{n}");
+    assert_eq!(
+        coach_note(&lap(vec![Some(good.clone()); 3]), &def),
+        None,
+        "nothing to say about a perfect lap"
+    );
+}

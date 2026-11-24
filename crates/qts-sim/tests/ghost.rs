@@ -118,3 +118,48 @@ fn the_fastest_run_becomes_the_ghost_and_plays_back_beside_the_car() {
     assert!(loaded.fits(&s));
     assert!(!loaded.fits(&session("sedan_halden_e4", "autocross_lot")));
 }
+
+/// One autocross run with the drift score `score` reported on the tick it
+/// finishes. Returns whether the ghost changed.
+fn run_scored(s: &mut Session, ghost: &mut GhostRecorder, max_speed: f64, score: f64) -> bool {
+    let path = s.track().path("course").unwrap().clone();
+    let config = PathFollowerConfig {
+        max_speed,
+        ..PathFollowerConfig::default()
+    };
+    let mut driver = PathFollower::new(&path, config);
+    let runs_before = s.timing().runs;
+    let mut improved = false;
+    for _ in 0..90_000 {
+        let frame = driver.frame(s);
+        s.step(&frame);
+        let finished = s.timing().runs > runs_before;
+        let now = pose(s);
+        improved |= ghost.observe_scored(s, &now, finished.then_some(score));
+        if finished {
+            break;
+        }
+    }
+    improved
+}
+
+/// On a drift track the ghost is the best-scored lap, not the fastest
+/// (D-118), and the score survives a save and load.
+#[test]
+fn ranked_by_drift_score_the_ghost_keeps_the_best_scored_lap() {
+    let mut s = session("hatch_tern_gt", "autocross_lot");
+    let mut ghost = GhostRecorder::by_drift_score(None);
+    assert!(run_scored(&mut s, &mut ghost, 7.0, 60.0));
+    let slow_ticks = ghost.best().unwrap().lap_ticks;
+    reset(&mut s, &mut ghost);
+    // Faster but scored lower: not kept.
+    assert!(!run_scored(&mut s, &mut ghost, 10.0, 40.0));
+    assert_eq!(ghost.best().unwrap().lap_ticks, slow_ticks);
+    reset(&mut s, &mut ghost);
+    // Scored higher: kept.
+    assert!(run_scored(&mut s, &mut ghost, 7.0, 72.5));
+    let best = ghost.best().unwrap().clone();
+    assert_eq!(best.drift_score, Some(72.5));
+    let back = GhostLap::from_bytes(&best.to_bytes()).unwrap();
+    assert_eq!(back.drift_score, Some(72.5));
+}

@@ -451,6 +451,7 @@ struct Published {
     cones_down: Vec<bool>,
     ghost: Option<RenderPose>,
     ghost_time_s: f64,
+    ghost_score: Option<f64>,
     ghost_delta_s: Option<f64>,
     ghost_setup: String,
 }
@@ -482,6 +483,7 @@ impl Shared {
                 cones_down: session.timing().cone_down.clone(),
                 ghost: None,
                 ghost_time_s: 0.0,
+                ghost_score: None,
                 ghost_delta_s: None,
                 ghost_setup: String::new(),
             }),
@@ -614,6 +616,11 @@ impl RealtimeHost {
     pub fn ghost(&self) -> (Option<RenderPose>, f64) {
         let p = lock(&self.shared.published);
         (p.ghost, p.ghost_time_s)
+    }
+
+    /// Drift score of the ghost's lap, on a track with judged corners.
+    pub fn ghost_score(&self) -> Option<f64> {
+        lock(&self.shared.published).ghost_score
     }
 
     /// Time against the best lap at the car's present position, s;
@@ -800,7 +807,12 @@ impl SimThread {
         *lock(&shared.drift) = Some(drift.slot());
         Self {
             drift,
-            ghost: GhostRecorder::new(saved),
+            // On a drift track the ghost is the best-scored lap (D-118).
+            ghost: if session.track().def().drift.is_some() {
+                GhostRecorder::by_drift_score(saved)
+            } else {
+                GhostRecorder::new(saved)
+            },
             coach,
             session,
             pipeline,
@@ -1172,7 +1184,11 @@ impl SimThread {
         }
         self.previous = self.current;
         self.current = RenderPose::of(&self.session);
-        if self.ghost.observe(&self.session, &self.current) {
+        let score = self.drift.just_counted();
+        if self
+            .ghost
+            .observe_scored(&self.session, &self.current, score)
+        {
             self.save_ghost();
         }
     }
@@ -1270,6 +1286,7 @@ impl SimThread {
                 p.ghost = self.ghost.pose_now(&self.session, p.alpha);
                 p.ghost_time_s = self.ghost.best().map_or(0.0, GhostLap::seconds);
                 p.ghost_delta_s = self.ghost.delta_s();
+                p.ghost_score = self.ghost.best().and_then(|b| b.drift_score);
                 if let Some(best) = self.ghost.best() {
                     if p.ghost_setup != best.setup {
                         p.ghost_setup.clone_from(&best.setup);

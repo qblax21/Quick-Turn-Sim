@@ -650,6 +650,7 @@ func _process(delta: float) -> void:
 	var ghost: Dictionary = sim.ghost()
 	values["ghost_time"] = ghost.get("time", 0.0)
 	values["ghost_setup"] = ghost.get("setup", "")
+	values["ghost_score"] = ghost.get("score", -1.0)
 	values["ghost_has_delta"] = ghost.get("has_delta", false)
 	values["ghost_delta"] = ghost.get("delta", 0.0)
 	_update_ghost(ghost, car_xform)

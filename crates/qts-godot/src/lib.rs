@@ -823,6 +823,7 @@ impl SimBridge {
             "lap_total" => lap_total,
             "lap_counted" => lap_counted,
             "best" => d.best_total.unwrap_or(-1.0),
+            "coach" => gstr(d.coach.as_deref().unwrap_or("")),
             "zones" => zones,
         }
     }
@@ -871,13 +872,14 @@ impl SimBridge {
         };
         let (pose, time) = host.ghost();
         let delta = host.ghost_delta();
+        let score = host.ghost_score().unwrap_or(-1.0);
         let setup_name = Setup::from_text(&host.ghost_setup())
             .map(|s| s.display_name())
             .unwrap_or_default();
         let Some(pose) = pose else {
             return vd! {
                 "visible" => false, "time" => time, "has_delta" => false, "delta" => 0.0,
-                "setup" => gstr(&setup_name),
+                "setup" => gstr(&setup_name), "score" => score,
             };
         };
         let mut wheels = Vec::with_capacity(20);
@@ -888,6 +890,7 @@ impl SimBridge {
         vd! {
             "visible" => true,
             "time" => time,
+            "score" => score,
             "setup" => gstr(&setup_name),
             "has_delta" => delta.is_some(),
             "delta" => delta.unwrap_or(0.0),

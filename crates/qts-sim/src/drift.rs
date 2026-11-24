@@ -204,6 +204,77 @@ pub fn score_zone(zone: &DriftZoneDef, samples: &[Sample], dt: f64) -> ZoneScore
     }
 }
 
+/// Where a lap lost the most points, and why (D-118): the corner with the
+/// lowest score, and the part of its score that lost most, in words. A
+/// corner not passed counts as all points lost. `None` for a lap of 100.
+pub fn coach_note(lap: &LapScore, def: &DriftDef) -> Option<String> {
+    let (i, lost) = lap
+        .zones
+        .iter()
+        .enumerate()
+        .map(|(i, z)| (i, 100.0 - z.as_ref().map_or(0.0, |z| z.total)))
+        .max_by(|a, b| a.1.total_cmp(&b.1))?;
+    if lost < 0.5 {
+        return None;
+    }
+    let name = def.zones.get(i).map_or("?", |z| z.name.as_str());
+    let why = match &lap.zones[i] {
+        None => "not passed: the corner was not driven through".to_string(),
+        Some(z) => zone_reason(z),
+    };
+    Some(format!("Most points lost: {name} (-{lost:.0}), {why}"))
+}
+
+/// The biggest loss inside one judged corner, in words.
+fn zone_reason(z: &ZoneScore) -> String {
+    match z.penalty {
+        Some(Penalty::Spin) => return format!("a spin (over {SPIN_DEG:.0} deg) zeroed it"),
+        Some(Penalty::OffCourse) => {
+            return format!("off the course for over {OFF_COURSE_S:.1} s zeroed it")
+        }
+        None => {}
+    }
+    let icp = 1.0 - ramp(z.icp_gap_m, ICP_RANGE_M.0, ICP_RANGE_M.1);
+    let ocz = if z.ocz_short_m.is_finite() {
+        1.0 - ramp(z.ocz_short_m, 0.0, OCZ_SHORT_M)
+    } else {
+        0.0
+    };
+    let losses = [
+        0.5 * WEIGHTS[0] * (1.0 - icp),
+        0.5 * WEIGHTS[0] * (1.0 - ocz),
+        WEIGHTS[1] * (1.0 - z.angle),
+        WEIGHTS[2] * (1.0 - z.style),
+    ];
+    let worst = (0..4)
+        .max_by(|&a, &b| losses[a].total_cmp(&losses[b]))
+        .unwrap_or(0);
+    let pts = losses[worst];
+    match worst {
+        0 => format!(
+            "line: missed the inner clipping point by {:.1} m (-{pts:.0})",
+            (z.icp_gap_m - ICP_RANGE_M.0).max(0.0)
+        ),
+        1 if z.ocz_short_m.is_finite() => format!(
+            "line: the tail stopped {:.1} m short of the outer zone (-{pts:.0})",
+            z.ocz_short_m
+        ),
+        1 => format!("line: the tail never reached the outer zone (-{pts:.0})"),
+        2 => format!(
+            "angle under target: {:.0} deg mean, full marks at {:.0} (-{pts:.0})",
+            z.mean_angle_deg, ANGLE_RANGE_DEG.1
+        ),
+        _ if z.straightened > 0 => format!(
+            "transition not smooth: straightened {} time(s) mid-corner (-{pts:.0})",
+            z.straightened
+        ),
+        _ => format!(
+            "style: sliding only {:.0} % of the corner (-{pts:.0})",
+            100.0 * z.sliding
+        ),
+    }
+}
+
 /// A judged lap.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct LapScore {
@@ -236,6 +307,8 @@ pub struct DriftSlot {
     pub last_lap: Option<LapScore>,
     /// Best counted lap total.
     pub best_total: Option<f64>,
+    /// Where the last lap lost the most points, and why ([`coach_note`]).
+    pub coach: Option<String>,
 }
 
 /// Judges a session as it is driven. Call [`DriftJudge::observe`] after
@@ -251,6 +324,7 @@ pub struct DriftJudge {
     samples: Vec<Sample>,
     lap: Vec<Option<ZoneScore>>,
     slot: Arc<Mutex<DriftSlot>>,
+    just_counted: Option<f64>,
 }
 
 impl DriftJudge {
@@ -275,6 +349,7 @@ impl DriftJudge {
             samples: Vec::new(),
             lap: vec![None; zones],
             slot: Arc::new(Mutex::new(slot)),
+            just_counted: None,
         }
     }
 
@@ -292,6 +367,7 @@ impl DriftJudge {
         let Some(def) = self.def.clone() else {
             return;
         };
+        self.just_counted = None;
         let t = session.timing();
         let finished = (t.runs, t.invalid_runs);
         if let Some(before) = self.seen {
@@ -414,6 +490,12 @@ impl DriftJudge {
         s.last_zone = Some(score);
     }
 
+    /// The score of a counted lap finished on the tick just observed; for
+    /// the ghost of the best-scored lap.
+    pub fn just_counted(&self) -> Option<f64> {
+        self.just_counted
+    }
+
     fn finish_lap(&mut self, counted: bool) {
         let n = self.lap.len();
         let total = self.lap.iter().flatten().map(|z| z.total).sum::<f64>() / n.max(1) as f64;
@@ -422,8 +504,13 @@ impl DriftJudge {
             total,
             counted,
         };
+        let coach = self.def.as_ref().and_then(|d| coach_note(&lap, d));
+        if counted {
+            self.just_counted = Some(total);
+        }
         let mut s = self.lock();
         s.serial += 1;
+        s.coach = coach;
         if counted {
             s.best_total = Some(s.best_total.map_or(total, |b| b.max(total)));
         }
