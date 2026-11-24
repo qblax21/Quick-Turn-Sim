@@ -14,6 +14,10 @@ func setup(store) -> void:
 
 
 func _ready() -> void:
+	_build()
+
+
+func _build() -> void:
 	var center := CenterContainer.new()
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
@@ -29,12 +33,28 @@ func _ready() -> void:
 	margin.add_child(box)
 
 	_heading(box, "Display")
+	var presets := HBoxContainer.new()
+	presets.add_theme_constant_override("separation", 8)
+	for preset in settings.GRAPHICS_PRESETS:
+		var b := Button.new()
+		b.text = preset
+		b.custom_minimum_size = Vector2(90, 0)
+		b.pressed.connect(func() -> void:
+			settings.apply_graphics_preset(preset)
+			for child in get_children():
+				child.queue_free()
+			_build())
+		presets.add_child(b)
+	_row(box, "Graphics preset", presets)
 	_check(box, "Fullscreen", "display/fullscreen")
 	_check(box, "Vertical sync", "display/vsync")
 	_choice(box, "Anti-aliasing", "display/msaa", ["Off", "2x", "4x", "8x"])
 	_check(box, "Shadows", "display/shadows")
 	_check(box, "Ambient occlusion", "display/ambient_occlusion")
 	_slider(box, "Field of view (degrees)", "display/fov", 40.0, 100.0, 1.0)
+	_slider(box, "Render scale", "display/render_scale", 0.5, 1.0, 0.05)
+	_choice(box, "Tyre smoke", "display/smoke", ["Off", "Low", "High"])
+	_slider(box, "Frame rate cap (0 = none)", "display/max_fps", 0.0, 240.0, 10.0)
 
 	_heading(box, "Sound")
 	_slider(box, "Volume", "audio/volume", 0.0, 1.0, 0.01)

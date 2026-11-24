@@ -16,6 +16,9 @@ const DEFAULTS := {
 	"display/shadows": true,
 	"display/ambient_occlusion": true,
 	"display/fov": 65.0,
+	"display/render_scale": 1.0,
+	"display/smoke": 2,
+	"display/max_fps": 0,
 	"audio/volume": 0.8,
 	"driving/ghost": true,
 	"driving/lap_telemetry": false,
@@ -32,6 +35,27 @@ const DEFAULTS := {
 	"ffb/wheel_model": "",
 	"ffb/match_rotation": true,
 	"input/wizard_done": false,
+}
+
+# Graphics presets (D-117): each sets these display values at once; any
+# of them can be changed afterwards.
+const GRAPHICS_PRESETS := {
+	"Low": {
+		"display/render_scale": 0.7,
+		"display/msaa": 0,
+		"display/shadows": false,
+		"display/ambient_occlusion": false,
+		"display/smoke": 1,
+		"display/max_fps": 60,
+	},
+	"High": {
+		"display/render_scale": 1.0,
+		"display/msaa": 2,
+		"display/shadows": true,
+		"display/ambient_occlusion": true,
+		"display/smoke": 2,
+		"display/max_fps": 0,
+	},
 }
 
 var values := {}
@@ -91,6 +115,12 @@ func get_value(key: String):
 
 func set_value(key: String, value) -> void:
 	values[key] = value
+	changed.emit()
+
+
+func apply_graphics_preset(name: String) -> void:
+	for key in GRAPHICS_PRESETS.get(name, {}):
+		values[key] = GRAPHICS_PRESETS[name][key]
 	changed.emit()
 
 

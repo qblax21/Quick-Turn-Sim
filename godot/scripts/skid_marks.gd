@@ -50,6 +50,17 @@ func setup(info: Dictionary) -> void:
 
 # `states` holds five numbers per wheel (see SimBridge.wheel_states); `hud`
 # is the core's per-frame report with slip and load for each wheel.
+# How hard tyre `i` is sliding or spinning, 0 to 1 and beyond, from the
+# slip the core reports; under the threshold, or barely loaded, 0. Shared
+# with the tyre smoke.
+static func slide_level(hud: Dictionary, i: int) -> float:
+	if hud.load[i] <= MIN_LOAD_N:
+		return 0.0
+	var by_spin: float = (absf(hud.slip_ratio[i]) - SLIP_RATIO_START) / SLIP_RATIO_SPAN
+	var by_slide: float = (absf(tan(hud.slip_angle[i])) - SLIP_ANGLE_START) / SLIP_ANGLE_SPAN
+	return maxf(maxf(by_spin, by_slide), 0.0)
+
+
 func update(car_xform: Transform3D, states: PackedFloat32Array, hud: Dictionary) -> void:
 	if hud.is_empty() or states.size() < 20 or not hud.has("slip_ratio"):
 		return
@@ -58,10 +69,8 @@ func update(car_xform: Transform3D, states: PackedFloat32Array, hud: Dictionary)
 		var o := i * 5
 		var center := car_xform * Vector3(states[o], states[o + 1], states[o + 2])
 		var point: Vector3 = center - car_xform.basis.y * (radius[i] - LIFT_M)
-		var by_spin: float = (absf(hud.slip_ratio[i]) - SLIP_RATIO_START) / SLIP_RATIO_SPAN
-		var by_slide: float = (absf(tan(hud.slip_angle[i])) - SLIP_ANGLE_START) / SLIP_ANGLE_SPAN
-		var dark := clampf(maxf(by_spin, by_slide), 0.0, 1.0) * 0.55
-		var sliding: bool = dark > 0.0 and hud.load[i] > MIN_LOAD_N
+		var dark := clampf(slide_level(hud, i), 0.0, 1.0) * 0.55
+		var sliding: bool = dark > 0.0
 		if not sliding:
 			marking[i] = false
 			continue

@@ -2401,3 +2401,61 @@ wheel. Nothing new was needed; a new test drives it through the whole
 input path on the Kestrel RC (2200 N.m per wheel, a placeholder). Pulled
 at 15 m/s in second gear with the automatic clutch, both rear wheels lock
 while the fronts roll at 45 rad/s.
+
+## D-117 Low graphics preset, tyre smoke and a render bench
+
+**Tyre smoke** did not exist. `tyre_smoke.gd` adds a particle emitter at
+each contact patch, smoking in proportion to the same slip measure as the
+tyre marks (`SkidMarks.slide_level`, now shared). It is drawing only.
+
+**Graphics presets** on the Settings screen set several display values at
+once; each can still be changed afterwards. New settings: render scale,
+tyre smoke (off, low, high) and a frame-rate cap.
+
+| | Low | High |
+|---|---|---|
+| Render scale | 0.7 | 1.0 |
+| Anti-aliasing | off | 4x |
+| Shadows | off | on |
+| Ambient occlusion | off | on |
+| Smoke per wheel | 24 particles, 1.4 s | 240 particles, 4 s |
+| Frame cap | 60 | none |
+
+**Render bench:** `godot --path godot -- --render-bench=Low` (or `High`).
+
+- **Run:** the Kestrel RC on Harrow Drift Park, held on full lock and
+  throttle in second gear, an unbroken smoking donut. It is a worst case
+  for smoke, not a lap: there is no scripted drifting lap driver yet.
+- **Settings:** chase camera; vertical sync and the frame cap off so the
+  frame time is the renderer's.
+- **Recorded:** 30 s after 5 s to warm up. It prints the mean frame time,
+  the 1 % low (mean of the slowest 1 % of frames), the worst frame, the
+  GPU time, and the physics tick time. It saves a still to
+  `user://bench`. Your settings are left as they were.
+
+Measured on 23 November 2026, Ryzen 5 5600X, RTX 3060, 1600x900 window:
+
+| | Low | High |
+|---|---|---|
+| Mean frame | 1.88 ms (531 fps) | 3.96 ms (253 fps) |
+| 1 % low | 3.89 ms (257 fps) | 6.43 ms (156 fps) |
+| Worst frame | 23.1 ms | 25.9 ms |
+| GPU per frame | 0.52 ms | 2.42 ms |
+| Physics + FFB tick | 37 us mean, 156 us worst of 1000 | 36 us, 201 us |
+
+**Minimum spec, an estimate.** Nothing slower than this machine was
+measured. Scaling the GPU time by published shader throughput (RTX 3060
+about 12.7 TFLOPS, GTX 1050 Ti about 2.1), Low would take about 3 ms of
+GPU per frame on a GTX 1050 Ti, and High at 1080p about 20 ms. The
+physics thread needs one core to itself at 1000 Hz, using about 4 % of
+one here. Suggested store-page minimum, unverified until measured on
+such hardware:
+
+- Windows 10 64-bit
+- 4-core CPU (Ryzen 3 3100 / Core i3-10100 class)
+- 8 GB RAM
+- Vulkan 1.3 GPU, GTX 1050 Ti / RX 570, 4 GB
+- Low preset at 1080p, 60 fps
+- 150 MB disk
+
+Not done: the replay viewer shows no smoke yet.

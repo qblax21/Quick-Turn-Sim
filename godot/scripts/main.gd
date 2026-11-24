@@ -13,6 +13,7 @@ const Wizard := preload("res://scripts/wizard.gd")
 const CarView := preload("res://scripts/car_view.gd")
 const Hud := preload("res://scripts/hud.gd")
 const SkidMarks := preload("res://scripts/skid_marks.gd")
+const TyreSmoke := preload("res://scripts/tyre_smoke.gd")
 const Audio := preload("res://scripts/audio.gd")
 const Settings := preload("res://scripts/settings.gd")
 const SettingsScreen := preload("res://scripts/settings_screen.gd")
@@ -63,6 +64,7 @@ var world
 var car_view
 var ghost_view
 var skid_marks
+var tyre_smoke
 var hud
 var audio
 var camera: Camera3D
@@ -177,6 +179,9 @@ func _ready() -> void:
 		_show_wizard()
 	if "--self-test" in OS.get_cmdline_args() or "--self-test" in OS.get_cmdline_user_args():
 		_self_test.call_deferred()
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--render-bench="):
+			_render_bench.call_deferred(arg.get_slice("=", 1))
 
 
 # The data folder sits beside the executable in a packaged build and beside
@@ -205,6 +210,10 @@ func _apply_settings() -> void:
 	sun.shadow_enabled = settings.get_value("display/shadows")
 	environment.ssao_enabled = settings.get_value("display/ambient_occlusion")
 	camera.fov = clampf(settings.get_value("display/fov"), 30.0, 110.0)
+	get_viewport().scaling_3d_scale = clampf(settings.get_value("display/render_scale"), 0.5, 1.0)
+	Engine.max_fps = maxi(int(settings.get_value("display/max_fps")), 0)
+	if tyre_smoke:
+		tyre_smoke.set_quality(settings.get_value("display/smoke"))
 	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(settings.get_value("audio/volume"), 0.0001)))
 
 
@@ -240,6 +249,80 @@ func _self_test() -> void:
 	print("self-test: %s on %s, %.1f m/s after %.0f s, physics %.0f Hz" % [cars[0], tracks[0], speed, seconds, status.get("tick_rate", 0.0)])
 	sim.stop_session()
 	get_tree().quit(0 if speed > 2.0 else 1)
+
+
+# Started with --render-bench=Low|High (D-117): the Kestrel RC on Harrow
+# Drift Park, held in a smoking power donut in second gear (fixed input,
+# like the self-test; the real wheel stays off), at that graphics preset
+# with vertical sync and the frame cap off so the frame time is the
+# renderer's. After 5 s to warm up it records 30 s of frames, prints the
+# mean, the 1 % low and the GPU time, saves a still at 20 s to
+# user://bench, and quits. Not saved to settings.
+func _render_bench(preset: String) -> void:
+	var kept: Dictionary = settings.values.duplicate()
+	settings.apply_graphics_preset(preset)
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	Engine.max_fps = 0
+	self_testing = true
+	_start_driving("coupe_kestrel_rc", "harrow_drift_park", true, false, sim.list_ids("ffb")[0], "", false)
+	if not sim.is_running():
+		printerr("render bench: session did not start: " + sim.last_error())
+		get_tree().quit(1)
+		return
+	# From the chase camera: inside the cloud, the cockpit view is all smoke.
+	cockpit_view = false
+	fixed_input = {"steer": 1.0, "throttle": 0.0, "brake": 0.0, "clutch": 0.0, "handbrake": 0.0, "buttons": 0, "gear": 2}
+	var rid := get_viewport().get_viewport_rid()
+	RenderingServer.viewport_set_measure_render_time(rid, true)
+	var frames := PackedFloat32Array()
+	var gpu := PackedFloat32Array()
+	var began := Time.get_ticks_usec()
+	var last := began
+	var shot := false
+	while Time.get_ticks_usec() - began < 35_000_000:
+		await get_tree().process_frame
+		var now := Time.get_ticks_usec()
+		var t := (now - began) / 1.0e6
+		# Roll off, then floor it on full lock.
+		fixed_input.throttle = 0.3 if t < 1.5 else 0.85
+		if t > 20.0 and not shot:
+			shot = true
+			DirAccess.make_dir_recursive_absolute("user://bench")
+			get_viewport().get_texture().get_image().save_jpg("user://bench/render_%s.jpg" % preset.to_lower())
+		if t > 5.0:
+			frames.append((now - last) / 1000.0)
+			gpu.append(RenderingServer.viewport_get_measured_render_time_gpu(rid))
+		last = now
+	var sorted := frames.duplicate()
+	sorted.sort()
+	var n := sorted.size()
+	var total := 0.0
+	for f in sorted:
+		total += f
+	var worst := 0.0
+	var count := maxi(n / 100, 1)
+	for k in range(n - count, n):
+		worst += sorted[k]
+	var gpu_total := 0.0
+	for g in gpu:
+		gpu_total += g
+	var size := get_viewport().get_visible_rect().size
+	var hud_values: Dictionary = sim.hud()
+	var slip := 0.0
+	for i in range(2, 4):
+		slip = maxf(slip, SkidMarks.slide_level(hud_values, i))
+	print("render bench %s: %d frames at %dx%d, render scale %.2f, smoke %d" % [
+		preset, n, size.x, size.y, settings.get_value("display/render_scale"), settings.get_value("display/smoke")])
+	print("render bench %s: mean %.2f ms (%.0f fps), 1%% low %.2f ms (%.0f fps), worst %.2f ms, GPU mean %.2f ms, rear slide level at the end %.2f" % [
+		preset, total / n, 1000.0 * n / total, worst / count, 1000.0 * count / worst, sorted[n - 1], gpu_total / maxf(gpu.size(), 1), slip])
+	var status: Dictionary = sim.status()
+	print("render bench %s: physics + FFB tick mean %.0f us, worst %.0f us of %.0f us, measured %.0f Hz" % [
+		preset, status.get("step_mean_us", 0.0), status.get("step_worst_us", 0.0),
+		1.0e6 / maxf(float(status.get("tick_rate_fixed", 1000)), 1.0), status.get("tick_rate", 0.0)])
+	sim.stop_session()
+	settings.values = kept
+	settings.save()
+	get_tree().quit(0)
 
 
 func _fatal(message: String) -> void:
@@ -444,13 +527,14 @@ func _save_session_replay() -> void:
 
 
 func _clear_session() -> void:
-	for node in [world, car_view, ghost_view, skid_marks, hud]:
+	for node in [world, car_view, ghost_view, skid_marks, tyre_smoke, hud]:
 		if node:
 			node.queue_free()
 	world = null
 	car_view = null
 	ghost_view = null
 	skid_marks = null
+	tyre_smoke = null
 	hud = null
 	if audio:
 		audio.stop()
@@ -513,6 +597,9 @@ func _start_driving(car_id: String, track_id: String, auto_clutch: bool, auto_sh
 	skid_marks = SkidMarks.new()
 	add_child(skid_marks)
 	skid_marks.setup(info)
+	tyre_smoke = TyreSmoke.new()
+	add_child(tyre_smoke)
+	tyre_smoke.setup(info, settings.get_value("display/smoke"))
 	hud = Hud.new()
 	add_child(hud)
 	hud.setup(sim)
@@ -559,6 +646,7 @@ func _process(delta: float) -> void:
 	car_view.update(car_xform, sim.wheel_states(), values.get("steering_wheel_angle", 0.0))
 	world.update_cones(sim.cones_down())
 	skid_marks.update(car_xform, sim.wheel_states(), values)
+	tyre_smoke.update(car_xform, sim.wheel_states(), values)
 	var ghost: Dictionary = sim.ghost()
 	values["ghost_time"] = ghost.get("time", 0.0)
 	values["ghost_setup"] = ghost.get("setup", "")
