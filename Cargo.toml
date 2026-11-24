@@ -40,3 +40,12 @@ opt-level = 1
 opt-level = 3
 debug = false
 strip = "debuginfo"
+
+# Shipping builds (tools/package.ps1 -Demo): no symbols at all, one codegen
+# unit and thin LTO for a smaller library. Same optimisation as release, so
+# the physics runs identically.
+[profile.dist]
+inherits = "release"
+strip = "symbols"
+lto = "thin"
+codegen-units = 1

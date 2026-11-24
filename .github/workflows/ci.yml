@@ -45,3 +45,31 @@ jobs:
       - name: Validation report
         if: always()
         run: cargo run --release -p qts-validate
+
+  # The demo slice must stay within its download budget (D-115). Exports the
+  # demo game pack with the Godot editor (no export templates needed) and
+  # checks the parts this project ships against tools/demo_budget.txt.
+  demo-size:
+    name: demo size budget
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the stable toolchain
+        run: |
+          rustup update stable
+          rustup default stable
+
+      - name: Install Godot
+        shell: pwsh
+        run: |
+          $zip = "$env:RUNNER_TEMP\godot.zip"
+          Invoke-WebRequest "https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_win64.exe.zip" -OutFile $zip
+          Expand-Archive $zip -DestinationPath "$env:RUNNER_TEMP\godot"
+
+      - name: Package the demo and check its size
+        shell: pwsh
+        run: |
+          $godot = (Get-ChildItem "$env:RUNNER_TEMP\godot" -Recurse -Filter "*_console.exe" | Select-Object -First 1).FullName
+          & $godot --headless --path godot --import
+          ./tools/package.ps1 -Demo -CheckBudget -Godot $godot

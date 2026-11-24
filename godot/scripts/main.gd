@@ -78,6 +78,8 @@ var telemetry_on := false
 var replay_on := false
 # Set by the self-test in place of the player's controls.
 var fixed_input := {}
+# The self-test drives with fixed input: the real wheel and pedals stay off.
+var self_testing := false
 
 
 func _ready() -> void:
@@ -218,6 +220,7 @@ func _self_test() -> void:
 		get_tree().quit(1)
 		return
 	print("self-test: %s, data %s" % [sim.product_name(), _find_data_dir()])
+	self_testing = true
 	_start_driving(cars[0], tracks[0], true, true, presets[0], "", false)
 	if not sim.is_running():
 		printerr("self-test: session did not start: " + sim.last_error())
@@ -225,11 +228,16 @@ func _self_test() -> void:
 		return
 	var began := Time.get_ticks_msec()
 	fixed_input = {"steer": 0.0, "throttle": 0.5, "brake": 0.0, "clutch": 0.0, "handbrake": 0.0, "buttons": 0}
-	while Time.get_ticks_msec() - began < 3000:
+	# --self-test-seconds=N drives longer (the demo's memory check, D-115).
+	var seconds := 3.0
+	for arg in OS.get_cmdline_user_args() + OS.get_cmdline_args():
+		if arg.begins_with("--self-test-seconds="):
+			seconds = maxf(arg.get_slice("=", 1).to_float(), 3.0)
+	while Time.get_ticks_msec() - began < seconds * 1000.0:
 		await get_tree().process_frame
 	var speed: float = sim.hud().get("speed", 0.0)
 	var status: Dictionary = sim.status()
-	print("self-test: %s on %s, %.1f m/s after 3 s, physics %.0f Hz" % [cars[0], tracks[0], speed, status.get("tick_rate", 0.0)])
+	print("self-test: %s on %s, %.1f m/s after %.0f s, physics %.0f Hz" % [cars[0], tracks[0], speed, seconds, status.get("tick_rate", 0.0)])
 	sim.stop_session()
 	get_tree().quit(0 if speed > 2.0 else 1)
 
@@ -514,7 +522,7 @@ func _start_driving(car_id: String, track_id: String, auto_clutch: bool, auto_sh
 		sim.ffb_set_direct_steering(direct_steering)
 	# Wheel, pedals and shifter read on the physics thread at full rate.
 	var direct_map: Dictionary = reader.direct_map()
-	if not direct_map.axes.is_empty() or not direct_map.buttons.is_empty():
+	if not self_testing and (not direct_map.axes.is_empty() or not direct_map.buttons.is_empty()):
 		if not sim.set_direct_inputs(direct_map):
 			hud.flash(sim.last_error())
 	_check_shifter(auto_clutch)

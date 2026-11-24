@@ -1,0 +1,4 @@
+# Demo size budget (D-115), in MB: the parts this project ships in the demo
+# (game pack, simulation library, data, licences), not the Godot runtime.
+# tools\package.ps1 -Demo -CheckBudget fails above it.
+12

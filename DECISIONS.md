@@ -2318,3 +2318,43 @@ at 100 Hz on the physics thread.
   with the inner point about 7 m away, no angle marks and no penalty.
 - During a real power slide the judge's angle follows the car's slip
   within 3 degrees.
+
+## D-115 Demo slice and its size budget
+
+`tools/package.ps1 -Demo` builds a demo for Windows: the Kestrel RC and
+the Tern GT, Harrow Drift Park and Ridgeline Circuit, and the first-run
+wheel wizard (unchanged; it opens on a machine with no controls set up).
+
+- **Library:** a new `dist` Cargo profile, the release optimisation with
+  every symbol stripped, thin LTO and one codegen unit. The simulation
+  library goes from 26.9 MB to 4.6 MB. The physics is the same code at
+  the same optimisation level.
+- **Export:** a "Windows Demo" preset that leaves out the Halden E4 model
+  and the tests. The two badge textures now import VRAM compressed
+  (S3TC/BPTC) instead of lossless. Sound is synthesised at start-up
+  (no recorded samples), so there is no audio to compress.
+- **Data:** only the demo's cars and tracks; the validation targets stay out.
+
+Measured on 23 November 2026 with Godot 4.7.2's official release template:
+
+| | |
+|---|---|
+| Download (zip) | 39.6 MB |
+| Install | 110.6 MB, of which the Godot runtime is 104.2 MB |
+| Shipped by this project | 6.4 MB (library 4.6, game pack 1.7, data and licences) |
+| RAM, 30 s on Harrow | peak working set 597 MB, 446 MB at the end (RTX 3060, Vulkan; includes the driver's share) |
+
+Nearly all of the download is the stock engine runtime. Building Godot
+from source without unused modules would be the next saving; not done.
+
+**Budget:** 12 MB for the parts this project ships (about twice today's),
+in `tools/demo_budget.txt`. The runtime is left out because it is fixed
+per engine version. A CI job (`demo size`) installs Godot, exports the
+demo game pack and runs `package.ps1 -Demo -CheckBudget`, which fails
+above the budget.
+
+**Self-test fix:** the self-test now drives with its fixed input only.
+On a machine with a wheel set up, the wheel and pedals were read straight
+on the physics thread and overrode it, so the car sat still. That also
+explains the stationary, high-revving car in earlier harness screenshots.
+`--self-test-seconds=N` drives longer, for the memory check.
