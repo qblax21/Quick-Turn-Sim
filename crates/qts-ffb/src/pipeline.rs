@@ -445,13 +445,22 @@ impl FfbPipeline {
         // base's full torque `soft_lock_full_deg` further on, damped while
         // the wheel keeps going. It is added after the soft clip so it is
         // never compressed, and it can take the output to full scale.
+        // Force pushing the wheel further out fades to nothing across the
+        // same distance (D-116), so the wall has the base's whole torque
+        // against a wheel thrown into it, as a drift's self-aligning torque
+        // does; without this the two cancelled until twice as far in.
         let mut wall = 0.0;
+        let mut output = output;
         if let (Some(lock), Some(angle)) = (input.lock_angle_rad, input.device_angle_rad) {
             let excess = angle.abs() - lock;
             if c.soft_lock_full_deg > 0.0 && excess > 0.0 && angle.is_finite() {
-                let k = c.device_max_torque_nm / c.soft_lock_full_deg.to_radians();
+                let full = c.soft_lock_full_deg.to_radians();
+                let k = c.device_max_torque_nm / full;
                 let outward = (self.velocity * angle.signum()).max(0.0);
                 wall = -(k * excess + c.soft_lock_damping_nm_s_per_rad * outward) * angle.signum();
+                if output * angle.signum() > 0.0 {
+                    output *= (1.0 - excess / full).max(0.0);
+                }
             }
         }
         let output = (output + wall / c.device_max_torque_nm).clamp(-1.0, 1.0);
@@ -798,6 +807,26 @@ mod tests {
         cfg.detail_limit_nm = 0.1;
         let (lo, hi) = peak(shudder, &cfg);
         assert!(hi <= 0.1 + 1e-12 && lo >= -0.1 - 1e-12);
+    }
+
+    #[test]
+    fn force_pushing_out_does_not_cancel_the_soft_lock() {
+        // A full outward steering torque, two degrees past the car's lock:
+        // the wheel is pushed back in, not further out (D-116).
+        let cfg = test_config();
+        let lock = 8.0;
+        let mut p = FfbPipeline::new(cfg.clone(), 1000).unwrap();
+        let angle = lock + 2_f64.to_radians();
+        let mut s = p.step(&FfbInput::default());
+        for _ in 0..200 {
+            s = p.step(&FfbInput {
+                steering_torque_nm: 10.0 * cfg.device_max_torque_nm / cfg.gain,
+                device_angle_rad: Some(angle),
+                lock_angle_rad: Some(lock),
+                ..FfbInput::default()
+            });
+        }
+        assert!(s.output < -0.2, "output {:.3} at the wall", s.output);
     }
 
     #[test]

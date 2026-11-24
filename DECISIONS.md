@@ -2358,3 +2358,46 @@ On a machine with a wheel set up, the wheel and pedals were read straight
 on the physics thread and overrode it, so the car sat still. That also
 explains the stationary, high-revving car in earlier harness screenshots.
 `--self-test-seconds=N` drives longer, for the memory check.
+
+## D-116 Drift force feedback and the handbrake
+
+**Countersteer, checked.** `tests/drift_ffb.rs` closes the loop on the
+Kestrel RC with its angle kit:
+
+1. A CSL Elite set to 1080 degrees, so the car's roughly 520 degrees of
+   lock each way sit inside the base's range.
+2. A rim of 0.02 kg.m2 turned only by the force feedback (the estimate
+   from D-089; 0.05 for a heavier rim, both unverified).
+3. The rim's angle read in 16-bit steps, with the torque 4 ms late.
+4. The car is put in a left power slide, then the rim is let go.
+
+Results:
+
+- The self-aligning torque alone swings the rim to a third of opposite
+  lock in 0.31 s (light rim) or 0.47 s (heavy rim).
+- The light rim never reaches the soft lock.
+- The heavy rim reaches the soft lock twice and runs 0.15 of the lock past
+  it (about 75 degrees of rim). Each time it is stopped and comes back
+  out, with no chatter.
+- The overrun is the rim's momentum against a 6 N.m base (about 10 J at
+  20 rad/s), which no wall within the base's torque can stop sooner.
+
+One flaw is fixed: past the lock, force pushing the wheel further out
+used to be added to the wall. It cancelled half the wall, so two degrees
+in a full outward torque still pushed the wheel out. It now fades to
+nothing across the wall's ramp (`qts-ffb`), as wheel firmware soft locks
+do.
+
+Not changed, but seen in the same run: let go with the throttle still
+applied after the slide ends, the light-rim car weaves at about 2 Hz, up
+to a third of lock each way. That is a hands-off fishtail of a
+locked-diff car under power, not the soft lock.
+
+**Handbrake: already there.** It is mappable as an axis ("Handbrake
+(axis)") or a button ("Handbrake (button)") on the Controls screen, with
+Space on the keyboard. It is read on the physics thread with the other
+direct inputs and applies `brakes.handbrake_torque_nm` to each rear
+wheel. Nothing new was needed; a new test drives it through the whole
+input path on the Kestrel RC (2200 N.m per wheel, a placeholder). Pulled
+at 15 m/s in second gear with the automatic clutch, both rear wheels lock
+while the fronts roll at 45 rad/s.
