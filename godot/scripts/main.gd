@@ -280,18 +280,47 @@ func _self_test() -> void:
 	get_tree().quit(0 if speed > 2.0 else 1)
 
 
-# Started with --render-bench=Low|High (D-117): the Kestrel RC on Harrow
-# Drift Park, held in a smoking power donut in second gear (fixed input,
-# like the self-test; the real wheel stays off), at that graphics preset
-# with vertical sync and the frame cap off so the frame time is the
-# renderer's. After 5 s to warm up it records 30 s of frames, prints the
-# mean, the 1 % low and the GPU time, saves a still at 20 s to
-# user://bench, and quits. Not saved to settings.
+# The render bench (D-117, D-122, D-125). Started with
+#   -- --render-bench=Low|High|all [--bench-low-end] [--bench-seconds=N]
+#      [--bench-3d-height=N]
+# The computer drives the Kestrel RC round Harrow from a standing start,
+# sliding through the judged zones, seen from the chase camera with vsync
+# and the frame cap off. Frame times are recorded from 5 s in until the lap
+# ends (or BENCH_MAX_S, or --bench-seconds). Every run of the command writes
+# one results file to send back: beside the game executable in an exported
+# build, in user://bench otherwise. --bench-low-end caps the 3D resolution at
+# 1280x720 (D-125); started with --gpu-index 1 as well it uses a second GPU
+# if there is one, and the file says which adapter actually ran.
 const BENCH_MAX_S := 300
+const LOW_END_HEIGHT := 720.0
 
 
-func _render_bench(preset: String) -> void:
+func _render_bench(which: String) -> void:
+	var low_end := "--bench-low-end" in OS.get_cmdline_user_args()
+	var limit := float(BENCH_MAX_S)
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--bench-seconds="):
+			limit = clampf(arg.get_slice("=", 1).to_float(), 10.0, BENCH_MAX_S)
+	var presets: Array = ["Low", "High"] if which.to_lower() == "all" else [which]
 	var kept: Dictionary = settings.values.duplicate()
+	var results: Array = []
+	for preset in presets:
+		var r: Dictionary = await _bench_one(preset, low_end, limit)
+		if r.is_empty():
+			settings.values = kept
+			settings.save()
+			get_tree().quit(1)
+			return
+		results.append(r)
+		settings.values = kept.duplicate()
+	settings.values = kept
+	settings.save()
+	var path := _write_bench_results(results, low_end)
+	print("render bench: results written to ", path)
+	get_tree().quit(0)
+
+
+func _bench_one(preset: String, low_end: bool, limit: float) -> Dictionary:
 	settings.apply_graphics_preset(preset)
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	Engine.max_fps = 0
@@ -302,9 +331,16 @@ func _render_bench(preset: String) -> void:
 	_start_driving("coupe_kestrel_rc", "harrow_drift_park", false, false, sim.list_ids("ffb")[0], "", false)
 	if not sim.is_running():
 		printerr("render bench: session did not start: " + sim.last_error())
-		get_tree().quit(1)
-		return
-	# From the chase camera: inside the cloud, the cockpit view is all smoke.
+		return {}
+	var size := get_viewport().get_visible_rect().size
+	if low_end and size.y > LOW_END_HEIGHT:
+		# The 3D drawn at 1280x720 (or less), whatever the window.
+		get_viewport().scaling_3d_scale = minf(settings.get_value("display/render_scale"), LOW_END_HEIGHT / size.y)
+	# --bench-3d-height=N draws the 3D at exactly N lines, above the window's
+	# own if need be: a 1080p cost measured on a smaller screen.
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--bench-3d-height="):
+			get_viewport().scaling_3d_scale = clampf(arg.get_slice("=", 1).to_float() / size.y, 0.25, 2.0)
 	cockpit_view = false
 	sim.set_ai_driver("drift", 0.9)
 	var rid := get_viewport().get_viewport_rid()
@@ -314,12 +350,10 @@ func _render_bench(preset: String) -> void:
 	var began := Time.get_ticks_usec()
 	var last := began
 	var shot := false
-	# From the standing start through one full lap: until the lap ends, or
-	# BENCH_MAX_S if the driver loses it.
 	var h0: Dictionary = sim.hud()
 	var laps_before: int = int(h0.get("runs", 0)) + int(h0.get("invalid_runs", 0))
 	var lap_done := false
-	while Time.get_ticks_usec() - began < BENCH_MAX_S * 1_000_000 and not lap_done:
+	while Time.get_ticks_usec() - began < limit * 1_000_000 and not lap_done:
 		await get_tree().process_frame
 		var now := Time.get_ticks_usec()
 		var t := (now - began) / 1.0e6
@@ -333,37 +367,84 @@ func _render_bench(preset: String) -> void:
 			frames.append((now - last) / 1000.0)
 			gpu.append(RenderingServer.viewport_get_measured_render_time_gpu(rid))
 		last = now
+	var seconds := (Time.get_ticks_usec() - began) / 1.0e6
 	var sorted := frames.duplicate()
 	sorted.sort()
-	var n := sorted.size()
+	var n := maxi(sorted.size(), 1)
 	var total := 0.0
 	for f in sorted:
 		total += f
-	var worst := 0.0
 	var count := maxi(n / 100, 1)
-	for k in range(n - count, n):
-		worst += sorted[k]
+	var worst_1 := 0.0
+	for k in range(maxi(n - count, 0), sorted.size()):
+		worst_1 += sorted[k]
 	var gpu_total := 0.0
 	for g in gpu:
 		gpu_total += g
-	var size := get_viewport().get_visible_rect().size
-	var hud_values: Dictionary = sim.hud()
-	var slip := 0.0
-	for i in range(2, 4):
-		slip = maxf(slip, SkidMarks.slide_level(hud_values, i))
-	print("render bench %s: %d frames at %dx%d, render scale %.2f, smoke %d" % [
-		preset, n, size.x, size.y, settings.get_value("display/render_scale"), settings.get_value("display/smoke")])
-	print("render bench %s: mean %.2f ms (%.0f fps), 1%% low %.2f ms (%.0f fps), worst %.2f ms, GPU mean %.2f ms, rear slide level at the end %.2f" % [
-		preset, total / n, 1000.0 * n / total, worst / count, 1000.0 * count / worst, sorted[n - 1], gpu_total / maxf(gpu.size(), 1), slip])
-	print("render bench %s: %s after %.0f s" % [preset, "lap finished" if lap_done else "lap not finished", (Time.get_ticks_usec() - began) / 1.0e6])
 	var status: Dictionary = sim.status()
-	print("render bench %s: physics + FFB tick mean %.0f us, worst %.0f us of %.0f us, measured %.0f Hz" % [
-		preset, status.get("step_mean_us", 0.0), status.get("step_worst_us", 0.0),
-		1.0e6 / maxf(float(status.get("tick_rate_fixed", 1000)), 1.0), status.get("tick_rate", 0.0)])
+	var scale: float = get_viewport().scaling_3d_scale
+	var r := {
+		"preset": preset,
+		"window": "%dx%d" % [size.x, size.y],
+		"render_scale": scale,
+		"render_3d": "%dx%d" % [roundi(size.x * scale), roundi(size.y * scale)],
+		"smoke": settings.get_value("display/smoke"),
+		"frames": sorted.size(),
+		"mean_ms": total / n,
+		"fps": 1000.0 * n / maxf(total, 1e-6),
+		"low1_ms": worst_1 / count,
+		"low1_fps": 1000.0 * count / maxf(worst_1, 1e-6),
+		"worst_ms": sorted[sorted.size() - 1] if sorted.size() > 0 else 0.0,
+		"gpu_ms": gpu_total / maxf(gpu.size(), 1),
+		"tick_us": status.get("step_mean_us", 0.0),
+		"tick_worst_us": status.get("step_worst_us", 0.0),
+		"seconds": seconds,
+		"lap_finished": lap_done,
+	}
+	print("render bench %s: %d frames, 3D at %s, mean %.2f ms (%.0f fps), 1%% low %.2f ms (%.0f fps), worst %.2f ms, GPU %.2f ms, physics tick %.0f us, %s after %.0f s" % [
+		preset, r.frames, r.render_3d, r.mean_ms, r.fps, r.low1_ms, r.low1_fps, r.worst_ms, r.gpu_ms, r.tick_us,
+		"lap finished" if lap_done else "lap not finished", seconds])
 	sim.stop_session()
-	settings.values = kept
-	settings.save()
-	get_tree().quit(0)
+	return r
+
+
+# One plain-text file a tester can send back: the machine, then one block
+# per preset.
+func _write_bench_results(results: Array, low_end: bool) -> String:
+	var stamp := Time.get_datetime_string_from_system().replace(":", "-")
+	var dir := "user://bench"
+	if OS.has_feature("template"):
+		dir = OS.get_executable_path().get_base_dir()
+	DirAccess.make_dir_recursive_absolute(dir)
+	var path := dir.path_join("render_bench_%s.txt" % stamp)
+	var mem: Dictionary = OS.get_memory_info()
+	var lines: Array = [
+		"%s render bench, version %s" % [sim.product_name(), sim.version()],
+		"date        %s" % Time.get_datetime_string_from_system(),
+		"OS          %s %s" % [OS.get_name(), OS.get_version()],
+		"CPU         %s, %d threads" % [OS.get_processor_name(), OS.get_processor_count()],
+		"RAM         %.1f GB" % (float(mem.get("physical", 0)) / 1073741824.0),
+		"GPU         %s (%s)" % [RenderingServer.get_video_adapter_name(), RenderingServer.get_video_adapter_vendor()],
+		"driver      %s" % ", ".join(OS.get_video_adapter_driver_info()),
+		"API         %s %s" % [RenderingServer.get_current_rendering_driver_name(), RenderingServer.get_video_adapter_api_version()],
+		"mode        %s" % ("low-end (3D capped at 1280x720)" if low_end else "normal"),
+		"run         the computer drives Harrow in the Kestrel RC from a standing start; frames from 5 s in",
+		"",
+	]
+	for r in results:
+		lines.append("[%s]" % r.preset)
+		lines.append("window      %s, 3D drawn at %s (render scale %.2f), smoke %d" % [r.window, r.render_3d, r.render_scale, r.smoke])
+		lines.append("frames      %d over %.0f s, %s" % [r.frames, r.seconds, "lap finished" if r.lap_finished else "lap not finished"])
+		lines.append("frame time  mean %.2f ms (%.0f fps), 1%% low %.2f ms (%.0f fps), worst %.2f ms" % [r.mean_ms, r.fps, r.low1_ms, r.low1_fps, r.worst_ms])
+		lines.append("GPU time    mean %.2f ms per frame" % r.gpu_ms)
+		lines.append("physics     tick mean %.0f us, worst %.0f us (budget 1000 us)" % [r.tick_us, r.tick_worst_us])
+		lines.append("")
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f:
+		f.store_string("
+".join(lines))
+		f.close()
+	return ProjectSettings.globalize_path(path)
 
 
 func _fatal(message: String) -> void:

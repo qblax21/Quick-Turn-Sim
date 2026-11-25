@@ -118,6 +118,12 @@ foreach ($file in @("LICENSE", "LICENSE-ASSETS", "README.md")) {
     Copy-Item -Force (Join-Path $root $file) $dist
 }
 
+# One double-click for a tester (D-125): the render bench at Low and High,
+# and the low-end run; each writes render_bench_<date>.txt beside the game.
+$benchNote = "echo.`r`necho The results file is render_bench_*.txt in this folder. Please send it back.`r`npause`r`n"
+Set-Content -Encoding ascii -Path (Join-Path $dist "Run render bench.bat") -Value ("@echo off`r`nrem About 10 minutes: the computer drives a lap of Harrow at Low, then at High.`r`n`"%~dp0$name.exe`" -- --render-bench=all`r`n" + $benchNote)
+Set-Content -Encoding ascii -Path (Join-Path $dist "Run render bench (low-end).bat") -Value ("@echo off`r`nrem Low preset with the 3D capped at 1280x720, on a second GPU if there is one.`r`n`"%~dp0$name.exe`" --gpu-index 1 -- --render-bench=Low --bench-low-end`r`n" + $benchNote)
+
 if ($Demo) {
     $zip = Join-Path $Out "$name.zip"
     if (Test-Path $zip) { Remove-Item -Force -Confirm:$false $zip }

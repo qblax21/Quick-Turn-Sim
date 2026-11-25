@@ -109,6 +109,10 @@ sees in the demo is described in `DEMO.md`.
   output against request, and K (or its button) sets the gain that keeps
   clipping under 2 % of the lap just driven.
 
+- **Render bench for testers** (D-125): `Run render bench.bat` in a
+  packaged build writes a results file (machine, frame times, 1 % lows)
+  to send back; a low-end variant caps the 3D at 720p.
+
 ### Telemetry, import, validation
 - Telemetry CSV with 116 documented channels; a test keeps the document and
   the code in step.

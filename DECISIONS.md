@@ -2681,3 +2681,48 @@ already suggested a gain offline from scripted laps of every car. Added:
   - No published hands-off figure was found to compare against.
   - Physics is unchanged. The preset's damping is a candidate change once
     the F5 logs arrive.
+
+## D-125 A render bench a tester can run and send back
+
+- **One command:** `Run render bench.bat` in the packaged game (or
+  `tools\bench.ps1` in the repository) runs the bench at Low, then High.
+  The computer drives Harrow in the Kestrel RC from a standing start
+  (D-122). Each preset runs until the lap ends, or 300 s.
+- **Results file:** each run writes `render_bench_<date>.txt` beside the
+  game executable (in `user://bench` from the editor). It holds:
+  - the OS, CPU, threads, RAM, GPU, driver and API;
+  - then per preset: the window and the 3D resolution, the frame count, the
+    mean, 1 % low and worst frame time, the GPU time, and the physics tick.
+- **Low-end mode:** `Run render bench (low-end).bat`, or `--bench-low-end`.
+  - The 3D is capped at 1280x720.
+  - It starts with `--gpu-index 1`, so it uses a second GPU (an integrated
+    one) where there is one; the file names the adapter that actually ran.
+  - This machine has only the RTX 3060: no integrated GPU and no software
+    Vulkan driver, so that part is untested.
+  - `--bench-3d-height=N` draws the 3D at exactly N lines, even above the
+    window's height.
+- **Measured** (RTX 3060, Ryzen 5 5600X, 1600x900 window, CPU-side work in
+  the frame time included):
+
+  | Run | Mean | 1 % low | GPU |
+  |---|---|---|---|
+  | Low, 3D 1120x630 | 2.12 ms | 4.81 ms | 0.52 ms |
+  | High, 3D 1600x900 | 5.39 ms | 9.79 ms | 3.54 ms |
+  | Low, low-end mode | 2.12 ms | 4.05 ms | 0.53 ms |
+  | Low, 3D 1920x1080 | 2.45 ms | 4.18 ms | 1.12 ms |
+
+  The low-end cap changes nothing on Low here: Low already draws the 3D
+  below 720 lines.
+- **The GTX 1050 Ti estimate (D-117), checked as far as one GPU allows:**
+  Low at 1080p takes 1.12 ms of GPU time on the 3060. The 3060 scores about
+  2.7 times the 1050 Ti on an aggregate benchmark (technical.city); by
+  compute it is about 6 times. That puts the 1050 Ti at roughly 3 to 7 ms of
+  GPU time against the 16.7 ms that 60 fps allows. The estimate looks safe,
+  probably with room for a slower card.
+- **Still unverified:**
+  - every figure on a card other than the 3060, the 1050 Ti and RX 570
+    included;
+  - the 4-core CPU line (Ryzen 3 3100 / i3-10100);
+  - 8 GB of RAM, which is above the 0.6 GB peak working set measured (D-115);
+  - integrated GPUs;
+  - Windows 10 (only Windows 11 was run).
