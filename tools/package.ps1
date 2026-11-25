@@ -24,7 +24,10 @@ param(
     [string]$Godot = "",
     [string]$Out = "",
     [switch]$Demo,
-    [switch]$CheckBudget
+    [switch]$CheckBudget,
+    # A release template to use as the runtime instead of the stock one,
+    # such as the slimmed build from tools\build_template.ps1 (D-121).
+    [string]$Template = ""
 )
 
 # The demo slice: a drift car and a grip car, a drift track and a circuit.
@@ -76,10 +79,17 @@ New-Item -ItemType Directory -Force -Path $dist | Out-Null
 $reported = & $Godot --version
 $first = $reported | Where-Object { $_ -match '^\d' } | Select-Object -First 1
 $version = "$first" -replace '^(\d+(\.\d+)+\.[a-z0-9]+).*$', '$1'
-$template = Join-Path $env:APPDATA "Godot\export_templates\$version\windows_release_x86_64.exe"
+$stockTemplate = Join-Path $env:APPDATA "Godot\export_templates\$version\windows_release_x86_64.exe"
 $project = Join-Path $root "godot"
 
-if (Test-Path $template) {
+if ($Template) {
+    if (-not (Test-Path $Template)) { Write-Error "No template at $Template." }
+    # The pack, beside a copy of the custom runtime: the same pair a release
+    # export makes, without the stock template.
+    & $Godot --headless --path $project --export-pack $preset (Join-Path $dist "$name.pck") | Out-Null
+    Copy-Item -Force $Template (Join-Path $dist "$name.exe")
+    $kind = "release (custom template)"
+} elseif (Test-Path $stockTemplate) {
     & $Godot --headless --path $project --export-release $preset (Join-Path $dist "$name.exe") | Out-Null
     $kind = "release"
 } else {
@@ -125,11 +135,20 @@ if ($Demo) {
     }
     Write-Host "Shipped by this project (all but the Godot runtime): $(& $mb $shipped)"
     if ($CheckBudget) {
-        $budget = [double]((Get-Content (Join-Path $root "tools\demo_budget.txt") | Where-Object { $_ -match '^\s*\d' } | Select-Object -First 1).Trim())
-        if ($shipped / 1MB -gt $budget) {
-            Write-Error ("Over the demo size budget: {0:N1} MB shipped, budget {1} MB." -f ($shipped / 1MB), $budget)
+        $limits = @{}
+        foreach ($line in Get-Content (Join-Path $root "tools\demo_budget.txt")) {
+            if ($line -match '^\s*(shipped|install)\s+([\d.]+)') { $limits[$Matches[1]] = [double]$Matches[2] }
         }
-        Write-Host "Within the budget of $budget MB."
+        $checks = @(, @("shipped", $shipped))
+        # The whole install is only ours to budget with our own runtime.
+        if ($Template) { $checks += , @("install", $install) }
+        foreach ($c in $checks) {
+            $limit = $limits[$c[0]]
+            if ($c[1] / 1MB -gt $limit) {
+                Write-Error ("Over the demo size budget: {0} {1:N1} MB, budget {2} MB." -f $c[0], ($c[1] / 1MB), $limit)
+            }
+            Write-Host ("Within the {0} budget of {1} MB." -f $c[0], $limit)
+        }
     }
 }
 

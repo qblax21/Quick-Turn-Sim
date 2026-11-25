@@ -1,4 +1,8 @@
-# Demo size budget (D-115), in MB: the parts this project ships in the demo
-# (game pack, simulation library, data, licences), not the Godot runtime.
-# tools\package.ps1 -Demo -CheckBudget fails above it.
-12
+# Demo size budget, in MB (D-115, D-121). tools\package.ps1 -Demo
+# -CheckBudget fails above either line.
+#   shipped  the parts this project makes: game pack, simulation library,
+#            data, licences (everything but the Godot runtime)
+#   install  the whole unzipped folder, runtime included; checked only when
+#            the slimmed runtime from tools\build_template.ps1 is used
+shipped 10
+install 56

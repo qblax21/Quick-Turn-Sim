@@ -49,11 +49,45 @@ jobs:
   # The demo slice must stay within its download budget (D-115). Exports the
   # demo game pack with the Godot editor (no export templates needed) and
   # checks the parts this project ships against tools/demo_budget.txt.
+  # The slimmed Godot release template (D-121), rebuilt only when its
+  # profile or build script changes.
+  godot-template:
+    name: godot template
+    runs-on: windows-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore the template
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: out/godot-template
+          key: godot-template-4.7.2-${{ hashFiles('tools/godot_template/custom.py', 'tools/build_template.ps1') }}
+
+      - name: Build the template
+        if: steps.cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          python -m pip install scons
+          ./tools/build_template.ps1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: godot-template
+          path: out/godot-template/godot_template_release.exe
+
   demo-size:
     name: demo size budget
+    needs: godot-template
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: godot-template
+          path: out/godot-template
 
       - name: Install the stable toolchain
         run: |
@@ -72,4 +106,15 @@ jobs:
         run: |
           $godot = (Get-ChildItem "$env:RUNNER_TEMP\godot" -Recurse -Filter "*_console.exe" | Select-Object -First 1).FullName
           & $godot --headless --path godot --import
-          ./tools/package.ps1 -Demo -CheckBudget -Godot $godot
+          ./tools/package.ps1 -Demo -CheckBudget -Godot $godot -Template out/godot-template/godot_template_release.exe
+
+      - name: Run the packaged demo
+        shell: pwsh
+        run: |
+          # Headless: the runner has no GPU. This checks that the slimmed
+          # runtime loads the pack, the simulation library and the scripts,
+          # and drives the self-test session.
+          $exe = Get-ChildItem out -Recurse -Filter "*Demo.exe" | Select-Object -First 1
+          $p = Start-Process $exe.FullName -ArgumentList "--headless", "--self-test" -Wait -PassThru -RedirectStandardOutput out/selftest.txt -RedirectStandardError out/selftest_err.txt
+          Get-Content out/selftest.txt, out/selftest_err.txt
+          if ($p.ExitCode -ne 0) { throw "self-test failed with exit code $($p.ExitCode)" }

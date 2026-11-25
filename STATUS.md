@@ -96,6 +96,10 @@ sees in the demo is described in `DEMO.md`.
   60 fps through Godot. Shared DirectInput access, so the same base can be
   pushed and read.
 
+- **Slimmed runtime** (D-121): the demo ships a Godot runtime built
+  without unused modules: 18.9 MB download, 48.9 MB installed (was 39.6
+  and 110.7).
+
 ### Telemetry, import, validation
 - Telemetry CSV with 116 documented channels; a test keeps the document and
   the code in step.

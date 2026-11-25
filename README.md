@@ -76,6 +76,20 @@ them the script makes a development package that uses a copy of the Godot
 editor binary as its runtime: it plays the same but is larger and is not
 what should be shipped.
 
+For the smaller runtime (D-121), build the slimmed release template once
+(or download the `godot-template` artifact from a CI run) and pass it:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\build_template.ps1
+```
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\package.ps1 -Demo -CheckBudget -Template out\godot-template\godot_template_release.exe
+```
+
+`build_template.ps1` needs Python with SCons and Visual Studio with the C++
+tools and a Windows SDK.
+
 To check a packaged folder on another machine, run it once with
 `QuickTurnSim.exe --self-test`: it drives the first car on the first track
 for three seconds, prints the speed reached and exits with 0 if the car

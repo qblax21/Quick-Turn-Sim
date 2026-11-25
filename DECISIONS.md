@@ -2551,3 +2551,55 @@ Development can be funded by optional donations:
 - **Address:** one constant, `DONATE_URL` in
   `crates/qts-core/src/constants.rs`, beside the product name. It is a
   placeholder until a real page exists. An empty string hides the link.
+
+## D-121 A slimmed Godot runtime for the demo
+
+The stock Godot 4.7.2 release template was 104.2 of the demo's 110.6 MB
+(D-115). It is now built from source with what the game does not use left
+out (`tools/godot_template/custom.py`, built by `tools/build_template.ps1`):
+- **Renderers:** OpenGL (the minimum spec already needs Vulkan) and
+  Direct3D 12.
+- **Godot's own physics:** 2D and 3D, Jolt, navigation. The simulation is
+  in our library.
+- **XR:** OpenXR and WebXR.
+- **Networking:** multiplayer, ENet, WebRTC, WebSocket, mbedTLS.
+- **Media formats:** video, Ogg and MP3 audio, and the unused image and
+  texture formats.
+- **Other features:** CSG, glTF, FBX, GridMap, lightmaps, regex, ZIP, and
+  screen-reader support (AccessKit).
+
+Kept: Vulkan, GDScript, GDExtension, 3D, particles, SVG (the default
+theme's icons), FreeType, noise, PNG, JPG and WebP, SDL3 input, and the full
+text server.
+
+| Demo (same machine, same library) | Stock runtime | Slimmed |
+|---|---|---|
+| Runtime executable | 104.2 MB | 44.4 MB |
+| Download (zip) | 39.6 MB | 18.9 MB |
+| Install | 110.7 MB | 48.9 MB |
+| Peak RAM, 30 s on Harrow | 608 MB | 586 MB |
+
+Notes:
+- **RAM:** barely changes. Most of it is the graphics driver and the GPU
+  resources, not the engine's code. The working set at the end of a run
+  varies between 340 and 580 MB from run to run, so only the peak is
+  compared.
+- **What broke on the way:**
+  - The fallback text server (no ICU or HarfBuzz) saved 2 MB but drew the
+    title screen's wrapped footer with overlapping words, so the full one
+    stays.
+  - godot-rust loaded method tables for every engine class at start-up,
+    and the classes left out failed to load. It now loads them on first
+    use (`lazy-function-tables`), which also took our library from 4.6 to
+    2.6 MB.
+  - Windows platform flags override a build profile, so `d3d12=no` is also
+    passed on the command line.
+- **Build:** CI builds the template on Windows with MSVC, cached by a hash
+  of the profile and the build script; a full build takes about 50
+  minutes. This machine has no C++ compiler with a Windows SDK, so the
+  template is built in CI and its artifact downloaded.
+- **Checks:** the demo job packages with it and runs the packaged
+  self-test headless. Here it ran with a window, no errors in its log.
+- **Budget** (`tools/demo_budget.txt`): the whole install is now ours to
+  budget. Install 56 MB (48.9 to 49.5 measured) and our own files 10 MB
+  (4.4 to 5.1 measured; was 12).
