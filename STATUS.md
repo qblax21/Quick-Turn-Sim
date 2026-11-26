@@ -118,7 +118,12 @@ sees in the demo is described in `DEMO.md`.
 
 - **Render bench for testers** (D-125): `Run render bench.bat` in a
   packaged build writes a results file (machine, frame times, 1 % lows)
-  to send back; a low-end variant caps the 3D at 720p.
+  to send back; a low-end variant caps the 3D at 720p. Since D-128 it also
+  records RAM and video memory.
+- **Memory budget** (D-128): `tools\memory_check.ps1` runs Harrow on High
+  against `tools\memory_budget.txt`; CI runs it on SwiftShader (RAM 519 of
+  600 MB, video memory 437 of 768 MB). On the RTX 3060: 674 MB of RAM and
+  818 MB of video memory by Windows' count. Untested on any other card.
 
 ### Telemetry, import, validation
 - Telemetry CSV with 116 documented channels; a test keeps the document and

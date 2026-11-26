@@ -118,3 +118,12 @@ jobs:
           $p = Start-Process $exe.FullName -ArgumentList "--headless", "--self-test" -Wait -PassThru -RedirectStandardOutput out/selftest.txt -RedirectStandardError out/selftest_err.txt
           Get-Content out/selftest.txt, out/selftest_err.txt
           if ($p.ExitCode -ne 0) { throw "self-test failed with exit code $($p.ExitCode)" }
+
+      # Harrow on High against tools/memory_budget.txt (D-128). The runner
+      # has no GPU: it renders on SwiftShader, the software Vulkan driver
+      # that comes with the runner's Google Chrome.
+      - name: Memory budget
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem out -Recurse -Filter "*Demo.exe" | Select-Object -First 1
+          ./tools/memory_check.ps1 -Exe $exe.FullName -Software -Seconds 60

@@ -90,6 +90,17 @@ powershell -ExecutionPolicy Bypass -File tools\package.ps1 -Demo -CheckBudget -T
 `build_template.ps1` needs Python with SCons and Visual Studio with the C++
 tools and a Windows SDK.
 
+`Run render bench.bat` in the packaged folder drives a lap of Harrow at
+Low and High and writes `render_bench_<date>.txt` with frame times, RAM and
+video memory. The memory budget for Harrow on High is in
+`tools\memory_budget.txt`; check a build against it with
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\memory_check.ps1 -Exe out\QuickTurnSimDemo\QuickTurnSimDemo.exe
+```
+
+(add `-Software` to render on Chrome's SwiftShader, as CI does; D-128).
+
 To check a packaged folder on another machine, run it once with
 `QuickTurnSim.exe --self-test`: it drives the first car on the first track
 for three seconds, prints the speed reached and exits with 0 if the car

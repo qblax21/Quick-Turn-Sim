@@ -1,0 +1,15 @@
+# Memory budget for Harrow on High, 3D drawn at 1080 lines (D-128), in MB.
+# tools\memory_check.ps1 fails above a line that applies.
+#
+# On a software renderer (CI: SwiftShader, no GPU), where video memory sits
+# in the process's RAM:
+#   ram       peak working set less Godot's video memory count
+#   vram      Godot's own video memory count
+# On a real GPU, where the graphics driver adds its own share of both:
+#   ram_gpu   peak working set, as Task Manager counts it
+#   vram_gpu  dedicated video memory as Windows counts it for the process;
+#             1200 leaves 800 MB of a 2 GB card to Windows and other apps
+ram 600
+vram 768
+ram_gpu 800
+vram_gpu 1200

@@ -183,6 +183,8 @@ func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--render-bench="):
 			_render_bench.call_deferred(arg.get_slice("=", 1))
+		elif arg.begins_with("--memory-check"):
+			_memory_check.call_deferred()
 		elif arg.begins_with("--title-shot="):
 			_title_shot.call_deferred(arg.get_slice("=", 1))
 		elif arg.begins_with("--ffb-meter-shot="):
@@ -353,10 +355,16 @@ func _bench_one(preset: String, low_end: bool, limit: float) -> Dictionary:
 	var h0: Dictionary = sim.hud()
 	var laps_before: int = int(h0.get("runs", 0)) + int(h0.get("invalid_runs", 0))
 	var lap_done := false
+	# Memory (D-128): the largest figures seen, sampled twice a second.
+	var mem_peak := {"ws": 0.0, "video_local": 0.0, "godot_video": 0.0, "textures": 0.0, "buffers": 0.0}
+	var next_mem := 0.0
 	while Time.get_ticks_usec() - began < limit * 1_000_000 and not lap_done:
 		await get_tree().process_frame
 		var now := Time.get_ticks_usec()
 		var t := (now - began) / 1.0e6
+		if t >= next_mem:
+			next_mem = t + 0.5
+			_sample_memory(mem_peak)
 		var h: Dictionary = sim.hud()
 		lap_done = int(h.get("runs", 0)) + int(h.get("invalid_runs", 0)) > laps_before
 		if t > 16.0 and not shot:
@@ -401,11 +409,100 @@ func _bench_one(preset: String, low_end: bool, limit: float) -> Dictionary:
 		"seconds": seconds,
 		"lap_finished": lap_done,
 	}
+	_sample_memory(mem_peak)
+	var pm: Dictionary = sim.process_memory()
+	var mb := 1.0 / 1048576.0
+	r["ram_mb"] = float(pm.get("working_set", 0)) * mb
+	r["ram_peak_mb"] = mem_peak.ws * mb
+	r["vram_godot_mb"] = mem_peak.godot_video * mb
+	r["vram_textures_mb"] = mem_peak.textures * mb
+	r["vram_buffers_mb"] = mem_peak.buffers * mb
+	r["vram_driver_mb"] = mem_peak.video_local * mb
+	# With a software renderer (no video memory of its own, as on a CI
+	# runner) the video memory sits in the process's RAM: take it out so
+	# the RAM figure means the same on every machine.
+	r["software_gpu"] = mem_peak.video_local == 0.0
+	r["ram_excl_video_mb"] = r.ram_peak_mb - (r.vram_godot_mb if r.software_gpu else 0.0)
+	r["textures"] = _largest_textures(8)
+	# Godot's own allocations (0 where the build does not track them).
+	r["godot_static_mb"] = float(OS.get_static_memory_peak_usage()) * mb
+	print("render bench %s memory: Godot's own allocations peak %.0f MB" % [preset, r.godot_static_mb])
+	print("render bench %s memory: RAM peak %.0f MB (%.0f MB without video memory), video memory %.0f MB by Godot's count (textures %.0f, buffers %.0f), %.0f MB by the driver's" % [
+		preset, r.ram_peak_mb, r.ram_excl_video_mb, r.vram_godot_mb, r.vram_textures_mb, r.vram_buffers_mb, r.vram_driver_mb])
 	print("render bench %s: %d frames, 3D at %s, mean %.2f ms (%.0f fps), 1%% low %.2f ms (%.0f fps), worst %.2f ms, GPU %.2f ms, physics tick %.0f us, %s after %.0f s" % [
 		preset, r.frames, r.render_3d, r.mean_ms, r.fps, r.low1_ms, r.low1_fps, r.worst_ms, r.gpu_ms, r.tick_us,
 		"lap finished" if lap_done else "lap not finished", seconds])
 	sim.stop_session()
 	return r
+
+
+# Largest figures so far into `peak`: the process working set and the
+# driver's video memory from the OS, Godot's own video memory count.
+func _sample_memory(peak: Dictionary) -> void:
+	var pm: Dictionary = sim.process_memory()
+	peak.ws = maxf(peak.ws, float(pm.get("peak_working_set", 0)))
+	peak.video_local = maxf(peak.video_local, float(pm.get("video_local", 0)))
+	peak.godot_video = maxf(peak.godot_video, float(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_VIDEO_MEM_USED)))
+	peak.textures = maxf(peak.textures, float(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TEXTURE_MEM_USED)))
+	peak.buffers = maxf(peak.buffers, float(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_BUFFER_MEM_USED)))
+
+
+# The `count` largest textures the scene uses, as "WxH, N MB, where":
+# from every material, sky and particle in the tree, at 4 bytes a pixel
+# plus a third for mipmaps (an estimate: compressed formats take less).
+# Godot 4 offers scripts no list of the textures the renderer holds, so
+# render targets and shadow maps are not in it.
+func _largest_textures(count: int) -> Array:
+	var seen := {}
+	var stack: Array = [get_tree().root]
+	while not stack.is_empty():
+		var node: Node = stack.pop_back()
+		stack.append_array(node.get_children())
+		var mats: Array = []
+		if node is GeometryInstance3D and node.material_override:
+			mats.append(node.material_override)
+		if node is MeshInstance3D and node.mesh:
+			for i in node.mesh.get_surface_count():
+				mats.append(node.get_active_material(i))
+		if node is WorldEnvironment and node.environment and node.environment.sky:
+			mats.append(node.environment.sky.sky_material)
+		for m in mats:
+			if m == null:
+				continue
+			for prop in m.get_property_list():
+				var v = m.get(prop.name)
+				if v is Texture2D and not seen.has(v):
+					seen[v] = "%s.%s" % [m.resource_path.get_file() if m.resource_path != "" else m.get_class(), prop.name]
+	var list: Array = []
+	for t in seen:
+		var bytes := float(t.get_width() * t.get_height() * 4) * 4.0 / 3.0
+		list.append([bytes, "%dx%d, %.1f MB, %s" % [t.get_width(), t.get_height(), bytes / 1048576.0, seen[t]]])
+	list.sort_custom(func(a, b): return a[0] > b[0])
+	var out: Array = []
+	for e in list.slice(0, count):
+		out.append(e[1])
+	return out
+
+
+# The memory budget check (D-128), for CI: Harrow on High, the computer
+# driving, for --bench-seconds (default 60). Prints one line for
+# tools\memory_check.ps1 to compare with tools\memory_budget.txt, and exits.
+func _memory_check() -> void:
+	var limit := 60.0
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--bench-seconds="):
+			limit = clampf(arg.get_slice("=", 1).to_float(), 10.0, BENCH_MAX_S)
+	var kept: Dictionary = settings.values.duplicate()
+	var r: Dictionary = await _bench_one("High", false, limit)
+	settings.values = kept
+	if r.is_empty():
+		get_tree().quit(1)
+		return
+	print("memory check: ram_mb=%.0f ram_excl_video_mb=%.0f vram_godot_mb=%.0f vram_driver_mb=%.0f software_gpu=%s render_3d=%s frames=%d" % [
+		r.ram_peak_mb, r.ram_excl_video_mb, r.vram_godot_mb, r.vram_driver_mb, r.software_gpu, r.render_3d, r.frames])
+	for line in r.textures:
+		print("memory check texture: ", line)
+	get_tree().quit(0)
 
 
 # One plain-text file a tester can send back: the machine, then one block
@@ -438,6 +535,12 @@ func _write_bench_results(results: Array, low_end: bool) -> String:
 		lines.append("frame time  mean %.2f ms (%.0f fps), 1%% low %.2f ms (%.0f fps), worst %.2f ms" % [r.mean_ms, r.fps, r.low1_ms, r.low1_fps, r.worst_ms])
 		lines.append("GPU time    mean %.2f ms per frame" % r.gpu_ms)
 		lines.append("physics     tick mean %.0f us, worst %.0f us (budget 1000 us)" % [r.tick_us, r.tick_worst_us])
+		lines.append("RAM         working set peak %.0f MB, %.0f MB at the end; Godot's own allocations peak %.0f MB" % [r.ram_peak_mb, r.ram_mb, r.godot_static_mb])
+		lines.append("video mem   %.0f MB by Godot's count (textures %.0f, buffers %.0f), %.0f MB by the driver's%s" % [
+			r.vram_godot_mb, r.vram_textures_mb, r.vram_buffers_mb, r.vram_driver_mb,
+			" (software renderer: in RAM)" if r.software_gpu else ""])
+		for t in r.textures:
+			lines.append("  texture   %s" % t)
 		lines.append("")
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f:

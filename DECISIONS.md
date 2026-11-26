@@ -2868,3 +2868,82 @@ at 100 Hz, offline, and adds only three numbers per sample.
   - **Tried and dropped:** a rear 20 kPa below the front, common
     drift-setup advice. It made the computer driver slide the wrong way in
     T2 on one lap in three.
+
+## D-128 RAM and video memory: measured, budgeted, checked in CI
+
+- **The render bench reports memory** (D-125's results file, and a line
+  per preset on the console):
+  - **RAM:** the working-set peak and its value at the end, as Task
+    Manager counts them, and Godot's own allocations.
+  - **Video memory:** Godot's own count (textures and buffers), and the
+    dedicated video memory Windows counts for the process.
+  - The largest textures the scene uses. Godot 4 gives scripts no list of
+    the renderer's own textures, so render targets are not in it.
+  - The Windows figures come from the bridge: `GetProcessMemoryInfo`, and
+    the "GPU Process Memory" performance counters behind Task Manager's
+    GPU column. DXGI's `QueryVideoMemoryInfo` was tried first; it reported
+    1,672 MB where Task Manager showed 818.
+- **What takes the memory.** Harrow on High, 3D drawn at 1974x1080,
+  RTX 3060, the computer driving. Each line is the change with that one
+  feature off.
+
+  | Feature | Godot's video memory count |
+  |---|---|
+  | All on | 516 MB (textures 414, buffers 42) |
+  | MSAA 2x | -214 MB |
+  | Ambient occlusion | -71 MB |
+  | Glow | -38 MB |
+  | Sun shadows | -34 MB (a 2048 map instead of 4096: -24 MB) |
+  | Upload staging buffer, 128 MB to 16 MB | -35 MB |
+  | Positional shadow atlas, tyre smoke | 0 |
+
+  - **Scene assets:** the textures in the scene come to about 4 MB, the
+    largest being the 1024x512 cloud noise. The meshes are about 42 MB of
+    buffers, and the procedural audio is under 1 MB.
+  - **Where the RAM goes:** headless the same run takes 155 MB of RAM. The
+    rest, about 570 MB on this card, is the graphics driver's share, the
+    compiled pipelines and Godot's upload buffers. No render feature moves
+    it by more than 15 MB.
+- **Cut:** Godot's upload staging buffer, from 128 MB to 16 MB
+  (`rendering_device/staging_buffer/max_size_mb`).
+  - This scene uploads nothing large, so nothing on screen changes.
+  - RAM: 739 MB to 672 MB peak working set (packaged demo, 60 s, the same
+    external sampling before and after; a first run with a cold shader
+    cache peaked at 850).
+  - Godot's video memory count: 516 MB to 481 MB.
+  - Windows' dedicated count stays at 818 MB: the staging buffer sits in
+    system memory.
+- **Looked at and kept:**
+  - **MSAA, ambient occlusion and glow** are what High is.
+  - **The 2048 sun shadow map** saves 24 MB but is slightly softer under
+    the car in a side-by-side frame. That is a visible loss, small as it
+    is.
+  - **Two swap-chain images** instead of three saved nothing.
+  - **No pipeline cache** saved 9 MB but would recompile shaders on every
+    start.
+- **Budget**, in `tools/memory_budget.txt`, for Harrow on High with the 3D
+  at 1080 lines, checked by `tools/memory_check.ps1`:
+
+  | Line | Renderer | Measures | Budget | Now |
+  |---|---|---|---|---|
+  | `ram` | software (CI) | working set less Godot's video memory | 600 MB | 519 MB |
+  | `vram` | software (CI) | Godot's video memory count | 768 MB | 437 MB |
+  | `ram_gpu` | real GPU | working set | 800 MB | 674 MB (RTX 3060) |
+  | `vram_gpu` | real GPU | Windows' dedicated count | 1200 MB | 818 MB (RTX 3060) |
+
+  `vram_gpu` at 1200 MB leaves 800 MB of a 2 GB card to Windows and other
+  programs. On a real GPU the driver's share sits on top of the game's,
+  hence the separate lines; the 600 MB proposed for RAM fits only once the
+  driver is left out.
+- **CI:** the demo job runs the packaged demo on Harrow, High, for 60 s on
+  SwiftShader, the software Vulkan driver that comes with Google Chrome
+  (already on the Windows runner; no download), and fails over `ram` or
+  `vram`.
+  - SwiftShader draws about one frame in 10 s at 1080 lines, so the check
+    measures what is allocated, not how fast it draws.
+  - Godot's count there is 437 MB against 481 on the 3060.
+  - Found along the way: this machine has SwiftShader too (with Chrome), so
+    D-125's "no software Vulkan driver here" was wrong. A low-end run on it
+    is still not an integrated-GPU figure.
+- **Unverified:** every figure on a card other than the RTX 3060,
+  integrated GPUs included, and on a 2 GB card in particular.

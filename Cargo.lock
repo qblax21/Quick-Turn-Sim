@@ -177,6 +177,7 @@ dependencies = [
  "qts-sim",
  "qts-tire",
  "qts-vehicle",
+ "windows",
 ]
 
 [[package]]
