@@ -42,6 +42,11 @@ sees in the demo is described in `DEMO.md`.
   tool and in playback (D-066). Across operating systems: likely, untested.
 - Ten-minute soak with erratic inputs for four car and track combinations:
   no non-finite values and no runaway states.
+- **Drift coach on spins** (D-127): names the likely cause from the
+  judge's samples (full lock, a throttle rise of half the pedal in 0.2 s,
+  or the rear past the limit) and the rear grip the setup gives away
+  against the car's safe drift baseline. Thresholds are the project's own,
+  unverified. Safe drift baseline in the garage for the Kestrel RC.
 - **Computer driver** (D-122): drives through the player's inputs with no
   assists (own clutch, sequential shifts, handbrake). Grip laps of
   Ridgeline at a chosen pace (Tern GT: 2:03.1 at pace 0.6, 1:46.7 at 0.9,

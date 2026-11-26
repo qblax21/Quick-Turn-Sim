@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: CC-BY-4.0
+# Safe drift baseline for the Kestrel RC (D-127): a known-good drift setup
+# to return to with one click in the garage, and what the drift coach
+# compares a spin's setup against. Same text format as a saved setup.
+#
+# The Kestrel RC is fictional; its reference car is the FC-generation rotary
+# coupe its data file names. There is no separate car for that model here.
+#
+# "Safe" here means checked, not tuned by feel: the computer driver (D-126)
+# drives these values clean on Harrow on every lap at pace 0.8, 0.9 and 1.0.
+# They are the car's own (its data file), written out so the comparison
+# does not move if the data file changes:
+#   230 kPa front and rear (estimated in the tyre file, not verified).
+#     A rear 20 kPa lower than the front, common drift-setup advice, was
+#     tried and dropped: the computer driver had an opposite drift in T2 on
+#     one lap in three with it.
+#   camber -3.5 front, -0.5 rear: the car's drift alignment (estimated in
+#     its data file, not verified).
+#   rear toe +0.11 (in): the car's own; toe-in steadies the rear.
+#   locked differential: as the car is built (D-111); both rears turn
+#     together, so the slide answers the throttle the same way every time.
+#   brake bias 64.9 % front: the car's own; more to the rear locks the rears
+#     on entry.
+name = Safe drift baseline
+front.pressure_kpa = 230
+rear.pressure_kpa = 230
+front.camber_deg = -3.5
+rear.camber_deg = -0.5
+rear.toe_deg = 0.11
+diff.mode = 2
+brake_bias_pct = 64.9

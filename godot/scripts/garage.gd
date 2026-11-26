@@ -94,6 +94,13 @@ func _ready() -> void:
 		b.text = entry[0]
 		b.pressed.connect(entry[1])
 		top.add_child(b)
+	# One click back to a forgiving drift setup (D-127), for cars that have one.
+	if not sim.safe_drift_baseline(car_id).is_empty():
+		var safe := Button.new()
+		safe.text = "Safe drift baseline"
+		safe.tooltip_text = "A forgiving drift setup to return to; the drift coach compares a spin's setup against it."
+		safe.pressed.connect(_on_safe_baseline)
+		top.add_child(safe)
 
 	# The adjustments, grouped, in two columns.
 	var scroll := ScrollContainer.new()
@@ -298,6 +305,12 @@ func _on_sheet_chosen(path: String) -> void:
 	name_edit.text = loaded.name
 	_apply_values(loaded.values)
 	status.text = "Loaded \"%s\" from the sheet; Save keeps it under that name." % loaded.name
+
+
+func _on_safe_baseline() -> void:
+	var base: Dictionary = sim.safe_drift_baseline(car_id)
+	_apply_values(base.get("values", {}))
+	status.text = "Safe drift baseline set; Save keeps it under a name."
 
 
 func _on_reset() -> void:

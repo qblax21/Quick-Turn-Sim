@@ -661,6 +661,92 @@ fn trim_number(v: f64, step: f64) -> String {
     format!("{v:.decimals$}")
 }
 
+/// Folder in the data root with each car's safe drift baseline (D-127),
+/// one `<car id>.txt` in the setup text format.
+pub const SAFE_DRIFT_DIR: &str = "setups/safe_drift";
+/// Rear pressure above the baseline's that the drift coach mentions, kPa.
+/// One step of the coach's own choosing, not from a source.
+pub const NOTE_PRESSURE_KPA: f64 = 20.0;
+/// Rear camber beyond the baseline's that the coach mentions, degrees.
+/// Also the coach's own choice.
+pub const NOTE_CAMBER_DEG: f64 = 1.0;
+
+/// The car's safe drift baseline from the data root, if it has one.
+pub fn safe_drift_baseline(root: &std::path::Path, car_id: &str) -> Result<Option<Setup>, String> {
+    let path = root.join(SAFE_DRIFT_DIR).join(format!("{car_id}.txt"));
+    match std::fs::read_to_string(&path) {
+        Ok(text) => Setup::from_text(&text)
+            .map(Some)
+            .map_err(|e| format!("{}: {e}", path.display())),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(format!("{}: {e}", path.display())),
+    }
+}
+
+/// Where `setup` gives rear grip away against `baseline`, in words, with
+/// what the tyre model makes of it (D-127): rear pressure higher, rear
+/// camber further from zero, or another differential. `items` are the
+/// car's adjustments, for the values a setup leaves as they are.
+pub fn rear_grip_notes(
+    items: &[SetupItem],
+    setup: &Setup,
+    baseline: &Setup,
+    tire_rear: &TireParams,
+) -> Vec<String> {
+    let value = |s: &Setup, key: &str| {
+        s.values
+            .get(key)
+            .copied()
+            .or_else(|| items.iter().find(|i| i.key == key).map(|i| i.default))
+    };
+    let mut notes = Vec::new();
+    if let (Some(now), Some(base)) = (
+        value(setup, "rear.pressure_kpa"),
+        value(baseline, "rear.pressure_kpa"),
+    ) {
+        // Friction against pressure in the tyre model: ppy3 per unit of
+        // relative pressure change (a placeholder in the tyre files).
+        let loss = -tire_rear.pressure.ppy3 * (now - base) * 1000.0
+            / tire_rear.vertical.nominal_pressure_pa;
+        if now - base >= NOTE_PRESSURE_KPA && loss > 0.0 {
+            notes.push(format!(
+                "rear pressure {now:.0} kPa against the baseline's {base:.0} (about {:.1} % less rear friction in the tyre model)",
+                100.0 * loss
+            ));
+        }
+    }
+    if let (Some(now), Some(base)) = (
+        value(setup, "rear.camber_deg"),
+        value(baseline, "rear.camber_deg"),
+    ) {
+        if now.abs() - base.abs() >= NOTE_CAMBER_DEG {
+            // Peak friction falls with camber squared in the model (pdy3).
+            let k = tire_rear.magic_formula.pdy3;
+            let f = |deg: f64| 1.0 - k * deg.to_radians().powi(2);
+            notes.push(format!(
+                "rear camber {now:.1} deg against the baseline's {base:.1} (about {:.1} % less rear friction standing still; roll changes it)",
+                100.0 * (1.0 - f(now) / f(base))
+            ));
+        }
+    }
+    if let (Some(now), Some(base)) = (value(setup, "diff.mode"), value(baseline, "diff.mode")) {
+        if now.round() != base.round() {
+            let name = |c: f64| match DifferentialKind::from_code(c) {
+                Some(DifferentialKind::Open) => "open",
+                Some(DifferentialKind::ClutchPack) => "clutch-pack",
+                Some(DifferentialKind::Locked) => "locked",
+                None => "unknown",
+            };
+            notes.push(format!(
+                "{} differential against the baseline's {} (the rears share the drive differently, so the slide answers the throttle differently)",
+                name(now),
+                name(base)
+            ));
+        }
+    }
+    notes
+}
+
 impl SessionAssets {
     /// Applies a setup to the car and tires these assets hold, and
     /// remembers it so recordings carry it.

@@ -41,6 +41,9 @@ fn sample(s: f64, slip: f64, gap: f64, tail: f64) -> Sample {
         tail_offset_m: tail,
         tyres_off: 0,
         wrong_way: false,
+        steer_lock: 0.5,
+        throttle: 0.5,
+        rear_slip_deg: slip,
     }
 }
 
@@ -383,4 +386,89 @@ fn the_coach_names_the_costliest_corner_and_why() {
         None,
         "nothing to say about a perfect lap"
     );
+}
+
+/// A spin in a zone samples 1 m apart at 100 Hz (DT): the slide grows from
+/// 20 to 170 degrees over 150 m, passing the onset (60) at 40 m. `at`
+/// shapes the steering and throttle along the way.
+fn spin(at: impl Fn(f64) -> (f64, f64)) -> Vec<Sample> {
+    (0..=150)
+        .map(|i| {
+            let s = f64::from(i);
+            let (lock, throttle) = at(s);
+            Sample {
+                steer_lock: lock,
+                throttle,
+                ..sample(s, 20.0 + s, 3.0, 4.0)
+            }
+        })
+        .collect()
+}
+
+/// Why a drift spun (D-127): full lock reached, a sudden throttle, or
+/// neither (the rear slid past what can be caught).
+#[test]
+fn a_spin_gets_its_likely_cause() {
+    use qts_sim::drift::{spin_cause, SpinCause};
+    let z = zone();
+    // Full lock 10 m (0.1 s) before the onset.
+    let lock = spin(|s| (if s > 30.0 { 1.0 } else { 0.6 }, 0.5));
+    let scored = score_zone(&z, &lock, DT);
+    assert_eq!(scored.penalty, Some(Penalty::Spin));
+    assert!(matches!(
+        scored.spin_cause,
+        Some(SpinCause::SteeringLock { .. })
+    ));
+    // Throttle from 30 % to 100 % at once, 0.3 s before the onset.
+    let throttle = spin(|s| (0.6, if s > 10.0 { 1.0 } else { 0.3 }));
+    assert!(matches!(
+        spin_cause(&throttle, DT),
+        Some(SpinCause::ThrottleSudden { .. })
+    ));
+    // Neither: steady part throttle and lock to spare.
+    let neither = spin(|_| (0.6, 0.5));
+    assert!(matches!(
+        spin_cause(&neither, DT),
+        Some(SpinCause::RearSlipPastLimit { .. })
+    ));
+    // A slide that never passes the onset has no cause to find.
+    assert_eq!(spin_cause(&run(|s| sample(s, 40.0, 0.4, 6.2)), DT), None);
+}
+
+/// The coach compares the setup with the car's safe drift baseline (D-127):
+/// on the baseline nothing is said; with more rear pressure, more rear
+/// camber and an open differential each is named.
+#[test]
+fn the_setup_is_compared_with_the_safe_drift_baseline() {
+    use qts_sim::session::{SessionAssets, SessionConfig};
+    use qts_sim::setup::{safe_drift_baseline, Setup};
+    let root = data();
+    let base = safe_drift_baseline(root.path(), "coupe_kestrel_rc")
+        .unwrap()
+        .expect("the Kestrel RC has a safe drift baseline");
+    let notes = |setup: &Setup| {
+        let assets = SessionAssets::load(&root, "coupe_kestrel_rc", "harrow_drift_park")
+            .unwrap()
+            .with_setup(setup)
+            .unwrap();
+        qts_sim::session::Session::new(assets, SessionConfig::default())
+            .unwrap()
+            .setup_notes()
+            .to_vec()
+    };
+    assert!(notes(&base).is_empty(), "{:?}", notes(&base));
+    let mut loose = base.clone();
+    loose.values.insert("rear.pressure_kpa".into(), 260.0);
+    loose.values.insert("rear.camber_deg".into(), -2.5);
+    loose.values.insert("diff.mode".into(), 0.0);
+    let said = notes(&loose);
+    eprintln!("{said:#?}");
+    assert_eq!(said.len(), 3, "{said:?}");
+    assert!(said[0].starts_with("rear pressure 260 kPa"));
+    assert!(said[1].starts_with("rear camber -2.5"));
+    assert!(said[2].starts_with("open differential"));
+    // A car with no baseline says nothing either.
+    assert!(safe_drift_baseline(root.path(), "hatch_tern_gt")
+        .unwrap()
+        .is_none());
 }

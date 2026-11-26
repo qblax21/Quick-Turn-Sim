@@ -67,9 +67,11 @@ Commands:
                                          warm tires: lap times, grip and
                                          temperatures corner by corner
   ai --car ID --track ID [--mode grip|drift] [--pace P] [--laps N] [--replay FILE]
-                                         the computer driver (D-122): no
+     [--setup FILE|safe] [--all-laps]    the computer driver (D-122): no
                                          assists, own clutch and shifts; prints
-                                         lap times and drift scores
+                                         lap times and drift scores (every
+                                         lap's corners with --all-laps; safe:
+                                         the safe drift baseline, D-127)
   coach LAP.csv BEST.csv                  the lap corner by corner against the
                                          best: time lost per corner and why
   tire-plots [--out DIR]                 force against slip at three loads and
@@ -423,7 +425,19 @@ fn cmd_ai(args: &Args) -> Result<(), String> {
         }
         other => return Err(format!("unknown mode `{other}` (grip or drift)")),
     };
-    let mut session = Session::from_data(&root, car, track, AiDriver::session_config())?;
+    // --setup FILE, or --setup safe for the car's safe drift baseline (D-127).
+    let setup = match args.text("setup") {
+        None => qts_sim::setup::Setup::default(),
+        Some("safe") => qts_sim::setup::safe_drift_baseline(root.path(), car)?
+            .ok_or_else(|| format!("{car} has no safe drift baseline"))?,
+        Some(path) => qts_sim::setup::Setup::from_text(
+            &std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?,
+        )?,
+    };
+    let assets = SessionAssets::load(&root, car, track)
+        .map_err(|e| e.to_string())?
+        .with_setup(&setup)?;
+    let mut session = Session::new(assets, AiDriver::session_config())?;
     let mut ai = AiDriver::new(session.track(), config)?;
     // An out lap to the line, then the timed laps.
     let run = run_laps(&mut session, &mut ai, laps + 1, 120.0 * f64::from(laps + 1));

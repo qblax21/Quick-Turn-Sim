@@ -181,6 +181,11 @@ and every best lap. "What it does" shows the ride frequencies, damping
 ratios, roll split and differential locking the setup gives; **Export
 sheet** writes it all to a text sheet that **Load sheet...** reads back.
 Ranges and their reasoning: [docs/SETUP.md](docs/SETUP.md).
+For the Kestrel RC, **Safe drift baseline** returns to a drift setup the
+computer driver has checked clean on Harrow. When a drift ends in a spin,
+F9 names the likely cause (full lock, a sudden throttle, or the rear sliding
+past the limit) and any rear grip the setup gives away against that
+baseline (D-127).
 
 ### H-pattern shifter
 

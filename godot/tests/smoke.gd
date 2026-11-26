@@ -117,6 +117,18 @@ func _run() -> void:
 	root.add_child(garage)
 	await process_frame
 	garage.queue_free()
+	# The safe drift baseline (D-127): the Kestrel has one, the Tern GT not,
+	# and the garage sets it with one click.
+	var safe: Dictionary = sim.safe_drift_baseline("coupe_kestrel_rc")
+	check(safe.get("values", {}).size() >= 5, "the Kestrel has a safe drift baseline: " + sim.last_error())
+	check(sim.safe_drift_baseline("hatch_tern_gt").is_empty(), "the Tern GT has no safe drift baseline")
+	var drift_garage = Garage.new()
+	drift_garage.setup(sim, settings, "coupe_kestrel_rc", "harrow_drift_park")
+	root.add_child(drift_garage)
+	await process_frame
+	drift_garage._on_safe_baseline()
+	check(absf(drift_garage.values.get("rear.pressure_kpa", 0.0) - safe.values["rear.pressure_kpa"]) < 1e-9, "the garage sets the safe drift baseline")
+	drift_garage.queue_free()
 	var scanned: Array = sim.input_scan()
 	for d in scanned:
 		check(d.axes.size() == 8, "device %s reports eight axes" % d.name)

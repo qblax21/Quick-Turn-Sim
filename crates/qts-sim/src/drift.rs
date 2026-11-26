@@ -60,6 +60,23 @@ pub const MIN_SPEED: f64 = 5.0;
 /// Rows a second the judge keeps.
 pub const SAMPLE_HZ: f64 = 100.0;
 
+// Why a drift spun (D-127). These thresholds are this project's own, set
+// against what the model does; none is from a published source.
+/// Body slip past which the spin is taken to have begun: beyond it the
+/// computer driver (D-126) never caught a slide on Harrow, degrees.
+/// Unverified as a general limit.
+pub const SPIN_ONSET_DEG: f64 = 60.0;
+/// How far before that the coach looks for a cause, s.
+pub const SPIN_LOOKBACK_S: f64 = 1.5;
+/// Steering at or past this share of full lock means the front could not
+/// turn further to catch the slide.
+pub const LOCK_SHARE: f64 = 0.97;
+/// Throttle rise within [`THROTTLE_RISE_S`] that counts as too sudden:
+/// half the pedal in a fifth of a second. Unverified.
+pub const THROTTLE_RISE: f64 = 0.5;
+/// See [`THROTTLE_RISE`], s.
+pub const THROTTLE_RISE_S: f64 = 0.2;
+
 /// What the car was doing at one moment in a zone.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Sample {
@@ -77,6 +94,81 @@ pub struct Sample {
     pub tyres_off: u8,
     /// True when sliding (over [`SLIDE_DEG`]) the wrong way for the corner.
     pub wrong_way: bool,
+    /// Steering wheel angle as a share of full lock, 0 to 1.
+    pub steer_lock: f64,
+    /// Accelerator pedal, 0 to 1.
+    pub throttle: f64,
+    /// Larger slip angle of the two rear tyres, degrees.
+    pub rear_slip_deg: f64,
+}
+
+/// The likely reason a drift spun, read from the samples before it (D-127).
+#[derive(Clone, Debug, PartialEq)]
+pub enum SpinCause {
+    /// The steering reached full lock while the slide still grew.
+    SteeringLock {
+        /// Slip angle when lock was reached, degrees.
+        slip_deg: f64,
+    },
+    /// The throttle went on faster than the rear could take.
+    ThrottleSudden {
+        /// Pedal before and after the rise.
+        from: f64,
+        /// See `from`.
+        to: f64,
+    },
+    /// Neither: the rear slid further than the car could be caught from.
+    RearSlipPastLimit {
+        /// Largest rear tyre slip angle before the spin began, degrees.
+        rear_slip_deg: f64,
+    },
+}
+
+impl SpinCause {
+    /// In words, for the coach.
+    pub fn describe(&self) -> String {
+        match self {
+            SpinCause::SteeringLock { slip_deg } => format!(
+                "steering lock reached at {slip_deg:.0} deg of slide: the front could not turn further to catch it; less angle or less speed on entry"
+            ),
+            SpinCause::ThrottleSudden { from, to } => format!(
+                "throttle too sudden: {:.0} % to {:.0} % in {:.1} s spun the rears up; feed it in",
+                100.0 * from,
+                100.0 * to,
+                THROTTLE_RISE_S
+            ),
+            SpinCause::RearSlipPastLimit { rear_slip_deg } => format!(
+                "rear slip past the limit: the rear tyres reached {rear_slip_deg:.0} deg with lock and throttle to spare; ease off sooner as the angle grows"
+            ),
+        }
+    }
+}
+
+/// The likely cause of a spin in `samples` (taken `dt` apart), or `None`
+/// if the slide never passed [`SPIN_ONSET_DEG`].
+pub fn spin_cause(samples: &[Sample], dt: f64) -> Option<SpinCause> {
+    let onset = samples.iter().position(|x| x.slip_deg > SPIN_ONSET_DEG)?;
+    let back = (SPIN_LOOKBACK_S / dt).round() as usize;
+    let window = &samples[onset.saturating_sub(back)..=onset];
+    if let Some(x) = window.iter().find(|x| x.steer_lock >= LOCK_SHARE) {
+        return Some(SpinCause::SteeringLock {
+            slip_deg: x.slip_deg,
+        });
+    }
+    let gap = ((THROTTLE_RISE_S / dt).round() as usize).max(1);
+    let rise = window
+        .windows(gap + 1)
+        .map(|w| (w[0].throttle, w[gap].throttle))
+        .max_by(|a, b| (a.1 - a.0).total_cmp(&(b.1 - b.0)));
+    if let Some((from, to)) = rise {
+        if to - from >= THROTTLE_RISE {
+            return Some(SpinCause::ThrottleSudden { from, to });
+        }
+    }
+    let rear = window.iter().map(|x| x.rear_slip_deg).fold(0.0, f64::max);
+    Some(SpinCause::RearSlipPastLimit {
+        rear_slip_deg: rear,
+    })
 }
 
 /// Why a run is Incomplete: it scores nothing (rulebook 3.2).
@@ -120,6 +212,8 @@ pub struct ZoneScore {
     pub straightened: u32,
     /// The penalty, if any.
     pub penalty: Option<Penalty>,
+    /// For a spin: its likely cause.
+    pub spin_cause: Option<SpinCause>,
 }
 
 impl ZoneScore {
@@ -257,6 +351,7 @@ pub fn score_zone(zone: &DriftZoneDef, samples: &[Sample], dt: f64) -> ZoneScore
             f64::INFINITY
         },
         no_go_m: if reach.is_finite() { no_go } else { 0.0 },
+        spin_cause: if spun { spin_cause(samples, dt) } else { None },
         samples: samples.len(),
         mean_angle_deg: mean,
         sliding,
@@ -298,7 +393,10 @@ pub fn coach_note(lap: &LapScore, def: &DriftDef) -> Option<String> {
 fn zone_reason(z: &ZoneScore) -> String {
     match z.penalty {
         Some(Penalty::Spin) => {
-            return format!("a spin (over {SPIN_DEG:.0} deg) made the run Incomplete")
+            let why = z.spin_cause.as_ref().map_or(String::new(), |c| {
+                format!(". Likely cause: {}", c.describe())
+            });
+            return format!("a spin (over {SPIN_DEG:.0} deg) made the run Incomplete{why}");
         }
         Some(Penalty::OffCourse) => {
             return format!("{TYRES_OFF_INCOMPLETE} tyres off the course made the run Incomplete")
@@ -401,6 +499,8 @@ pub struct DriftJudge {
     lap: Vec<Option<ZoneScore>>,
     slot: Arc<Mutex<DriftSlot>>,
     just_counted: Option<f64>,
+    /// Rear grip the setup gives away against the safe baseline (D-127).
+    setup_notes: Vec<String>,
 }
 
 impl DriftJudge {
@@ -426,6 +526,7 @@ impl DriftJudge {
             lap: vec![None; zones],
             slot: Arc::new(Mutex::new(slot)),
             just_counted: None,
+            setup_notes: session.setup_notes().to_vec(),
         }
     }
 
@@ -554,6 +655,15 @@ impl DriftJudge {
             tail_offset_m: tail_offset,
             tyres_off,
             wrong_way,
+            steer_lock: (out.steering_wheel_angle.abs()
+                / car.params().steering.max_wheel_angle_rad.max(1e-6))
+            .min(1.0),
+            throttle: session.controls().throttle,
+            rear_slip_deg: out.wheels[2]
+                .slip_angle
+                .abs()
+                .max(out.wheels[3].slip_angle.abs())
+                .to_degrees(),
         })
     }
 
@@ -590,7 +700,18 @@ impl DriftJudge {
             total,
             counted,
         };
-        let coach = self.def.as_ref().and_then(|d| coach_note(&lap, d));
+        let mut coach = self.def.as_ref().and_then(|d| coach_note(&lap, d));
+        // A spin: the setup's part too, when it gives rear grip away.
+        let spun = lap
+            .zones
+            .iter()
+            .any(|z| z.as_ref().is_some_and(|z| z.penalty == Some(Penalty::Spin)));
+        if let (true, Some(note), false) = (spun, coach.as_mut(), self.setup_notes.is_empty()) {
+            note.push_str(&format!(
+                ". The setup also gives rear grip away against the safe drift baseline: {}",
+                self.setup_notes.join("; ")
+            ));
+        }
         if counted {
             self.just_counted = Some(total);
         }

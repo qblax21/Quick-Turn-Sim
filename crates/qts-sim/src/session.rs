@@ -58,6 +58,9 @@ pub struct SessionAssets {
     pub provenance: Vec<Provenance>,
     /// The setup applied to the car and tires (empty: as in the files).
     pub setup: Setup,
+    /// The car's safe drift baseline (D-127), if the data has one. Not
+    /// part of the content hash: nothing simulated reads it.
+    pub drift_baseline: Option<Setup>,
 }
 
 impl SessionAssets {
@@ -125,6 +128,15 @@ impl SessionAssets {
             content_hash: fnv1a64(&bytes),
             provenance,
             setup: Setup::default(),
+            drift_baseline: crate::setup::safe_drift_baseline(root.path(), car_id).map_err(
+                |message| DataError::Invalid {
+                    path: root
+                        .path()
+                        .join(crate::setup::SAFE_DRIFT_DIR)
+                        .join(format!("{car_id}.txt")),
+                    message,
+                },
+            )?,
         })
     }
 }
@@ -204,6 +216,12 @@ pub struct Session {
     impact_impulse_ns: f64,
     impact_kick_nm: f64,
     yaw_inertia: f64,
+    /// Where the setup gives rear grip away against the car's safe drift
+    /// baseline, in words (D-127).
+    setup_notes: Vec<String>,
+    /// The controls the last tick ran with, for the drift coach (D-127).
+    /// Not simulated state: it is the input, already in every replay.
+    controls: DriverControls,
 }
 
 /// Highest average speed a timed run may have and still count, m/s. Well
@@ -253,6 +271,11 @@ impl Session {
         let mass =
             body.sprung_mass_kg + 2.0 * (susp.front.unsprung_mass_kg + susp.rear.unsprung_mass_kg);
         let yaw_inertia = body.inertia_yaw_kg_m2 * mass / body.sprung_mass_kg;
+        let setup_notes = assets.drift_baseline.as_ref().map_or(Vec::new(), |base| {
+            let items =
+                crate::setup::setup_items(&assets.car, &assets.tire_front, &assets.tire_rear);
+            crate::setup::rear_grip_notes(&items, &assets.setup, base, &assets.tire_rear)
+        });
         let mut car = Car::new(
             assets.car,
             assets.tire_front,
@@ -282,6 +305,8 @@ impl Session {
             impact_impulse_ns: 0.0,
             impact_kick_nm: 0.0,
             yaw_inertia,
+            setup_notes,
+            controls: DriverControls::default(),
         })
     }
 
@@ -349,6 +374,17 @@ impl Session {
     /// dies away. For force feedback; not simulated state.
     pub fn impact_kick_nm(&self) -> f64 {
         self.impact_kick_nm
+    }
+
+    /// Where the setup gives rear grip away against the car's safe drift
+    /// baseline, in words; empty when it does not, or there is none.
+    pub fn setup_notes(&self) -> &[String] {
+        &self.setup_notes
+    }
+
+    /// The controls the last tick ran with, decoded from its input frame.
+    pub fn controls(&self) -> &DriverControls {
+        &self.controls
     }
 
     /// Timing state.
@@ -709,6 +745,7 @@ impl Simulation for Session {
             &self.env,
             self.dt,
         );
+        self.controls = controls;
         self.impact_kick_nm *= (1.0 - self.dt / IMPACT_KICK_DECAY_S).max(0.0);
         self.resolve_obstacles();
         self.tick += 1;

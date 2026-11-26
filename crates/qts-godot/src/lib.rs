@@ -1725,6 +1725,23 @@ impl SimBridge {
         }
     }
 
+    /// The car's safe drift baseline (D-127) as `name` and `values`, or an
+    /// empty dictionary when the car has none.
+    #[func]
+    fn safe_drift_baseline(&mut self, car_id: GString) -> VarDictionary {
+        let Some(root) = self.root() else {
+            return VarDictionary::new();
+        };
+        match qts_sim::setup::safe_drift_baseline(root.path(), &car_id.to_string()) {
+            Ok(Some(setup)) => setup_to_dict(&setup),
+            Ok(None) => VarDictionary::new(),
+            Err(e) => {
+                self.last_error = e;
+                VarDictionary::new()
+            }
+        }
+    }
+
     /// Every adjustment the garage offers for a car: `key`, `group`,
     /// `label`, `unit`, `min`, `max`, `step` and `default` (the value in the
     /// car's data file).

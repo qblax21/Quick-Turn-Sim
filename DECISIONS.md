@@ -2805,3 +2805,66 @@ driver's line, its slide targets and how it uses the pedals changed.
   `QTS_AI_TRACE=zones` also prints the car's range across the road per zone.
 - The test `it_drives_a_clean_judged_harrow_run` requires the first timed
   lap to count, every corner to score, a total above 15 and no resets.
+
+## D-127 Why a drift spun, and a safe drift baseline
+
+When a judged corner ends in a spin, the drift coach (F9, D-118) now says
+what most likely caused it. It works from samples the judge already keeps
+at 100 Hz, offline, and adds only three numbers per sample.
+
+- **What it reads:** each judge sample also holds:
+  - the steering wheel angle as a share of full lock;
+  - the throttle pedal;
+  - the larger rear tyre slip angle.
+
+  The session keeps the last tick's decoded controls for this. They are the
+  input, already in every replay, not simulated state.
+- **When the spin began:** the first sample past 60 degrees of body slip.
+  Beyond that the computer driver (D-126) never caught a slide on Harrow;
+  it is not a published limit. The coach looks at the 1.5 s before it.
+- **The cause, checked in this order:**
+  1. **Steering lock reached:** the wheel at 97 % of full lock or more. The
+     front could not turn further to catch the slide.
+  2. **Throttle too sudden:** the pedal rose by half its travel or more
+     within 0.2 s.
+  3. **Rear slip past the limit:** neither of those, so the rear slid
+     further than the car can be caught from. The note gives the largest
+     rear tyre slip angle.
+
+  All three thresholds are this project's own choice, set against what the
+  model does. None is from a source, so they are unverified.
+- **The setup's part:** if the setup gives rear grip away against the car's
+  safe drift baseline, the note says so, with what the tyre model makes of
+  it:
+  - **Rear pressure** 20 kPa or more above the baseline's. The model's
+    friction falls by its `ppy3` per unit of relative pressure (a
+    placeholder): 260 kPa against 230 is about 0.9 % less rear friction.
+  - **Rear camber** 1 degree or more further from zero. Peak friction falls
+    with camber squared (`pdy3`, also a placeholder): about 0.4 % at -2.5
+    against -0.5 standing still, and roll changes it.
+  - **A different differential type.** That changes how the rears answer
+    the throttle rather than their grip.
+
+  The 20 kPa and 1 degree steps are the coach's own. In this model pressure
+  and camber change grip only a little; the differential matters more.
+- **Safe drift baseline:**
+  - **Where it lives:** `data/setups/safe_drift/<car>.txt`, in the setup
+    text format, with a comment per value.
+  - **In the garage:** a **Safe drift baseline** button sets it with one
+    click, for cars that have one.
+  - **From the command line:** `qts-sim ai ... --setup safe` drives it.
+  - **Which cars:** only the Kestrel RC has one. It is the only drift car,
+    and its reference car is the FC-generation rotary coupe. The cars here
+    are fictional, so there is no separate car for that model.
+  - **Its values are the car's own**, written out so the comparison does
+    not move if the data file changes:
+    - 230 kPa front and rear;
+    - camber -3.5 front, -0.5 rear;
+    - rear toe-in 0.11;
+    - locked differential;
+    - brake bias 64.9 % front.
+  - **"Safe" means checked:** the computer driver drives it clean on Harrow
+    on every lap. At pace 0.9, four laps scored 29.4, 30.0, 31.1 and 29.1.
+  - **Tried and dropped:** a rear 20 kPa below the front, common
+    drift-setup advice. It made the computer driver slide the wrong way in
+    T2 on one lap in three.
