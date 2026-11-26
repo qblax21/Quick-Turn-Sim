@@ -864,6 +864,17 @@ pub struct AiRun {
 /// Drives `laps` timed laps (or until `max_seconds`) with `ai`, judging
 /// drift zones where the track has them.
 pub fn run_laps(session: &mut Session, ai: &mut AiDriver, laps: u32, max_seconds: f64) -> AiRun {
+    run_laps_recorded(session, ai, laps, max_seconds, None)
+}
+
+/// [`run_laps`], recording every input frame into `recorder` for a replay.
+pub fn run_laps_recorded(
+    session: &mut Session,
+    ai: &mut AiDriver,
+    laps: u32,
+    max_seconds: f64,
+    mut recorder: Option<&mut qts_core::replay::ReplayRecorder>,
+) -> AiRun {
     let trace_every: u64 = std::env::var("QTS_AI_TRACE")
         .ok()
         .and_then(|v| v.parse().ok())
@@ -883,6 +894,9 @@ pub fn run_laps(session: &mut Session, ai: &mut AiDriver, laps: u32, max_seconds
         let frame = ai.frame(session);
         let started = session.timing().start_tick;
         session.step(&frame);
+        if let Some(rec) = recorder.as_deref_mut() {
+            rec.record(frame, session);
+        }
         judge.observe(session);
         if zone_trace {
             let z = ai.zone_ahead(ai.progress_m()).map(|(i, _)| i);

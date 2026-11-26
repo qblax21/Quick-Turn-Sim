@@ -11,8 +11,13 @@ const MAX_SIDE := 16384
 
 static func render(owner: Node, source: Camera3D, scale: float) -> Image:
 	var window := owner.get_viewport().get_visible_rect().size
-	var size := Vector2i(roundi(window.x * scale), roundi(window.y * scale))
-	size = size.clamp(Vector2i(16, 16), Vector2i(MAX_SIDE, MAX_SIDE))
+	return await render_size(owner, source, Vector2i(roundi(window.x * scale), roundi(window.y * scale)))
+
+
+# The same at an exact size in pixels, whatever the window's (D-129: the
+# store's 1920x1080).
+static func render_size(owner: Node, source: Camera3D, wanted: Vector2i) -> Image:
+	var size := wanted.clamp(Vector2i(16, 16), Vector2i(MAX_SIDE, MAX_SIDE))
 	var viewport := SubViewport.new()
 	viewport.size = size
 	viewport.own_world_3d = false

@@ -67,7 +67,8 @@ Commands:
                                          warm tires: lap times, grip and
                                          temperatures corner by corner
   ai --car ID --track ID [--mode grip|drift] [--pace P] [--laps N] [--replay FILE]
-     [--setup FILE|safe] [--all-laps]    the computer driver (D-122): no
+     [--setup FILE|safe] [--all-laps] [--ahead M]
+                                         the computer driver (D-122): no
                                          assists, own clutch and shifts; prints
                                          lap times and drift scores (every
                                          lap's corners with --all-laps; safe:
@@ -410,7 +411,7 @@ fn cmd_cold_start(args: &Args) -> Result<(), String> {
 }
 
 fn cmd_ai(args: &Args) -> Result<(), String> {
-    use qts_sim::ai::{run_laps, AiConfig, AiDriver};
+    use qts_sim::ai::{run_laps_recorded, AiConfig, AiDriver};
     let root = data_root()?;
     let car = args.required("car")?;
     let track = args.required("track")?;
@@ -439,8 +440,23 @@ fn cmd_ai(args: &Args) -> Result<(), String> {
         .with_setup(&setup)?;
     let mut session = Session::new(assets, AiDriver::session_config())?;
     let mut ai = AiDriver::new(session.track(), config)?;
+    // --ahead M starts the car M metres along its line, as the game's tandem
+    // lead does (D-122); a replay records that start.
+    let ahead = args.number("ahead", 0.0)?;
+    if ahead > 0.0 {
+        ai.place_ahead(&mut session, ahead);
+    }
+    let mut recorder = args
+        .text("replay")
+        .map(|_| ReplayRecorder::start(session.replay_header(100), &session));
     // An out lap to the line, then the timed laps.
-    let run = run_laps(&mut session, &mut ai, laps + 1, 120.0 * f64::from(laps + 1));
+    let run = run_laps_recorded(
+        &mut session,
+        &mut ai,
+        laps + 1,
+        120.0 * f64::from(laps + 1),
+        recorder.as_mut(),
+    );
     for (i, (time, counted, score)) in run.laps.iter().enumerate() {
         let label = if i == 0 {
             "out lap".to_string()
@@ -473,6 +489,11 @@ fn cmd_ai(args: &Args) -> Result<(), String> {
         println!("coach: {note}");
     }
     println!("{:.1} s driven, {} resets", run.seconds, ai.resets);
+    if let (Some(rec), Some(path)) = (recorder, args.text("replay")) {
+        let replay = rec.finish();
+        std::fs::write(path, replay.to_bytes()).map_err(|e| format!("{path}: {e}"))?;
+        println!("replay     {} frames -> {path}", replay.frames.len());
+    }
     Ok(())
 }
 

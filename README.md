@@ -101,6 +101,14 @@ powershell -ExecutionPolicy Bypass -File tools\memory_check.ps1 -Exe out\QuickTu
 
 (add `-Software` to render on Chrome's SwiftShader, as CI does; D-128).
 
+The Steam Coming Soon kit (five 1920x1080 screenshots and a 1080p60
+trailer from in-game replays, D-129) comes from one command; it needs Godot
+and ffmpeg. The draft store text is in `docs/STORE_PAGE.md`.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\steam_kit.ps1
+```
+
 To check a packaged folder on another machine, run it once with
 `QuickTurnSim.exe --self-test`: it drives the first car on the first track
 for three seconds, prints the speed reached and exits with 0 if the car

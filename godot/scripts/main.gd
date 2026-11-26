@@ -19,6 +19,7 @@ const Settings := preload("res://scripts/settings.gd")
 const SettingsScreen := preload("res://scripts/settings_screen.gd")
 const ReplayPicker := preload("res://scripts/replay_picker.gd")
 const ReplayView := preload("res://scripts/replay_view.gd")
+const SteamKit := preload("res://scripts/steam_kit.gd")
 const Title := preload("res://scripts/title.gd")
 const PauseMenu := preload("res://scripts/pause_menu.gd")
 const Results := preload("res://scripts/results.gd")
@@ -183,6 +184,8 @@ func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--render-bench="):
 			_render_bench.call_deferred(arg.get_slice("=", 1))
+		elif arg.begins_with("--steam-kit="):
+			_steam_kit.call_deferred(arg.get_slice("=", 1))
 		elif arg.begins_with("--memory-check"):
 			_memory_check.call_deferred()
 		elif arg.begins_with("--title-shot="):
@@ -482,6 +485,20 @@ func _largest_textures(count: int) -> Array:
 	for e in list.slice(0, count):
 		out.append(e[1])
 	return out
+
+
+# The store page kit (D-129): screenshots and trailer frames from replays;
+# see steam_kit.gd and tools\steam_kit.ps1.
+func _steam_kit(out: String) -> void:
+	_clear_session()
+	_close_overlays()
+	_hide_scenery()
+	self_testing = true
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	var kit = SteamKit.new()
+	add_child(kit)
+	var code: int = await kit.run(sim, camera, out)
+	get_tree().quit(code)
 
 
 # The memory budget check (D-128), for CI: Harrow on High, the computer

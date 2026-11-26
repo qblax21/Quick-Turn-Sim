@@ -2965,3 +2965,49 @@ at 100 Hz, offline, and adds only three numbers per sample.
 - **Unverified:** every figure on a card other than the RTX 3060,
   integrated GPUs included, and on a 2 GB card in particular.
 
+
+## D-129 A Steam Coming Soon kit from in-game footage
+
+- **One command:** `tools\steam_kit.ps1` makes, in `out\steam_kit`, the five
+  1920x1080 screenshots a Steam store page needs and a trailer at 1080p60.
+  It also needs Godot and ffmpeg.
+- **How it is made:**
+  1. **Laps:** the computer driver (D-122, D-126) records three replays
+     with `qts-sim ai --replay`:
+     - a Ridgeline hot lap in the Tern GT at pace 1.0 (1:43.9);
+     - Harrow in the Kestrel RC at pace 0.9;
+     - a second Harrow lap started 30 m ahead with `--ahead 30`, as the
+       game's tandem mode starts its lead car.
+
+     Every lap is clean and counted, and each replay re-simulates EXACT.
+  2. **Frames:** Godot renders them at a fixed 60 fps through an off-screen
+     1920x1080 viewport, whatever the window's size. Ridgeline uses the
+     replay director's shots (D-082). Harrow adds the lead car and two
+     cameras that keep both cars in frame.
+  3. **Video:** ffmpeg encodes the frames to H.264.
+- **Trailer:** 38 s, with no text, music or sound.
+  - Ridgeline: 18 s of the hot lap from the line.
+  - Harrow: 20 s in tandem through the linked T1 to T3 and the T4 hairpin,
+    from 8 s into the timed lap.
+- **Screenshots:**
+  - Ridgeline: two at fixed moments.
+  - Harrow: three where the follower slides most with the lead within
+    28 m, at least 3 s apart.
+- **All footage is in-game.** The two Harrow cars are separate sessions
+  with no contact, exactly as the game's tandem mode runs them. The replay
+  viewer draws no tyre smoke, so the footage has none.
+- **Store text:** `docs/STORE_PAGE.md`. It is built around buying once with
+  free updates, no subscription and no paid DLC, the small download and the
+  low hardware needs. Every claim is marked measured or unmeasured.
+  - **Unmeasured:**
+    - the full game's size;
+    - Windows 10;
+    - the CPU, RAM and GPU minimums (scaled from one RTX 3060);
+    - force feedback on a real wheel.
+  - **The RAM minimum** is drafted at 4 GB, down from D-117's 8 GB guess,
+    since the game peaks at 0.67 GB. That too is unmeasured on a 4 GB
+    machine.
+- **Not made:** the capsule and library images and a logo. They need
+  artwork, not footage.
+- **`qts-sim ai`** gained `--replay FILE` (listed in its help but not
+  written before) and `--ahead M`.

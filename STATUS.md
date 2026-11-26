@@ -120,6 +120,10 @@ sees in the demo is described in `DEMO.md`.
   packaged build writes a results file (machine, frame times, 1 % lows)
   to send back; a low-end variant caps the 3D at 720p. Since D-128 it also
   records RAM and video memory.
+- **Store page kit** (D-129): `tools\steam_kit.ps1` renders five 1920x1080
+  screenshots and a 38 s 1080p60 trailer (Ridgeline hot lap, Harrow tandem)
+  from replays of the computer driver; draft store text with every
+  unmeasured claim marked in `docs/STORE_PAGE.md`. No capsule art yet.
 - **Memory budget** (D-128): `tools\memory_check.ps1` runs Harrow on High
   against `tools\memory_budget.txt`; CI runs it on SwiftShader (RAM 599 of
   680 MB, video memory 185 of 768 MB on the runner). On the RTX 3060: 674 MB of RAM and
