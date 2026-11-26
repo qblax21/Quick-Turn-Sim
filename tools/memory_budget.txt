@@ -9,7 +9,10 @@
 #   ram_gpu   peak working set, as Task Manager counts it
 #   vram_gpu  dedicated video memory as Windows counts it for the process;
 #             1200 leaves 800 MB of a 2 GB card to Windows and other apps
-ram 600
+# ram: the CI runner measures 599 MB, this machine 515 MB on the same
+# software renderer; 680 leaves room for that spread and still fails on a
+# growth of about 80 MB. The 600 MB first proposed sat at the runner's value.
+ram 680
 vram 768
 ram_gpu 800
 vram_gpu 1200

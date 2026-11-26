@@ -2926,24 +2926,42 @@ at 100 Hz, offline, and adds only three numbers per sample.
 
   | Line | Renderer | Measures | Budget | Now |
   |---|---|---|---|---|
-  | `ram` | software (CI) | working set less Godot's video memory | 600 MB | 519 MB |
-  | `vram` | software (CI) | Godot's video memory count | 768 MB | 437 MB |
+  | `ram` | software (CI) | working set less Godot's video memory | 680 MB | 599 MB on the runner, 519 MB here |
+  | `vram` | software (CI) | Godot's video memory count | 768 MB | 185 MB on the runner, 437 MB here |
   | `ram_gpu` | real GPU | working set | 800 MB | 674 MB (RTX 3060) |
   | `vram_gpu` | real GPU | Windows' dedicated count | 1200 MB | 818 MB (RTX 3060) |
 
   `vram_gpu` at 1200 MB leaves 800 MB of a 2 GB card to Windows and other
   programs. On a real GPU the driver's share sits on top of the game's,
-  hence the separate lines; the 600 MB proposed for RAM fits only once the
-  driver is left out.
+  hence the separate lines.
+
+  **`ram` is 680 MB, not the 600 MB first proposed.** The runner measured
+  599 MB, so a 600 MB line would fail on ordinary run-to-run noise. 680 MB
+  is about 13 % above the runner's figure: it still fails a real growth of
+  around 80 MB.
+
+  **The runner's figures differ from this machine's.** Its screen is
+  smaller, so the 3D is drawn at 1483x1080, not 1974x1080. That makes its
+  video memory count lower (185 MB against 437) and leaves more of the RAM
+  figure after Godot's video memory is taken out.
 - **CI:** the demo job runs the packaged demo on Harrow, High, for 60 s on
   SwiftShader, the software Vulkan driver that comes with Google Chrome
   (already on the Windows runner; no download), and fails over `ram` or
   `vram`.
   - SwiftShader draws about one frame in 10 s at 1080 lines, so the check
     measures what is allocated, not how fast it draws.
+  - **The runner's own Vulkan loader** offers no window surface
+    (`VK_KHR_surface` missing). The game then stopped at Godot's error box
+    and the first run sat for 34 minutes.
+    - **Loader:** the check now puts Chrome's own `vulkan-1.dll`, which sits
+      beside SwiftShader, next to the game for the run, and removes it
+      after.
+    - **Time limit:** a stuck run is stopped after 10 minutes with its log
+      printed.
   - Godot's count there is 437 MB against 481 on the 3060.
   - Found along the way: this machine has SwiftShader too (with Chrome), so
     D-125's "no software Vulkan driver here" was wrong. A low-end run on it
     is still not an integrated-GPU figure.
 - **Unverified:** every figure on a card other than the RTX 3060,
   integrated GPUs included, and on a 2 GB card in particular.
+

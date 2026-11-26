@@ -121,8 +121,8 @@ sees in the demo is described in `DEMO.md`.
   to send back; a low-end variant caps the 3D at 720p. Since D-128 it also
   records RAM and video memory.
 - **Memory budget** (D-128): `tools\memory_check.ps1` runs Harrow on High
-  against `tools\memory_budget.txt`; CI runs it on SwiftShader (RAM 519 of
-  600 MB, video memory 437 of 768 MB). On the RTX 3060: 674 MB of RAM and
+  against `tools\memory_budget.txt`; CI runs it on SwiftShader (RAM 599 of
+  680 MB, video memory 185 of 768 MB on the runner). On the RTX 3060: 674 MB of RAM and
   818 MB of video memory by Windows' count. Untested on any other card.
 
 ### Telemetry, import, validation
