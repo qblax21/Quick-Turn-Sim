@@ -124,6 +124,7 @@ jobs:
       # that comes with the runner's Google Chrome.
       - name: Memory budget
         shell: pwsh
+        timeout-minutes: 15
         run: |
           $exe = Get-ChildItem out -Recurse -Filter "*Demo.exe" | Select-Object -First 1
           ./tools/memory_check.ps1 -Exe $exe.FullName -Software -Seconds 60

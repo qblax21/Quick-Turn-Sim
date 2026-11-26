@@ -53,7 +53,16 @@ if ($Exe) {
 # sees its output unless it is started this way.
 $log = Join-Path ([System.IO.Path]::GetTempPath()) "qts_memory_check"
 $quoted = $runArgs | ForEach-Object { if ($_ -match ' ') { "`"$_`"" } else { $_ } }
-$p = Start-Process $run -ArgumentList $quoted -Wait -PassThru -RedirectStandardOutput "$log.out" -RedirectStandardError "$log.err"
+$p = Start-Process $run -ArgumentList $quoted -PassThru -RedirectStandardOutput "$log.out" -RedirectStandardError "$log.err"
+# A software renderer is slow, but not this slow: past the limit the game
+# is stuck (an error box waiting for a click, say). Stop it and show why.
+$limitMs = ($Seconds + 540) * 1000
+if (-not $p.WaitForExit($limitMs)) {
+    Stop-Process -Id $p.Id -Force
+    Get-Content "$log.out", "$log.err" -ErrorAction SilentlyContinue | Select-Object -Last 40 | ForEach-Object { Write-Host $_ }
+    Write-Error "The game did not finish within $($limitMs / 1000) s."
+}
+$p.WaitForExit()
 $out = @(Get-Content "$log.out", "$log.err" -ErrorAction SilentlyContinue)
 if ($p.ExitCode -ne 0) { $out | Select-Object -Last 20 | ForEach-Object { Write-Host $_ } }
 $out | Where-Object { $_ -match "memory|render bench|Vulkan" } | ForEach-Object { Write-Host $_ }
