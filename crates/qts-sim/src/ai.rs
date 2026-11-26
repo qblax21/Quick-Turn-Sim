@@ -9,10 +9,13 @@
 //! Two modes:
 //! - **Grip:** laps a circuit on a smoothed racing line at a pace given as a
 //!   share of an estimated grip limit.
-//! - **Drift:** drifts the judged zones of a drift track. It follows a line
-//!   from the outside of each zone to its inner clipping point, starts the
-//!   slide with a pull of the handbrake and power, holds it with opposite lock and
-//!   throttle, and drives with grip between zones.
+//! - **Drift:** drifts the judged zones of a drift track (D-126). It follows
+//!   a line from the outside of each zone toward its inner clipping point,
+//!   starts the slide with a pull of the handbrake and power, and holds it
+//!   with two loops: the steering puts the front wheels along the front
+//!   axle's own travel and asks for the rotation the line and the slide
+//!   angle need; the throttle holds the slide angle. Between zones it
+//!   drives with grip, easing off as the rears spin up.
 //!
 //! Like every driver here it is not simulation state: a replay records its
 //! input frames.
@@ -67,7 +70,7 @@ impl AiConfig {
             mode: AiMode::Drift,
             pace: clamp(pace, 0.3, 1.0),
             grip_g: 1.0,
-            drift_angle_deg: 32.0,
+            drift_angle_deg: 20.0,
         }
     }
 }
@@ -78,6 +81,9 @@ const EDGE_MARGIN_M: f64 = 1.6;
 const LINE_STEP_M: f64 = 1.0;
 /// The slide starts this far before a zone, m.
 const ENTRY_LEAD_M: f64 = 22.0;
+/// In linked corners the swing to the next corner starts this far
+/// before its zone, m.
+const LINK_LEAD_M: f64 = 8.0;
 /// Shift up above this share of the redline.
 const UPSHIFT: f64 = 0.93;
 /// Shift down when the next gear down would turn below this share.
@@ -107,6 +113,11 @@ pub struct AiDriver {
     line: Vec<[f64; 2]>,
     /// Distance along the track path of each line point.
     line_s: Vec<f64>,
+    /// Offset of each line point from the middle of the road, m, left
+    /// positive.
+    offsets: Vec<f64>,
+    /// Distance to the left of the line on the last tick, m.
+    last_side: f64,
     /// Allowed speed at each line point, from curvature and braking.
     speed: Vec<f64>,
     path_len: f64,
@@ -119,6 +130,10 @@ pub struct AiDriver {
     pressed_shift: bool,
     prev_slip: f64,
     slip_rate: f64,
+    /// Integral of the slide-angle error while holding a slide.
+    hold_i: f64,
+    /// Signed slide toward the corner a tick ago, degrees.
+    prev_bs: f64,
     slide_zone: Option<usize>,
     slide_t: f64,
     cranking: bool,
@@ -163,6 +178,8 @@ impl AiDriver {
             config,
             line,
             line_s,
+            offsets,
+            last_side: 0.0,
             speed: Vec::new(),
             path_len: path.length(),
             zones,
@@ -173,6 +190,8 @@ impl AiDriver {
             pressed_shift: false,
             prev_slip: 0.0,
             slip_rate: 0.0,
+            hold_i: 0.0,
+            prev_bs: 0.0,
             slide_zone: None,
             slide_t: 0.0,
             cranking: false,
@@ -232,7 +251,13 @@ impl AiDriver {
     fn plan_speeds(&mut self) {
         let n = self.line.len();
         let a_lat = self.g();
-        let a_brake = 0.85 * self.g();
+        // A drift car has no anti-lock and its rears lock early: it plans
+        // gentler braking.
+        let a_brake = if self.config.mode == AiMode::Drift {
+            0.55 * self.g()
+        } else {
+            0.85 * self.g()
+        };
         let mut v: Vec<f64> = (0..n)
             .map(|i| {
                 let k = curvature(&self.line, i).abs();
@@ -278,6 +303,19 @@ impl AiDriver {
     }
 
     fn zone_ahead(&self, s: f64) -> Option<(usize, &Zone)> {
+        // Linked corners: the swing to the next one starts a few metres
+        // before its zone, so the slide has changed sides by the time the
+        // judge looks at it there.
+        let linked = self.zones.iter().enumerate().find(|(_, z)| {
+            let d = (z.from - s).rem_euclid(self.path_len);
+            d <= LINK_LEAD_M
+        });
+        if let Some((i, z)) = linked {
+            let prev = &self.zones[(i + self.zones.len() - 1) % self.zones.len()];
+            if (z.from - prev.to).abs() < 1.0 {
+                return Some((i, z));
+            }
+        }
         self.zones.iter().enumerate().find(|(_, z)| {
             let d = (s - (z.from - ENTRY_LEAD_M)).rem_euclid(self.path_len);
             d <= z.to - z.from + ENTRY_LEAD_M
@@ -308,20 +346,20 @@ impl AiDriver {
         // Sliding, the rear wheels spin faster than the road: hold the gear
         // unless the engine is at the limiter.
         let moving = clutch < 0.1 && car.output().speed > 4.0;
-        // Engine speed per m/s in each gear, learnt while the tyres grip.
+        // Engine speed per m/s of road speed in each gear's ratio: from the
+        // final drive and the rolling radius of a front wheel, which is not
+        // driven, so wheelspin does not fool it.
         let speed = car.output().speed;
-        if !sliding && clutch < 0.05 && speed > 5.0 && !drive.shifting {
-            let k = rpm / (speed * ratios[g - 1]);
-            self.rpm_per_ms = if self.rpm_per_ms > 0.0 {
-                0.99 * self.rpm_per_ms + 0.01 * k
-            } else {
-                k
-            };
-        }
+        let radius = car.output().wheels[0].rolling_radius.max(0.1);
+        self.rpm_per_ms = m.gearbox.final_drive * 60.0 / (std::f64::consts::TAU * radius);
+        let road_rpm = self.rpm_per_ms * ratios[g - 1] * speed;
         // Sliding, the gear stays where it is (a shift unsettles the rear)
         // unless the engine is on the limiter, which cuts the power.
         if sliding {
-            if rpm > 0.98 * redline && clutch < 0.1 && g < ratios.len() {
+            // Spinning rears put the engine on the limiter, which the
+            // throttle sorts out; shift only when the road speed itself is
+            // too much for the gear.
+            if road_rpm > 0.85 * redline && clutch < 0.1 && g < ratios.len() {
                 self.last_shift_t = t;
                 return buttons::SHIFT_UP;
             }
@@ -332,10 +370,20 @@ impl AiDriver {
         if let Some(zone_speed) = self.zone_gear_speed {
             if self.rpm_per_ms > 0.0 && speed > 5.0 {
                 let fit = (1..=ratios.len())
-                    .find(|&k| self.rpm_per_ms * ratios[k - 1] * zone_speed < 0.7 * redline)
-                    .unwrap_or(ratios.len());
+                    .find(|&k| {
+                        self.rpm_per_ms * ratios[k - 1] * zone_speed.min(speed.max(8.0))
+                            < 0.7 * redline
+                    })
+                    .unwrap_or(ratios.len())
+                    // Never first for a drift: the slightest throttle spins
+                    // the rears there.
+                    .max(2.min(ratios.len()));
                 let after = self.rpm_per_ms * ratios[g.saturating_sub(2)] * speed;
-                if fit < g && g > 1 && after < 0.95 * redline && throttle < 0.5 {
+                if fit < g
+                    && g > 1
+                    && after < 0.75 * redline
+                    && (throttle < 0.5 || rpm < 0.6 * redline)
+                {
                     self.last_shift_t = t;
                     return buttons::SHIFT_DOWN;
                 }
@@ -346,7 +394,12 @@ impl AiDriver {
                 return 0;
             }
         }
-        if moving && rpm > UPSHIFT * redline && throttle > 0.3 && g < ratios.len() {
+        if moving
+            && rpm > UPSHIFT * redline
+            && road_rpm > 0.8 * redline
+            && throttle > 0.3
+            && g < ratios.len()
+        {
             {
                 self.last_shift_t = t;
                 return buttons::SHIFT_UP;
@@ -446,7 +499,7 @@ fn drift_offsets(
     for z in &def.zones {
         let dir = z.icp_offset_m.signum();
         let outside = -dir * 0.4 * room;
-        let inside = dir * (room - 0.3);
+        let inside = dir * (room - 2.0);
         keys.push((z.from_m - ENTRY_LEAD_M, outside * 0.7));
         keys.push((z.from_m, outside));
         keys.push((z.icp_at_m, inside));
@@ -545,6 +598,7 @@ impl Driver for AiDriver {
         let (hx, hy) = (next[0] - here[0], next[1] - here[1]);
         let hl = fm::sqrt(hx * hx + hy * hy).max(1e-9);
         let side = (hx * (y - here[1]) - hy * (x - here[0])) / hl;
+        self.last_side = side;
         let pursuit = fm::atan2(2.0 * p.body.wheelbase_m * fm::sin(err), dist)
             - clamp(0.6 * side / (speed + 5.0), -0.08, 0.08);
 
@@ -558,6 +612,9 @@ impl Driver for AiDriver {
         } else {
             (0.0, clamp(-0.25 * error, 0.0, 1.0))
         };
+        if self.config.mode == AiMode::Drift {
+            brake = brake.min(0.45);
+        }
         let mut steer = wheel(pursuit);
         let mut clutch: f64 = 0.0;
         let mut handbrake = 0.0;
@@ -576,56 +633,81 @@ impl Driver for AiDriver {
                     self.slide_zone = Some(zi);
                     self.slide_t = t;
                 }
-                if self.slide_zone == Some(zi) && speed > 7.0 {
+                if self.slide_zone == Some(zi) && (speed > 7.0 || (abs_slip > 8.0 && speed > 2.5)) {
                     sliding = true;
-                    // Steering: the front wheels along the direction of travel
-                    // (opposite lock equal to the slide), plus the rotation the
-                    // line needs: pure pursuit's curvature times speed, against
-                    // the rotation there is.
-                    let k_line = curvature(&self.line, (self.nearest + 5) % n);
-                    let want_yaw = speed * k_line - clamp(0.06 * side, -0.3, 0.3);
-                    // How far outside the line, positive when wide of it.
-                    let wide = -z.dir * side;
-                    // The hold law proven in the drift_car test (0.5 of the
-                    // slide, against the rotation), plus a little toward the
-                    // line and the rotation it needs.
-                    let road_deg = 0.5 * slip_deg - 7.0 * yaw_rate + 3.0 * want_yaw;
-                    steer = wheel(road_deg.to_radians() + 0.25 * err);
-                    let wrong = slip_deg * want_slip < 0.0 && abs_slip > 4.0;
-                    let over = abs_slip - want_slip.abs();
-                    // Not sliding (yet, or any more): start it again, with a
-                    // pull of the handbrake at most every 1.5 s.
-                    let entering = abs_slip < 12.0 && !wrong;
-                    if entering && t - self.slide_t > 1.5 && speed > 9.0 {
+                    // Slide toward the corner, degrees: positive the right
+                    // way round, negative the wrong way.
+                    let sgn = want_slip.signum();
+                    let bs = sgn * slip_deg;
+                    let bs_rate = (bs - self.prev_bs) * f64::from(session.tick_rate_hz());
+                    // Rotation the line needs: pure pursuit's curvature
+                    // (which also closes on the line) times speed.
+                    let target = want_slip.abs();
+                    // Plus the rotation that turns the body to the slide
+                    // angle wanted: the velocity turns at the line's rate,
+                    // the body that much faster while the angle grows.
+                    let want_yaw = 2.0 * speed * fm::sin(err) / dist
+                        - sgn * 1.0 * clamp(target - bs, -15.0, 15.0).to_radians();
+                    // Steering: the front wheels along the front axle's own
+                    // direction of travel, so they carry no force, and then
+                    // a front slip angle that asks for the rotation the line
+                    // needs. Opposite lock follows the slide by itself.
+                    let a = p.body.cg_to_front_axle_m;
+                    let beta_f = fm::atan2(v[1] + a * yaw_rate, v[0].abs().max(0.5));
+                    let alpha = clamp(0.35 * (want_yaw - yaw_rate), -0.2, 0.2);
+                    steer = wheel(beta_f + alpha);
+                    let entering = bs < 8.0 && bs > -4.0;
+                    if entering && t - self.slide_t > 1.5 && speed > 6.0 && bs < 4.0 {
                         self.slide_t = t;
+                        self.hold_i = 0.0;
                     }
-                    throttle = if abs_slip > 55.0 || (abs_slip > 42.0 && self.slip_rate > 10.0) {
-                        0.0
-                    } else if wrong {
-                        // Swinging across to the other side (a transition).
-                        0.35
-                    } else if entering {
-                        // Breaking the rear loose: a pull of the handbrake with
-                        // the clutch in, then power, the wheel turned in.
-                        steer = wheel(pursuit + z.dir * 0.25);
+                    throttle = if bs <= -4.0 {
+                        // Swinging across to the other side (a transition):
+                        // the steering turns it; part throttle keeps the
+                        // rear light.
+                        0.25
+                    } else if entering && t - self.slide_t < 1.2 {
+                        // Breaking the rear loose: a pull of the handbrake
+                        // with the clutch in and the wheel turned in a
+                        // little, then power with the holding steering.
                         if t - self.slide_t < HANDBRAKE_S {
+                            steer = wheel(pursuit + z.dir * 0.12);
                             handbrake = 1.0;
                             clutch = 1.0;
-                            0.6
+                            0.35
                         } else {
-                            1.0
+                            0.9
                         }
                     } else {
-                        clamp(0.62 - 0.03 * over - 0.01 * self.slip_rate, 0.0, 1.0)
+                        // Holding: throttle sets the slide, with an integral
+                        // for the throttle a steady slide needs and damping
+                        // on how fast it grows.
+                        let e = target - bs;
+                        self.hold_i = clamp(
+                            self.hold_i + 0.004 * e / f64::from(session.tick_rate_hz()) * 10.0,
+                            -0.3,
+                            0.3,
+                        );
+                        let thr = clamp(
+                            0.45 + 0.025 * e + self.hold_i - 0.006 * bs_rate.clamp(-80.0, 80.0),
+                            0.0,
+                            1.0,
+                        );
+                        // Well past the angle: off the power, which gives
+                        // the rear its grip back.
+                        if e < -10.0 {
+                            thr.min(0.15)
+                        } else {
+                            thr
+                        }
                     };
-                    // Throttle holds the angle; speed comes off with the left
-                    // foot on the brake, which drifters use to scrub speed
-                    // mid-slide.
-                    let fast = speed - z.speed - 1.0 + 0.3 * wide.max(0.0);
+                    self.prev_bs = bs;
+                    // Speed: left foot on the brake when well over the zone's.
+                    let fast = speed - z.speed - 1.0;
                     brake = if entering {
                         0.0
                     } else {
-                        clamp(0.08 * fast, 0.0, 0.4)
+                        clamp(0.1 * fast, 0.0, 0.4)
                     };
                 } else {
                     // Turn in toward the corner.
@@ -640,15 +722,30 @@ impl Driver for AiDriver {
                     .map(|z| z.speed);
                 // Between zones a slide left over is caught, not driven.
                 if abs_slip > 6.0 {
-                    let counter = 0.55 * slip_deg - 7.0 * yaw_rate;
-                    steer = wheel(counter.to_radians() + 0.8 * err);
+                    // The same steering as holding a slide, with no angle
+                    // wanted: the front wheels along their travel, and the
+                    // rotation that brings the body back in line.
+                    let a = p.body.cg_to_front_axle_m;
+                    let beta_f = fm::atan2(v[1] + a * yaw_rate, v[0].abs().max(0.5));
+                    let want_yaw = 2.0 * speed * fm::sin(err) / dist
+                        + 1.0 * clamp(slip_deg, -15.0, 15.0).to_radians();
+                    let alpha = clamp(0.35 * (want_yaw - yaw_rate), -0.2, 0.2);
+                    steer = wheel(beta_f + alpha);
                     throttle = if abs_slip > 20.0 {
                         0.0
                     } else {
                         throttle.min(0.3)
                     };
+                    // Braking hard with the tail out spins it.
+                    brake = brake.min(0.15);
                 }
             }
+        }
+        // Away from a slide, ease off as the rears spin up, as a driver does
+        // by feel: past about 10 percent slip they give up grip sideways.
+        if !sliding && self.config.mode == AiMode::Drift {
+            let spin = out.wheels[2].slip_ratio.max(out.wheels[3].slip_ratio);
+            throttle *= clamp(1.0 - 4.0 * (spin - 0.1), 0.25, 1.0);
         }
         // Moving off: first gear on the clutch, then let it out.
         let drive = &out.drive;
@@ -683,14 +780,16 @@ impl Driver for AiDriver {
             force_down = !drive.shifting && t - self.last_shift_t > SHIFT_GAP_S;
         }
         // Stuck (beached or spun facing a wall): the reset a player would use.
-        if speed < 1.0 {
+        if speed < 2.0 {
             self.stuck_t += 1.0 / f64::from(session.tick_rate_hz());
         } else {
             self.stuck_t = 0.0;
         }
         // Never stall: dip the clutch when the engine runs down.
         if let DrivetrainParams::EngineManual(m) = &p.drivetrain {
-            if drive.engine_rpm < 1.15 * m.engine.idle_rpm && drive.gear >= 1 && speed < 4.0 {
+            // At any speed: rear wheels locking under braking take the
+            // engine down with them.
+            if drive.engine_rpm < 1.15 * m.engine.idle_rpm && drive.gear >= 1 {
                 clutch = clutch.max(0.8);
             }
         }
@@ -701,7 +800,7 @@ impl Driver for AiDriver {
         if press == 0 {
             press = self.shift(session, t, throttle, clutch, sliding || abs_slip > 6.0);
         }
-        if self.stuck_t > 6.0 {
+        if self.stuck_t > 5.0 {
             press = buttons::RESET;
             self.resets += 1;
             self.stuck_t = 0.0;
@@ -756,6 +855,8 @@ pub struct AiRun {
     pub coach: Option<String>,
     /// Corner scores of the last drift lap: name, score, why.
     pub zones: Vec<(String, f64, String)>,
+    /// Corner scores of every judged lap, in order.
+    pub lap_zones: Vec<Vec<(String, f64, String)>>,
     /// Simulated time driven, s.
     pub seconds: f64,
 }
@@ -770,7 +871,7 @@ pub fn run_laps(session: &mut Session, ai: &mut AiDriver, laps: u32, max_seconds
     let zone_trace = std::env::var("QTS_AI_TRACE").ok().as_deref() == Some("zones");
     let trace = !zone_trace && std::env::var_os("QTS_AI_TRACE").is_some();
     let mut cur_zone: Option<usize> = None;
-    let mut acc = [0.0_f64; 6];
+    let mut acc = [0.0_f64; 8];
     let mut judge = crate::drift::DriftJudge::new(session);
     let slot = judge.slot();
     let mut run = AiRun::default();
@@ -793,12 +894,12 @@ pub fn run_laps(session: &mut Session, ai: &mut AiDriver, laps: u32, max_seconds
             if z != cur_zone {
                 if let Some(i) = cur_zone {
                     eprintln!(
-                        "zone {i}: slip max {:5.1} mean {:5.1}  off max {:4.1}  speed {:4.1}..{:4.1}  resets {}",
-                        acc[0], acc[1] / acc[2].max(1.0), acc[3], acc[4], acc[5], ai.resets
+                        "zone {i}: slip max {:5.1} mean {:5.1}  off max {:4.1}  road {:5.1}..{:5.1}  speed {:4.1}..{:4.1}  resets {}",
+                        acc[0], acc[1] / acc[2].max(1.0), acc[3], acc[6], acc[7], acc[4], acc[5], ai.resets
                     );
                 }
                 cur_zone = z;
-                acc = [0.0, 0.0, 0.0, 0.0, f64::MAX, 0.0];
+                acc = [0.0, 0.0, 0.0, 0.0, f64::MAX, 0.0, f64::MAX, f64::MIN];
             }
             if cur_zone.is_some() {
                 acc[0] = acc[0].max(slip.abs());
@@ -807,6 +908,9 @@ pub fn run_laps(session: &mut Session, ai: &mut AiDriver, laps: u32, max_seconds
                 acc[3] = acc[3].max(off);
                 acc[4] = acc[4].min(o.speed);
                 acc[5] = acc[5].max(o.speed);
+                let road = ai.offsets[ai.nearest] + ai.last_side;
+                acc[6] = acc[6].min(road);
+                acc[7] = acc[7].max(road);
             }
         }
         if trace && session.tick() % trace_every == 0 {
@@ -851,6 +955,7 @@ pub fn run_laps(session: &mut Session, ai: &mut AiDriver, laps: u32, max_seconds
                         None => (d.name.clone(), 0.0, "not judged".to_string()),
                     })
                     .collect();
+                run.lap_zones.push(run.zones.clone());
             }
             run.coach = s.coach.clone();
         }

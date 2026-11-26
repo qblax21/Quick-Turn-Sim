@@ -441,8 +441,19 @@ fn cmd_ai(args: &Args) -> Result<(), String> {
             if *counted { "" } else { "  (not counted)" }
         );
     }
-    for (name, score, why) in &run.zones {
-        println!("  {name:<4} {score:5.1}  {why}");
+    let all = args.text("all-laps").is_some();
+    let shown = if all {
+        run.lap_zones.clone()
+    } else {
+        vec![run.zones.clone()]
+    };
+    for (i, zones) in shown.iter().enumerate() {
+        if all {
+            println!("judged lap {i}:");
+        }
+        for (name, score, why) in zones {
+            println!("  {name:<4} {score:5.1}  {why}");
+        }
     }
     if let Some(note) = &run.coach {
         println!("coach: {note}");

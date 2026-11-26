@@ -5,7 +5,6 @@
 mod common;
 
 use common::*;
-use qts_core::step::Simulation;
 use qts_sim::ai::{run_laps, AiConfig, AiDriver};
 use qts_sim::session::Session;
 
@@ -45,30 +44,28 @@ fn it_laps_ridgeline_and_pace_sets_the_time() {
     );
 }
 
-/// Drift mode on Harrow: it starts slides in the judged zones. It does not
-/// yet hold them well enough for a complete judged run (D-122 says so), so
-/// this checks only that it slides, at angle, in the zones.
+/// Drift mode on Harrow (D-126): the out lap and the first timed lap are
+/// clean judged runs: the lap counts, no corner has a penalty (spin, three
+/// tyres off, opposite drift), every corner is judged and the score is
+/// above zero, with no resets.
 #[test]
-fn it_slides_through_the_first_harrow_zones() {
+fn it_drives_a_clean_judged_harrow_run() {
     let mut s = session("coupe_kestrel_rc", "harrow_drift_park");
     let mut ai = AiDriver::new(s.track(), AiConfig::drift(0.9)).unwrap();
-    let first_zone_end = s.track().def().drift.as_ref().unwrap().zones[1].to_m;
-    let mut peak: f64 = 0.0;
-    for _ in 0..40_000 {
-        use qts_sim::drivers::Driver;
-        let f = ai.frame(&s);
-        s.step(&f);
-        let v = s.car().output().vel_body;
-        peak = peak.max(v[1].atan2(v[0].abs().max(0.5)).to_degrees().abs());
-        if ai.progress_m() > first_zone_end {
-            break;
-        }
+    let run = run_laps(&mut s, &mut ai, 2, 300.0);
+    eprintln!("laps {:?}", run.laps);
+    for z in &run.zones {
+        eprintln!("  {} {:.1} {}", z.0, z.1, z.2);
     }
-    eprintln!("largest slide through T1 and T2: {peak:.1} deg");
-    assert!(peak > 20.0, "no slide: {peak:.1} deg");
-    assert!(
-        ai.progress_m() > first_zone_end,
-        "stopped at {:.0} m",
-        ai.progress_m()
-    );
+    assert_eq!(run.laps.len(), 2, "laps {:?}", run.laps);
+    assert_eq!(ai.resets, 0);
+    let (time, counted, score) = run.laps[1];
+    assert!(counted, "the timed lap broke the track limits");
+    let score = score.expect("no drift score");
+    assert!(score > 15.0, "score {score:.1}");
+    assert!(time < 130.0, "lap took {time:.1} s");
+    assert_eq!(run.lap_zones.len(), 2);
+    for (name, points, why) in &run.lap_zones[1] {
+        assert!(*points > 0.0, "{name}: {why}");
+    }
 }

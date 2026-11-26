@@ -45,7 +45,9 @@ sees in the demo is described in `DEMO.md`.
 - **Computer driver** (D-122): drives through the player's inputs with no
   assists (own clutch, sequential shifts, handbrake). Grip laps of
   Ridgeline at a chosen pace (Tern GT: 2:03.1 at pace 0.6, 1:46.7 at 0.9,
-  every lap inside the limits). Drives the render bench's Harrow lap, and can
+  every lap inside the limits). Clean judged drift laps of Harrow in the
+  Kestrel RC (D-126): scores 27 to 31, 1:46 to 1:48 a lap at pace 0.9, no
+  tyres off, spins or opposite drifts. Drives the render bench's Harrow lap, and can
   run as a second car (opponent or tandem lead, no contact) from the menu.
   `qts-sim ai --car ID --track ID [--mode grip|drift] [--pace P]`.
 
@@ -287,12 +289,6 @@ Everything numeric. In particular:
   particular depends on the launch routine.
 
 ## Known issues and caveats
-
-- **The computer driver's drift mode is not finished** (D-122). On Harrow
-  it starts, holds and links slides (33 degrees through T1 and T2) but runs
-  wide in the long corners: three tyres off in T1, T5, T6 and T9 make the
-  run Incomplete, so its judged score is 0. It also takes 3:20 to 3:50 for
-  the lap, and may press reset after a spin.
 
 - Selecting a wheel pauses the simulation for a few hundred milliseconds
   while DirectInput enumerates devices.

@@ -2726,3 +2726,82 @@ already suggested a gain offline from scripted laps of every car. Added:
   - 8 GB of RAM, which is above the 0.6 GB peak working set measured (D-115);
   - integrated GPUs;
   - Windows 10 (only Windows 11 was run).
+
+## D-126 The computer driver finishes clean judged runs on Harrow
+
+D-122 left drift mode scoring 0: three tyres off, spins and opposite drifts
+in most corners, 3:20 to 3:50 a lap. The grip and assists are unchanged; the
+driver's line, its slide targets and how it uses the pedals changed.
+
+- **Holding a slide: two loops instead of one rule.**
+  - Steering puts the front wheels along the front axle's own direction of
+    travel, so opposite lock follows the slide by itself, then adds a front
+    slip angle (at most 11 degrees) that asks for the yaw rate needed:
+    pure pursuit's rate for the line, plus one that turns the body toward
+    the slide angle wanted.
+  - Throttle holds the slide angle: a base, a proportional and an integral
+    term, damping on how fast the angle grows, and off the power when more
+    than 10 degrees past the target.
+  - Slides are held down to 2.5 m/s, so the T4 hairpin no longer drops out
+    of the slide and stops.
+- **Entry:** the handbrake pull (0.3 s, clutch in) turns the wheel in a
+  little and only for the pull; after it the holding steering takes over.
+  Turning in for a full 1.2 s cut T9 to the inside whenever the slide did not
+  start. Linked corners swing to the next side 8 m before its zone, so the
+  car is already sliding the right way when the judge starts looking.
+- **Line:** the apex point sits 2 m inside the edge margin instead of 0.3 m.
+  The car had been leaving the road on the inside of T3 and T9.
+- **Target angle 20 degrees** (was 32). It scores fewer angle points per
+  corner, but every lap is clean; at 25 degrees one lap in three still had
+  an opposite drift in the linked T1 to T3.
+- **Pedals and gears, as a driver would use them:**
+  - Engine speed per road speed comes from the final drive and the rolling
+    radius of an undriven front wheel. It used to be learnt from the engine
+    speed, which wheelspin inflated: the car shifted up on the limiter and
+    then bogged at 1,400 rpm.
+  - While sliding it shifts up only when the road speed itself needs it.
+  - Never first gear in a zone; the zone's gear is picked from the actual
+    speed when that is lower than the plan.
+  - Downshifts only when the lower gear lands under 75 % of the redline: a
+    downshift from 4th to 3rd at 37 m/s under braking locked the rears.
+  - The clutch goes down whenever the engine nears idle, at any speed, so
+    locked rears no longer stall it.
+  - Braking for a drift is planned at 0.55 of the grip estimate with the
+    pedal capped at 0.45 (the car has no ABS), and kept light while a slide
+    is caught.
+  - Away from slides it eases the throttle as the rear tyres pass about
+    10 % slip, as a driver does by feel. Without that it fishtailed down the
+    back straight and arrived at T9 sideways.
+- **Result**, Kestrel RC on Harrow, pace 0.9, from a standing start: every
+  lap clean, counted and scored, no resets.
+
+  | Lap | Time | Score |
+  |---|---|---|
+  | out lap | 1:45.7 | 28.6 |
+  | 1 | 1:46.2 | 30.1 |
+  | 2 | 1:47.9 | 31.2 |
+  | 3 | 1:48.1 | 27.3 |
+
+  Lap 1 by corner: T1 32.6, T2 33.0, T3 38.1, T4 22.1, T5 30.4, T6 33.2,
+  T7 43.0, T8 27.1, T9 21.1. Most points go on angle (10 to 19 degrees mean
+  against full marks at 35) and on the line (inner clipping points missed
+  by 2.5 to 5.7 m, which follows from the safer apex).
+  Pace 0.8 and 1.0 are clean too: 27.5 to 30.5 and 25.1 to 31.0 over five
+  laps each, 1:41 to 1:53.
+- **Render bench on a finished lap** (D-125's bench, now ending on the
+  lap line instead of the 300 s limit; RTX 3060, 1600x900 window; the lap
+  in the game took 110 s):
+
+  | Preset | Frames | Mean | 1 % low | Worst | GPU | Physics tick |
+  |---|---|---|---|---|---|---|
+  | Low, 3D 1120x630 | 45,350 | 2.32 ms (431 fps) | 6.43 ms | 310 ms | 0.55 ms | 46 us |
+  | High, 3D 1600x900 | 21,709 | 4.85 ms (206 fps) | 12.48 ms | 31 ms | 3.53 ms | 44 us |
+
+  The 310 ms worst frame on Low is a single hitch; the bench does not say
+  where, and it was not looked into.
+- **Grip mode is unchanged:** Ridgeline in the Tern GT, 1:50.6 at pace 0.8
+  and 1:43.9 at 1.0.
+- `qts-sim ai ... --all-laps` prints every judged lap's corners;
+  `QTS_AI_TRACE=zones` also prints the car's range across the road per zone.
+- The test `it_drives_a_clean_judged_harrow_run` requires the first timed
+  lap to count, every corner to score, a total above 15 and no resets.
