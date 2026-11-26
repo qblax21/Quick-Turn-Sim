@@ -48,6 +48,17 @@ if ($Exe) {
     $run = $Godot
     $runArgs = @("--path", (Join-Path $root "godot"), "--resolution", "1920x1080", "--") + $userArgs
 }
+# The Vulkan loader that comes with Chrome, beside the game for this run:
+# Windows looks there first, and a CI runner's own loader (if it has one)
+# finds no driver and offers no window surface.
+$loaderCopy = ""
+if ($Software) {
+    $beside = Join-Path (Split-Path -Parent (Resolve-Path $run)) "vulkan-1.dll"
+    if (-not (Test-Path $beside)) {
+        Copy-Item (Join-Path $icd.DirectoryName "vulkan-1.dll") $beside
+        $loaderCopy = $beside
+    }
+}
 
 # A packaged game is a windowed program: PowerShell neither waits for it nor
 # sees its output unless it is started this way.
@@ -57,12 +68,14 @@ $p = Start-Process $run -ArgumentList $quoted -PassThru -RedirectStandardOutput 
 # A software renderer is slow, but not this slow: past the limit the game
 # is stuck (an error box waiting for a click, say). Stop it and show why.
 $limitMs = ($Seconds + 540) * 1000
-if (-not $p.WaitForExit($limitMs)) {
-    Stop-Process -Id $p.Id -Force
+$finished = $p.WaitForExit($limitMs)
+if (-not $finished) { Stop-Process -Id $p.Id -Force }
+$p.WaitForExit()
+if ($loaderCopy) { Remove-Item -Force -Confirm:$false $loaderCopy -ErrorAction SilentlyContinue }
+if (-not $finished) {
     Get-Content "$log.out", "$log.err" -ErrorAction SilentlyContinue | Select-Object -Last 40 | ForEach-Object { Write-Host $_ }
     Write-Error "The game did not finish within $($limitMs / 1000) s."
 }
-$p.WaitForExit()
 $out = @(Get-Content "$log.out", "$log.err" -ErrorAction SilentlyContinue)
 if ($p.ExitCode -ne 0) { $out | Select-Object -Last 20 | ForEach-Object { Write-Host $_ } }
 $out | Where-Object { $_ -match "memory|render bench|Vulkan" } | ForEach-Object { Write-Host $_ }
