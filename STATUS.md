@@ -120,6 +120,12 @@ sees in the demo is described in `DEMO.md`.
   packaged build writes a results file (machine, frame times, 1 % lows)
   to send back; a low-end variant caps the 3D at 720p. Since D-128 it also
   records RAM and video memory.
+- **Frame time check** (D-130): sessions compile their render pipelines
+  while held at load (about 135 ms), which removed the freeze as the car
+  appears. `tools\bench_check.ps1` fails on any frame over 50 ms after 5 s
+  or a 1% low 15 % slower than the baseline; CI checks the committed
+  reference run (RTX 3060: Low 1% low 4.85 ms, worst 9.4 ms; High 9.01 ms,
+  worst 15.2 ms).
 - **Store page kit** (D-129): `tools\steam_kit.ps1` renders five 1920x1080
   screenshots and a 38 s 1080p60 trailer (Ridgeline hot lap, Harrow tandem)
   from replays of the computer driver; draft store text with every

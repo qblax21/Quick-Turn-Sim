@@ -101,6 +101,14 @@ powershell -ExecutionPolicy Bypass -File tools\memory_check.ps1 -Exe out\QuickTu
 
 (add `-Software` to render on Chrome's SwiftShader, as CI does; D-128).
 
+Frame times are checked against `tools\bench_baseline.txt` (no frame over
+50 ms after 5 s, 1% low no more than 15 % slower; D-130). After a change
+that touches rendering, bench it on a real GPU and commit the run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\bench_check.ps1 -Run -Update
+```
+
 The Steam Coming Soon kit (five 1920x1080 screenshots and a 1080p60
 trailer from in-game replays, D-129) comes from one command; it needs Godot
 and ffmpeg. The draft store text is in `docs/STORE_PAGE.md`.

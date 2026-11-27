@@ -128,3 +128,9 @@ jobs:
         run: |
           $exe = Get-ChildItem out -Recurse -Filter "*Demo.exe" | Select-Object -First 1
           ./tools/memory_check.ps1 -Exe $exe.FullName -Software -Seconds 60
+      # Frame times (D-130): the runner has no GPU, so this checks the bench
+      # results measured on a real one and committed with the change
+      # (tools/bench_reference.txt) against tools/bench_baseline.txt.
+      - name: Frame time check
+        shell: pwsh
+        run: ./tools/bench_check.ps1 -Results tools/bench_reference.txt

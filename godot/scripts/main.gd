@@ -298,6 +298,7 @@ func _self_test() -> void:
 # if there is one, and the file says which adapter actually ran.
 const BENCH_MAX_S := 300
 const LOW_END_HEIGHT := 720.0
+const HITCH_MS := 50.0
 
 
 func _render_bench(which: String) -> void:
@@ -348,19 +349,35 @@ func _bench_one(preset: String, low_end: bool, limit: float) -> Dictionary:
 			get_viewport().scaling_3d_scale = clampf(arg.get_slice("=", 1).to_float() / size.y, 0.25, 2.0)
 	cockpit_view = false
 	sim.set_ai_driver("drift", 0.9)
+	while warming:
+		await get_tree().process_frame
 	var rid := get_viewport().get_viewport_rid()
 	RenderingServer.viewport_set_measure_render_time(rid, true)
 	var frames := PackedFloat32Array()
 	var gpu := PackedFloat32Array()
-	var began := Time.get_ticks_usec()
-	var last := began
-	var shot := false
+	var shot: Image = null
 	var h0: Dictionary = sim.hud()
 	var laps_before: int = int(h0.get("runs", 0)) + int(h0.get("invalid_runs", 0))
 	var lap_done := false
 	# Memory (D-128): the largest figures seen, sampled twice a second.
 	var mem_peak := {"ws": 0.0, "video_local": 0.0, "godot_video": 0.0, "textures": 0.0, "buffers": 0.0}
-	var next_mem := 0.0
+	# The first reading starts the thread that reads Windows' GPU counters
+	# (they take about 200 ms to open); a second's wait gives it its first
+	# figure before the clock starts.
+	_sample_memory(mem_peak)
+	var wait_until := Time.get_ticks_msec() + 1000
+	while mem_peak.video_local == 0.0 and Time.get_ticks_msec() < wait_until:
+		await get_tree().process_frame
+		_sample_memory(mem_peak)
+	var next_mem := 0.5
+	var began := Time.get_ticks_usec()
+	var last := began
+	var hitches: Array = []
+	var skip_next := false
+	var last_pipes := _pipeline_compiles()
+	var pipes_at_start := last_pipes
+	var pipes_at_5 := -1
+	var slow_frames_compiling := 0
 	while Time.get_ticks_usec() - began < limit * 1_000_000 and not lap_done:
 		await get_tree().process_frame
 		var now := Time.get_ticks_usec()
@@ -370,14 +387,33 @@ func _bench_one(preset: String, low_end: bool, limit: float) -> Dictionary:
 			_sample_memory(mem_peak)
 		var h: Dictionary = sim.hud()
 		lap_done = int(h.get("runs", 0)) + int(h.get("invalid_runs", 0)) > laps_before
-		if t > 16.0 and not shot:
-			shot = true
-			DirAccess.make_dir_recursive_absolute("user://bench")
-			get_viewport().get_texture().get_image().save_jpg("user://bench/render_%s.jpg" % preset.to_lower())
-		if t > 5.0:
-			frames.append((now - last) / 1000.0)
+		# The bench's own picture: read back now, written to disk after the run,
+		# and the frame that paid for the read-back left out of the figures (a
+		# player never pays it).
+		var skip := false
+		if t > 16.0 and shot == null:
+			shot = get_viewport().get_texture().get_image()
+			skip = true
+		var pipes := _pipeline_compiles()
+		var ms := (now - last) / 1000.0
+		if t > 5.0 and pipes_at_5 < 0:
+			pipes_at_5 = last_pipes
+		if t > 5.0 and not skip_next:
+			if ms > 8.0 and pipes > last_pipes:
+				slow_frames_compiling += 1
+			frames.append(ms)
 			gpu.append(RenderingServer.viewport_get_measured_render_time_gpu(rid))
-		last = now
+		if ms > HITCH_MS and not skip_next:
+			hitches.append("%.1f s: %.0f ms (scripts %.0f ms, GPU %.0f ms), %d pipelines compiled%s" % [t, ms,
+					Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
+					RenderingServer.viewport_get_measured_render_time_gpu(rid), pipes - last_pipes,
+					"" if t > 5.0 else " (before measuring)"])
+		skip_next = skip
+		last_pipes = pipes
+		last = Time.get_ticks_usec() if skip else now
+	if shot != null:
+		DirAccess.make_dir_recursive_absolute("user://bench")
+		shot.save_jpg("user://bench/render_%s.jpg" % preset.to_lower())
 	var seconds := (Time.get_ticks_usec() - began) / 1.0e6
 	var sorted := frames.duplicate()
 	sorted.sort()
@@ -411,7 +447,16 @@ func _bench_one(preset: String, low_end: bool, limit: float) -> Dictionary:
 		"tick_worst_us": status.get("step_worst_us", 0.0),
 		"seconds": seconds,
 		"lap_finished": lap_done,
+		"hitches": hitches,
+		"warm_up": warm_up_report,
+		"pipelines_loading": pipes_at_5 - pipes_at_start,
+		"pipelines_driving": last_pipes - pipes_at_5,
+		"slow_frames_compiling": slow_frames_compiling,
 	}
+	for line in hitches:
+		print("render bench %s hitch: %s" % [preset, line])
+	print("render bench %s pipelines: %d compiled in the first 5 s, %d while measured, %d frames over 8 ms compiling" % [
+		preset, r.pipelines_loading, r.pipelines_driving, r.slow_frames_compiling])
 	_sample_memory(mem_peak)
 	var pm: Dictionary = sim.process_memory()
 	var mb := 1.0 / 1048576.0
@@ -437,6 +482,18 @@ func _bench_one(preset: String, low_end: bool, limit: float) -> Dictionary:
 		"lap finished" if lap_done else "lap not finished", seconds])
 	sim.stop_session()
 	return r
+
+
+# Render pipelines compiled so far, of every kind.
+func _pipeline_compiles() -> int:
+	var n := 0
+	for kind in [RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_CANVAS,
+			RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_MESH,
+			RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_SURFACE,
+			RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_DRAW,
+			RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_SPECIALIZATION]:
+		n += RenderingServer.get_rendering_info(kind)
+	return n
 
 
 # Largest figures so far into `peak`: the process working set and the
@@ -552,7 +609,12 @@ func _write_bench_results(results: Array, low_end: bool) -> String:
 		lines.append("frame time  mean %.2f ms (%.0f fps), 1%% low %.2f ms (%.0f fps), worst %.2f ms" % [r.mean_ms, r.fps, r.low1_ms, r.low1_fps, r.worst_ms])
 		lines.append("GPU time    mean %.2f ms per frame" % r.gpu_ms)
 		lines.append("physics     tick mean %.0f us, worst %.0f us (budget 1000 us)" % [r.tick_us, r.tick_worst_us])
-		lines.append("RAM         working set peak %.0f MB, %.0f MB at the end; Godot's own allocations peak %.0f MB" % [r.ram_peak_mb, r.ram_mb, r.godot_static_mb])
+		lines.append("warm-up     %s" % r.warm_up)
+		lines.append("pipelines   %d more compiled in the first 5 s, %d while measured" % [r.pipelines_loading, r.pipelines_driving])
+		lines.append("hitches     %d over %.0f ms" % [r.hitches.size(), HITCH_MS])
+		for hl in r.hitches:
+			lines.append("  hitch     %s" % hl)
+		lines.append("RAM       working set peak %.0f MB, %.0f MB at the end; Godot's own allocations peak %.0f MB" % [r.ram_peak_mb, r.ram_mb, r.godot_static_mb])
 		lines.append("video mem   %.0f MB by Godot's count (textures %.0f, buffers %.0f), %.0f MB by the driver's%s" % [
 			r.vram_godot_mb, r.vram_textures_mb, r.vram_buffers_mb, r.vram_driver_mb,
 			" (software renderer: in RAM)" if r.software_gpu else ""])
@@ -814,7 +876,10 @@ func _start_driving(car_id: String, track_id: String, auto_clutch: bool, auto_sh
 	session_runs_seen = 0
 	session_started_ms = Time.get_ticks_msec()
 	_close_overlays()
-	settings.save()
+	# The bench and the checks change settings for the run and put them back
+	# after; a run stopped half way must not leave them saved.
+	if not self_testing:
+		settings.save()
 	session_car = car_id
 	session_track = track_id
 	sim.replay_start()
@@ -858,6 +923,40 @@ func _start_driving(car_id: String, track_id: String, auto_clutch: bool, auto_sh
 		if not sim.set_direct_inputs(direct_map):
 			hud.flash(sim.last_error())
 	_check_shifter(auto_clutch)
+	_warm_up()
+
+
+# Render pipelines compiled at load, not on the move (D-130). Godot builds
+# a pipeline the first time something is drawn with it; for the new scene
+# that cost about 260 ms in one frame, a visible freeze just after the car
+# appears. The session is held while the first frames draw, until a frame
+# compiles nothing new (or WARM_UP_FRAMES), then let go unless the driver
+# paused meanwhile.
+const WARM_UP_FRAMES := 30
+var warming := false
+var warm_up_report := ""
+
+
+func _warm_up() -> void:
+	warming = true
+	sim.set_paused(true)
+	var began := Time.get_ticks_usec()
+	var first := _pipeline_compiles()
+	var last := first
+	var frames := 0
+	for i in WARM_UP_FRAMES:
+		await get_tree().process_frame
+		frames += 1
+		var now := _pipeline_compiles()
+		if i >= 2 and now == last:
+			break
+		last = now
+	warming = false
+	if sim.is_running() and not paused:
+		sim.set_paused(false)
+	warm_up_report = "%d pipelines compiled over %d frames, %.0f ms, before the session ran" % [
+		last - first, frames, (Time.get_ticks_usec() - began) / 1000.0]
+	print("warm-up: ", warm_up_report)
 
 
 # An H-pattern shifter that cannot work as set up says so at the start,

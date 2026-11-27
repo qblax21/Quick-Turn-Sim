@@ -1,0 +1,5 @@
+# The 1% low frame time per preset that tools\bench_check.ps1 compares
+# against (D-130); written by bench_check.ps1 -Run -Update.
+gpu NVIDIA GeForce RTX 3060 (NVIDIA)
+low1_ms Low 4.85
+low1_ms High 9.01

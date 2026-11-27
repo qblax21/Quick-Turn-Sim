@@ -50,9 +50,34 @@ pub fn process_memory() -> ProcessMemory {
         out.peak_working_set = counters.PeakWorkingSetSize as u64;
         out.private = counters.PrivateUsage as u64;
     }
-    out.video_local = gpu_process_memory("Dedicated Usage");
-    out.video_non_local = gpu_process_memory("Shared Usage");
+    let (local, non_local) = video_memory();
+    out.video_local = local;
+    out.video_non_local = non_local;
     out
+}
+
+/// The latest video memory reading, from a thread of its own (D-130). The
+/// Windows counters take about 200 ms to open on first use and can block
+/// for longer, so reading them on the caller's thread stalled the frame
+/// that asked: the first call starts the thread and returns zeros, later
+/// calls what it last read (every half second).
+#[cfg(windows)]
+fn video_memory() -> (u64, u64) {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::Once;
+    static LOCAL: AtomicU64 = AtomicU64::new(0);
+    static NON_LOCAL: AtomicU64 = AtomicU64::new(0);
+    static START: Once = Once::new();
+    START.call_once(|| {
+        let _ = std::thread::Builder::new()
+            .name("qts-video-memory".into())
+            .spawn(|| loop {
+                LOCAL.store(gpu_process_memory("Dedicated Usage"), Ordering::Relaxed);
+                NON_LOCAL.store(gpu_process_memory("Shared Usage"), Ordering::Relaxed);
+                std::thread::sleep(std::time::Duration::from_millis(500));
+            });
+    });
+    (LOCAL.load(Ordering::Relaxed), NON_LOCAL.load(Ordering::Relaxed))
 }
 
 /// This process's video memory from the Windows "GPU Process Memory"

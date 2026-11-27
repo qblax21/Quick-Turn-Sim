@@ -1,0 +1,41 @@
+Quick Turn Sim render bench, version 0.1.0
+date        2026-11-27T01:08:24
+OS          Windows 10.0.26300
+CPU         AMD Ryzen 5 5600X 6-Core Processor, 12 threads
+RAM         31.9 GB
+GPU         NVIDIA GeForce RTX 3060 (NVIDIA)
+driver      NVIDIA, 32.0.16.2101
+API         vulkan 1.4.357
+mode        normal
+run         the computer drives Harrow in the Kestrel RC from a standing start; frames from 5 s in
+
+[Low]
+window      1600x900, 3D drawn at 1120x630 (render scale 0.70), smoke 1
+frames      47956 over 114 s, lap finished
+frame time  mean 2.27 ms (441 fps), 1% low 4.85 ms (206 fps), worst 9.39 ms
+GPU time    mean 0.56 ms per frame
+physics     tick mean 42 us, worst 167 us (budget 1000 us)
+warm-up     62 pipelines compiled over 3 frames, 138 ms, before the session ran
+pipelines   11 more compiled in the first 5 s, 0 while measured
+hitches     0 over 50 ms
+RAM       working set peak 652 MB, 650 MB at the end; Godot's own allocations peak 118 MB
+video mem   116 MB by Godot's count (textures 75, buffers 18), 288 MB by the driver's
+  texture   1024x512, 2.7 MB, ProceduralSkyMaterial.sky_cover
+  texture   512x512, 1.3 MB, StandardMaterial3D.albedo_texture
+  texture   64x111, 0.0 MB, coupe_kestrel_rc.glb::StandardMaterial3D_31eui.albedo_texture
+
+[High]
+window      1600x900, 3D drawn at 1600x900 (render scale 1.00), smoke 2
+frames      23782 over 110 s, lap finished
+frame time  mean 4.41 ms (227 fps), 1% low 9.01 ms (111 fps), worst 15.15 ms
+GPU time    mean 3.49 ms per frame
+physics     tick mean 42 us, worst 211 us (budget 1000 us)
+warm-up     43 pipelines compiled over 3 frames, 106 ms, before the session ran
+pipelines   7 more compiled in the first 5 s, 0 while measured
+hitches     0 over 50 ms
+RAM       working set peak 783 MB, 760 MB at the end; Godot's own allocations peak 155 MB
+video mem   313 MB by Godot's count (textures 258, buffers 31), 555 MB by the driver's
+  texture   1024x512, 2.7 MB, ProceduralSkyMaterial.sky_cover
+  texture   512x512, 1.3 MB, StandardMaterial3D.albedo_texture
+  texture   512x512, 1.3 MB, StandardMaterial3D.albedo_texture
+  texture   64x111, 0.0 MB, coupe_kestrel_rc.glb::StandardMaterial3D_31eui.albedo_texture

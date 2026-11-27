@@ -3011,3 +3011,69 @@ at 100 Hz, offline, and adds only three numbers per sample.
   artwork, not footage.
 - **`qts-sim ai`** gained `--replay FILE` (listed in its help but not
   written before) and `--ahead M`.
+
+## D-130 The Low bench hitch, pipelines compiled at load, a frame time check
+
+- **The 310 ms frame** in the D-126 Low bench did not come back in eight
+  full runs and three short ones on the same RTX 3060: with Godot's shader caches kept, with them
+  deleted, and with the driver's own shader cache turned off too. The
+  bench now says what each slow frame was doing, which narrowed it down:
+  - **Pipeline compiles.** Godot builds a render pipeline the first time
+    something is drawn with it. Harrow needs 62 of them in the first frames
+    of a session on Low (43 on High): one frame of about 260 ms, a freeze
+    just after the car appears. None compile once 5 s are past, even from
+    cold caches, so in today's code they cannot reach the measured frames.
+    With the caches cold the 1% low was 6.8 ms against 3.9 to 4.5 warm,
+    close to the 6.43 ms of the D-126 run. That run is the first after a
+    shader change (Godot's pipeline cache was rewritten during it), so
+    compiling is the most likely cause, but it is not proven.
+  - **The bench's own costs**, found on the way:
+    - The first reading of Windows' GPU memory counters (D-128) took
+      208 ms on the frame that asked. The counters are now read on a
+      thread of their own every half second, and the bench waits for the
+      first figure before its clock starts.
+    - Its screenshot at 16 s read the frame back from the GPU and wrote a
+      JPEG on the same frame. The picture is now written after the run and
+      the frame that paid for the read-back is left out.
+    - In one run the bench's process stopped responding just after the
+      High session's warm-up, at the point where it read the GPU counters.
+      Nothing in the game itself waits there; with the counters on their
+      own thread it did not happen in the run since.
+  - **Not the cause:** garbage collection (GDScript counts references, the
+    Rust core has no collector) and loading (nothing is loaded or written
+    while driving).
+- **The fix: pipelines compile at load.** A new session is held (paused)
+  while its first frames draw, until a frame compiles nothing new (at most
+  30 frames), then let go unless the driver paused it meanwhile. The 62
+  compiles now take about 135 ms over 3 frames before the car moves.
+- **Before and after**, Harrow, Kestrel RC, computer driving, 1600x900,
+  RTX 3060:
+
+  | | Low before (D-126) | Low after | High before | High after |
+  |---|---|---|---|---|
+  | Mean | 2.32 ms | 2.27 ms | 4.85 ms | 4.41 ms |
+  | 1% low | 6.43 ms | 4.85 ms | 12.48 ms | 9.01 ms |
+  | Worst | 310.14 ms | 9.39 ms | 31.38 ms | 15.15 ms |
+  | Frames over 50 ms | 1 | 0 | 0 | 0 |
+  | Pipelines compiled while measured | not recorded | 0 | not recorded | 0 |
+
+  Run to run, on this desktop with other programs open, the 1% low moved
+  between 3.75 and 8.76 ms on Low.
+- **The check** (`tools\bench_check.ps1`):
+  - **Fails** if any frame is over 50 ms after the first 5 s, or if a
+    preset's 1% low is more than 15 % slower than `tools\bench_baseline.txt`
+    (compared only on the GPU the baseline came from).
+  - **`-Run`** benches Low and High here. Since one run's 1% low can be
+    15 % off another's, a slow one gets a second run and the better counts.
+  - **`-Update`** makes a passing run the new baseline and copies its file
+    to `tools\bench_reference.txt`. It refuses a failing run.
+  - **In CI:** the runner has no GPU, and on SwiftShader one frame takes
+    half a second to a second even with the 3D at 180 lines, so frame
+    times there mean nothing. CI checks the reference file measured on a
+    real GPU and committed with the change. That catches a committed run
+    that fails; it cannot catch a change committed without a fresh run.
+- **The results file** now lists the warm-up, the pipelines compiled in the
+  first 5 s and while measured, and every frame over 50 ms with what it
+  was doing.
+- **The bench no longer saves settings** when it starts a session: a run
+  stopped half way had left its preset and traction control off saved.
