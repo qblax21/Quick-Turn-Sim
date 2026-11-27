@@ -3077,3 +3077,64 @@ at 100 Hz, offline, and adds only three numbers per sample.
   was doing.
 - **The bench no longer saves settings** when it starts a session: a run
   stopped half way had left its preset and traction control off saved.
+
+## D-131 Wheel setup out of the box: the D-085 wizard extended
+
+- **What the D-085 wizard already did**, and still does: find the wheel by
+  its moving axis, set its centre, measure the base's rotation from a
+  quarter turn, find and calibrate each pedal, set the brake curve and
+  pedal deadzones, pick a wheel base from a list for its peak torque and
+  suggest a gain, and save it all as a profile for that wheel. Nothing of
+  that was duplicated; three steps and two pieces were added.
+- **The base recognised by the name it reports.** Wheel models
+  (`data/wheels`) gain `device_names` (lower-case pieces of the name Windows
+  reports) and `ffb_preset`. When the wheel is found, a match picks the
+  model and loads its force-feedback preset.
+  - Only the CSL Elite has a name so far: "FANATEC CSL Elite Wheel Base",
+    the name this project's own base reported (its saved input profile is
+    named from it). Other bases, or other firmware, are picked from the
+    list as before.
+  - Its 6 N·m stays marked unverified, as in D-079.
+- **Rotation matched to the car.** The force-feedback step turns on "Match
+  the wheel's rotation to the car" (D-083, already the default) and says
+  what it does: the car's steering wheel follows yours degree for degree,
+  and a soft lock stops you at the car's own full lock. The base's own
+  rotation cannot be set from the game without the maker's software, so the
+  step asks for at least 900 degrees on the base (SEN on a Fanatec base's
+  tuning menu) so that every car's lock fits.
+- **A centre and deadzone check** (new step after the pedals): two seconds
+  with the wheel straight and feet off.
+  - **Steering:** more than 1 degree off centre asks for the centre to be set
+    again. More than half a degree of wander at rest is reported as a
+    loose rim or worn sensor. No deadzone is added on steering: it would
+    hide small corrections.
+  - **Pedals:** a pedal that reads above zero at rest gets a deadzone of its
+    reading plus 1 %, at most 15 %.
+  - **Thresholds:** all of them are our own choice, unverified.
+- **A 20 s guided test drive** (new step after force feedback): Ridgeline,
+  in the car last picked, with force feedback on at the suggested gain and
+  a countdown on the HUD. Then the wizard comes back with the clipping the
+  core's gain helper (D-123) measured and sets the gain from it.
+  - **Only lowers the gain.** Twenty seconds from a standing start rarely
+    reach the hardest corners. A computer-driven test gave 0 % clipping at
+    0.26, and the helper would have allowed 1.00, which a full lap would
+    then clip. So the drive can lower the gain below the hard-cornering
+    estimate (0.75 of the base's peak at 17 N·m at the column, D-083) but
+    not raise it above.
+  - **The aim:** the helper aims at 1.5 % clipping, under the 2 % asked
+    for. "Drive again to check" repeats the drive at the new gain.
+  - **Stopped early:** a drive left from the pause menu measures nothing
+    and says so.
+- **One line under every force-feedback slider** on the Controls screen
+  saying what it does, and the same as a tooltip.
+- **Checked** (`godot/tests/wizard_check.gd`, which needs a display):
+  - the CSL Elite is recognised and its preset loaded, and an unknown name
+    is left to the player;
+  - a pedal reading 3 % at rest gets a 4 % deadzone;
+  - two full 20 s test drives on Ridgeline with the computer driving:
+    clipping 0.0 % at gain 0.26, gain kept at 0.26;
+  - a drive clipping 6 % lowers the gain to the helper's figure.
+
+  The player's own controls and settings files are put back after.
+- **Not checked:** any of it with a person at a real wheel. The clipping a
+  person's 20 s gives will differ from the computer's.

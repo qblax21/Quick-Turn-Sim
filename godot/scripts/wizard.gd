@@ -2,20 +2,36 @@
 # First-run wheel and pedal wizard (D-085). Step by step: find the wheel,
 # its centre and rotation; find and calibrate each pedal; set the brake
 # curve and deadzones; set force-feedback strength from the wheel-base
-# model in N·m; save everything as a profile for the device. Controls are
+# model in N·m; save everything as a profile for the device. D-131 adds:
+# the base recognised by the name it reports (and its preset picked), a
+# check of the centre and the pedals at rest, and a 20 s test drive whose
+# clipping sets the gain. Controls are
 # read as the core reads them on the physics thread (input_scan), and the
 # result is the same mapping the Controls screen edits.
 extends CanvasLayer
 
 signal closed
+signal test_drive_requested(device_id: String)
 
-const STEPS := ["welcome", "wheel", "centre", "rotation", "throttle", "brake", "clutch", "shaping", "ffb", "done"]
+const STEPS := ["welcome", "wheel", "centre", "rotation", "throttle", "brake", "clutch", "shaping", "check", "ffb", "test_drive", "done"]
 const PEDALS := {"throttle": "accelerator", "brake": "brake pedal", "clutch": "clutch pedal"}
 # Column torque of hard cornering (qts-sim ffb-gain, D-083).
 const HARD_CORNER_NM := 17.0
 const KNEE := 0.75
 # How far an axis must move to count as the one being used.
 const DETECT_CHANGE := 0.4
+# The centre and deadzone check (D-131): how long the controls are watched
+# at rest, and what counts as a problem. Our own choices, unverified:
+# a degree off centre is felt as a pull, half a degree of wander as a
+# nervous wheel; a pedal at rest must read exactly zero.
+const CHECK_S := 2.0
+const CENTRE_OFF_DEG := 1.0
+const CENTRE_WANDER_DEG := 0.5
+const PEDAL_REST_MARGIN := 0.01
+# The test drive's length and the clipping it aims under (the core's gain
+# helper, D-123, aims at 1.5 %).
+const TEST_DRIVE_S := 20.0
+const CLIP_LIMIT_PERCENT := 2.0
 
 var sim
 var reader
@@ -34,6 +50,13 @@ var pedal_axis := {}
 var models: Array = []
 var model_index := -1
 var used_axes := {}
+var auto_model := ""
+var check_started := 0
+var check_steer := []
+var check_pedal_peak := {}
+var check_report := ""
+var tested_gain := -1.0
+var test_report := ""
 
 var title: Label
 var body: Label
@@ -201,6 +224,15 @@ func _go(index: int) -> void:
 			for action in pedal_axis.keys():
 				_shape_slider(action, "deadzone_low", "%s deadzone at rest (%%)" % PEDALS[action].capitalize(), 0.0, 15.0, 0.5, 2.0, 100.0)
 				_shape_slider(action, "deadzone_high", "%s deadzone at the floor (%%)" % PEDALS[action].capitalize(), 0.0, 15.0, 0.5, 2.0, 100.0)
+		"check":
+			title.text = "%d. Centre and deadzone check" % (step + 1)
+			body.text = "Hold the wheel straight ahead and take your feet off the pedals for two seconds. This checks the wheel reads straight and steady, and that each pedal reads zero at rest; a pedal that does not gets just enough deadzone to fix it."
+			live.text = "watching..."
+			next_button.disabled = true
+			check_started = Time.get_ticks_msec()
+			check_steer.clear()
+			check_pedal_peak.clear()
+			check_report = ""
 		"ffb":
 			title.text = "%d. Force feedback" % (step + 1)
 			body.text = "Pick your wheel base: its peak torque sets the strength in N·m. The suggested gain puts hard cornering (about %.0f N·m at the car's steering column) at three quarters of the base's force, so fast corners do not clip; gain 1 would be the car's real torque." % HARD_CORNER_NM
@@ -212,7 +244,27 @@ func _go(index: int) -> void:
 				model_index = i
 				_show_ffb())
 			controls.add_child(pick)
+			var rot := Label.new()
+			rot.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			rot.add_theme_font_size_override("font_size", 15)
+			rot.text = "Rotation: your base is set to %.0f degrees. With \"Match the wheel's rotation to the car\" on, the car's steering wheel turns exactly as far as yours and a soft lock stops you at the car's own full lock, whatever the car. Set the base to at least 900 degrees (on a Fanatec base, SEN in its tuning menu) so every car's lock fits." % rotation_deg
+			settings.set_value("ffb/match_rotation", true)
+			sim.set_match_rotation(true)
+			controls.add_child(rot)
 			_show_ffb()
+		"test_drive":
+			title.text = "%d. Test drive" % (step + 1)
+			body.text = "%.0f seconds on Ridgeline with force feedback on. Drive at a good pace and lean on the car through a few corners: the game measures how often the wheel is asked for more than your base can give (clipping), and sets the gain so that is under %.0f %% of the time. Hold the wheel firmly when it starts." % [TEST_DRIVE_S, CLIP_LIMIT_PERCENT]
+			live.text = test_report if test_report != "" else "Press Start, or Next to skip it and keep the suggested gain."
+			var go := Button.new()
+			go.text = "Start the test drive" if tested_gain < 0.0 else "Drive again to check"
+			go.disabled = device == "" or model_index < 0
+			go.pressed.connect(func() -> void:
+				apply_for_drive()
+				test_drive_requested.emit(device))
+			controls.add_child(go)
+			if go.disabled:
+				live.text = "The test drive needs a wheel, and a base picked in the step before."
 		"done":
 			title.text = "Done"
 			var lines: Array = []
@@ -220,7 +272,10 @@ func _go(index: int) -> void:
 			for action in PEDALS:
 				lines.append("%s: %s" % [PEDALS[action].capitalize(), "axis %d" % pedal_axis[action] if pedal_axis.has(action) else "not set"])
 			if model_index >= 0:
-				lines.append("Force feedback: %s, %.1f N·m, gain %.2f" % [models[model_index].name, models[model_index].peak_torque_nm, gain_for(models[model_index].peak_torque_nm)])
+				lines.append("Force feedback: %s, %.1f N·m, gain %.2f%s" % [models[model_index].name, models[model_index].peak_torque_nm, _gain(),
+					" (from the test drive)" if tested_gain >= 0.0 else " (suggested; no test drive)"])
+			if check_report != "":
+				lines.append(check_report)
 			body.text = "\n".join(lines) + "\n\nThis is saved as the profile for this wheel, and loaded again whenever the same wheel is found."
 			next_button.text = "Save and finish"
 
@@ -270,6 +325,11 @@ func _process(_delta: float) -> void:
 				device_name = scan[device].name
 				live.text = "Found: %s, axis %d" % [device_name, steer_axis]
 				next_button.disabled = false
+				_recognise_base()
+				if auto_model != "":
+					live.text += "\nRecognised as %s: its preset and %.1f N·m%s are picked." % [
+						models[model_index].name, models[model_index].peak_torque_nm,
+						"" if models[model_index].verified else " (unverified figure)"]
 				var extra: Dictionary = reader.load_profile(device_name)
 				if extra.get("found", false):
 					live.text += "\nA saved profile for this wheel was loaded; Next to check it, or Skip the wizard to keep it."
@@ -300,6 +360,9 @@ func _process(_delta: float) -> void:
 				reader.direct[action]["invert"] = false
 				live.text = "%s on axis %d: %.0f%%" % [PEDALS[action].capitalize(), pedal_axis[action], reader.direct_calibrated(action, raw) * 100.0]
 				next_button.disabled = absf(pedal_far[action] - pedal_rest[action]) < 0.5
+		"check":
+			_refresh_scan()
+			_watch_check()
 		"shaping":
 			var parts: Array = []
 			for action in pedal_axis.keys():
@@ -342,6 +405,117 @@ func _apply_ffb_extra(extra: Dictionary) -> void:
 			model_index = i
 
 
+# The base by the name it reports (D-131): the first model whose
+# device_names it matches, with that model's preset loaded.
+func _recognise_base() -> void:
+	auto_model = ""
+	var lower := device_name.to_lower()
+	for i in models.size():
+		for n in models[i].get("device_names", PackedStringArray()):
+			if n != "" and lower.contains(n):
+				model_index = i
+				auto_model = models[i].id
+				var preset: String = models[i].get("ffb_preset", "")
+				if preset != "" and sim.ffb_config().get("id", "") != preset and sim.ffb_load_preset(preset):
+					settings.set_value("menu/ffb_preset", preset)
+					settings.apply_ffb(sim)
+				return
+
+
+func _gain() -> float:
+	if tested_gain >= 0.0:
+		return tested_gain
+	return gain_for(models[model_index].peak_torque_nm) if model_index >= 0 else 0.0
+
+
+# Two seconds of the wheel and pedals at rest (D-131).
+func _watch_check() -> void:
+	if check_report != "":
+		return
+	check_steer.append(_raw(device, steer_axis) if device != "" else 0.0)
+	for action in pedal_axis:
+		var id: String = reader.direct[action].device
+		var raw := _raw(id, pedal_axis[action])
+		var m: Dictionary = reader.direct[action]
+		var travel := clampf((raw - m.min) / (m.max - m.min if absf(m.max - m.min) > 0.001 else 0.001), 0.0, 1.0)
+		check_pedal_peak[action] = maxf(check_pedal_peak.get(action, 0.0), travel)
+	var left := CHECK_S - (Time.get_ticks_msec() - check_started) / 1000.0
+	if left > 0.0:
+		live.text = "watching... %.1f s" % left
+		return
+	var lines: Array = []
+	if device != "":
+		var lo := 1e9
+		var hi := -1e9
+		var total := 0.0
+		for v in check_steer:
+			lo = minf(lo, v)
+			hi = maxf(hi, v)
+			total += v
+		# Raw -1..1 spans the base's whole rotation.
+		var deg_per_raw := rotation_deg / 2.0
+		var off := (total / maxf(check_steer.size(), 1) - centre) * deg_per_raw
+		var wander := (hi - lo) * deg_per_raw
+		if absf(off) > CENTRE_OFF_DEG:
+			lines.append("Steering reads %+.1f degrees with the wheel straight: go Back to Centre and set it again (or check the rim is level)." % off)
+		else:
+			lines.append("Steering centre: %+.1f degrees, fine." % off)
+		if wander > CENTRE_WANDER_DEG:
+			lines.append("The wheel's reading wanders %.1f degrees at rest: a loose rim or a worn sensor. No deadzone is added on steering; it would hide small corrections." % wander)
+		else:
+			lines.append("Steering at rest: steady (%.2f degrees of wander)." % wander)
+	for action in pedal_axis:
+		var rest: float = check_pedal_peak.get(action, 0.0)
+		var dz: float = reader.direct[action].get("deadzone_low", 0.0)
+		if rest > dz:
+			var new_dz := minf(rest + PEDAL_REST_MARGIN, 0.15)
+			reader.direct[action]["deadzone_low"] = new_dz
+			lines.append("%s read %.1f %% at rest: deadzone at rest raised to %.1f %%." % [PEDALS[action].capitalize(), rest * 100.0, new_dz * 100.0])
+		else:
+			lines.append("%s reads 0 %% at rest, fine." % PEDALS[action].capitalize())
+	check_report = "\n".join(lines)
+	live.text = check_report
+	next_button.disabled = false
+
+
+# What the test drive needs before it starts: the controls as mapped so
+# far, and force feedback at the suggested (or last tested) gain.
+func apply_for_drive() -> void:
+	reader.use_direct = true
+	reader.save_config()
+	if model_index >= 0:
+		var m: Dictionary = models[model_index]
+		sim.ffb_set("device_max_torque_nm", m.peak_torque_nm)
+		sim.ffb_set("gain", _gain())
+	sim.ffb_set("device_rotation_deg", rotation_deg)
+	sim.input_scan_close()
+
+
+# Back from the test drive, with the core's clipping figures (D-131).
+func test_drive_result(r: Dictionary) -> void:
+	var clip: float = r.get("clip_percent", -1.0)
+	var gain: float = r.get("gain", _gain())
+	var suggested: float = r.get("suggested_gain", -1.0)
+	if r.get("stopped", false) or clip < 0.0:
+		test_report = "The test drive ended early, so nothing was measured: start it again, or press Next to keep gain %.2f." % _gain()
+	elif suggested < 0.0:
+		test_report = "Too little force to measure (was the car moving?): gain stays %.2f." % _gain()
+	else:
+		# Twenty seconds from a standing start rarely reach the hardest
+		# corners, so the drive may lower the gain below the hard-cornering
+		# estimate (gain_for) but never raise it above.
+		var ceiling := gain_for(models[model_index].peak_torque_nm) if model_index >= 0 else 1.0
+		var allowed := clampf(snappedf(suggested, 0.01), 0.05, 1.0)
+		tested_gain = minf(allowed, ceiling)
+		if clip <= CLIP_LIMIT_PERCENT:
+			test_report = "Clipping %.1f %% of the time at gain %.2f: under %.0f %%. This drive would allow gain %.2f; it is set to %.2f, the most that keeps hard cornering (about %.0f N·m at the column) unclipped." % [clip, gain, CLIP_LIMIT_PERCENT, allowed, tested_gain, HARD_CORNER_NM]
+		else:
+			test_report = "Clipping %.1f %% of the time at gain %.2f: over %.0f %%. Gain lowered to %.2f, which would have kept this drive under; drive again to check." % [clip, gain, CLIP_LIMIT_PERCENT, tested_gain]
+		if r.get("car_lock_deg", 0.0) > 0.0:
+			test_report += " The car's steering wheel turns %.0f degrees lock to lock." % (2.0 * r.car_lock_deg)
+	_go(STEPS.find("test_drive"))
+
+
 # Saves (or, skipping, just closes) and marks the wizard as done.
 func finish(save: bool) -> void:
 	if save:
@@ -353,7 +527,7 @@ func finish(save: bool) -> void:
 		var extra := {"rotation_deg": rotation_deg}
 		if model_index >= 0:
 			var m: Dictionary = models[model_index]
-			var g := gain_for(m.peak_torque_nm)
+			var g := _gain()
 			sim.ffb_set("device_max_torque_nm", m.peak_torque_nm)
 			sim.ffb_set("gain", g)
 			settings.set_ffb(preset, "device_max_torque_nm", m.peak_torque_nm)

@@ -27,9 +27,26 @@ pub struct WheelModel {
     pub note: String,
     /// Peak torque at the wheel rim, N·m, as the manufacturer states it.
     pub peak_torque_nm: f64,
+    /// Lower-case pieces of the name the base reports to Windows, any one
+    /// of which picks this model in the first-run wizard (D-131). Empty
+    /// where the name is not known.
+    #[serde(default)]
+    pub device_names: Vec<String>,
+    /// The force-feedback preset (`data/ffb`) to start this base on, if it
+    /// has one of its own.
+    #[serde(default)]
+    pub ffb_preset: String,
 }
 
 impl WheelModel {
+    /// True when `device_name`, as the base reports it, is this model's.
+    pub fn matches_device(&self, device_name: &str) -> bool {
+        let name = device_name.to_lowercase();
+        self.device_names
+            .iter()
+            .any(|n| !n.is_empty() && name.contains(n.as_str()))
+    }
+
     /// Checks the figure is usable.
     pub fn validate(&self) -> Result<(), String> {
         if !(self.peak_torque_nm.is_finite()
@@ -77,6 +94,21 @@ pub fn wheel_torque_nm(column_nm: f64, gain: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_base_is_found_by_the_name_it_reports() {
+        let m = WheelModel {
+            id: "x".into(),
+            name: "X".into(),
+            verified: false,
+            note: String::new(),
+            peak_torque_nm: 6.0,
+            device_names: vec!["csl elite wheel base".into()],
+            ffb_preset: String::new(),
+        };
+        assert!(m.matches_device("FANATEC CSL Elite Wheel Base"));
+        assert!(!m.matches_device("FANATEC CSL DD"));
+    }
 
     #[test]
     fn the_same_gain_asks_every_base_for_the_same_torque() {

@@ -753,7 +753,70 @@ func _show_wizard() -> void:
 	var wizard = Wizard.new()
 	wizard.setup(sim, reader, settings)
 	wizard.closed.connect(func() -> void: wizard.queue_free())
+	wizard.test_drive_requested.connect(_wizard_test_drive.bind(wizard))
 	add_child(wizard)
+
+
+# The wizard's test drive (D-131): TEST_DRIVE_S on Ridgeline in the car last
+# picked, force feedback on, then back to the wizard with the clipping the
+# core measured (its gain helper, D-123) to set the gain from.
+const TEST_DRIVE_TRACK := "ridgeline_circuit"
+var test_drive: Dictionary = {}
+
+
+func _wizard_test_drive(device_id: String, wizard) -> void:
+	wizard.visible = false
+	wizard.set_process(false)
+	var car: String = settings.get_value("menu/car")
+	if not car in sim.list_ids("cars"):
+		car = sim.list_ids("cars")[0]
+	var preset: String = sim.ffb_config().get("id", sim.list_ids("ffb")[0])
+	_start_driving(car, TEST_DRIVE_TRACK, true, true, preset, device_id, false)
+	if not sim.is_running():
+		_end_test_drive(true)
+		return
+	test_drive = {"wizard": wizard, "ends": Time.get_ticks_msec() + int(wizard.TEST_DRIVE_S * 1000.0)}
+
+
+# Each frame of a test drive: the countdown, then the result.
+func _update_test_drive() -> void:
+	if test_drive.is_empty():
+		return
+	if not sim.is_running():
+		_end_test_drive(true)
+		return
+	var left: float = (test_drive.ends - Time.get_ticks_msec()) / 1000.0
+	if hud:
+		hud.flash("Test drive: %.0f s left. Drive at a good pace and lean on the car in the corners." % ceilf(maxf(left, 0.0)), 0.5)
+	if left <= 0.0:
+		_end_test_drive(false)
+
+
+func _end_test_drive(stopped: bool) -> void:
+	var wizard = test_drive.get("wizard")
+	var r := {"stopped": stopped}
+	if not stopped:
+		var st: Dictionary = sim.status()
+		r["clip_percent"] = st.get("clip_lap_percent", -1.0)
+		r["suggested_gain"] = st.get("suggested_gain", -1.0)
+		r["gain"] = sim.ffb_config().get("gain", 0.0)
+		r["car_lock_deg"] = sim.car_lock_deg()
+	test_drive = {}
+	if sim.is_running():
+		_clear_session()
+		sim.stop_session()
+	_close_overlays()
+	_show_scenery()
+	_show_menu()
+	if wizard == null:
+		for child in get_children():
+			if child is Wizard:
+				wizard = child
+	if wizard:
+		move_child(wizard, -1)
+		wizard.visible = true
+		wizard.set_process(true)
+		wizard.test_drive_result(r)
 
 
 func _show_input_setup() -> void:
@@ -977,6 +1040,7 @@ func _check_shifter(auto_clutch: bool) -> void:
 
 
 func _process(delta: float) -> void:
+	_update_test_drive()
 	if scenery and not sim.is_running():
 		_fly_scenery(delta)
 	if sim == null or not sim.is_running():

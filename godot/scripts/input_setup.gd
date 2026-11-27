@@ -28,21 +28,21 @@ const BUTTON_LABELS := {
 	"gear_r": "Shifter gate R",
 }
 const FFB_SLIDERS := [
-	["gain", "Gain", 0.0, 1.5, 0.01],
-	["device_max_torque_nm", "Wheel peak torque (N·m)", 1.0, 30.0, 0.1],
-	["device_rotation_deg", "Wheel rotation (deg, as set on the base)", 180.0, 2700.0, 10.0],
-	["soft_lock_full_deg", "Soft lock: degrees to full force", 0.5, 15.0, 0.5],
-	["lowpass_cutoff_hz", "Low-pass cutoff (Hz, 0 = off)", 0.0, 200.0, 1.0],
-	["slew_limit_nm_per_s", "Slew limit (N·m/s, 0 = off)", 0.0, 3000.0, 10.0],
-	["soft_clip_knee", "Soft-clip knee", 0.3, 0.95, 0.01],
-	["min_force", "Minimum force (weak wheels)", 0.0, 0.3, 0.005],
-	["damping_nm_s_per_rad", "Damping", 0.0, 0.5, 0.005],
-	["friction_nm", "Friction (N·m)", 0.0, 2.0, 0.01],
-	["inertia_nm_s2_per_rad", "Inertia", 0.0, 0.05, 0.001],
-	["road_detail_gain_nm_per_n", "Road detail", 0.0, 0.003, 0.0001],
-	["kerb_gain_nm_per_n", "Kerb detail", 0.0, 0.01, 0.0001],
-	["clutch_shudder_nm", "Clutch shudder (N·m)", 0.0, 1.0, 0.05],
-	["gear_grind_nm", "Gear grind (N·m)", 0.0, 1.0, 0.05],
+	["gain", "Gain", 0.0, 1.5, 0.01, "Overall strength: 1 is the car's real steering torque, scaled to your base's peak."],
+	["device_max_torque_nm", "Wheel peak torque (N·m)", 1.0, 30.0, 0.1, "The most torque your base can give; the game turns N·m into a share of it."],
+	["device_rotation_deg", "Wheel rotation (deg, as set on the base)", 180.0, 2700.0, 10.0, "Lock to lock as set on the base itself, so the car's wheel turns as far as yours."],
+	["soft_lock_full_deg", "Soft lock: degrees to full force", 0.5, 15.0, 0.5, "How quickly the wall at the car's full lock goes from nothing to full force."],
+	["lowpass_cutoff_hz", "Low-pass cutoff (Hz, 0 = off)", 0.0, 200.0, 1.0, "Smooths the force: lower is calmer but slower to react; 0 turns it off."],
+	["slew_limit_nm_per_s", "Slew limit (N·m/s, 0 = off)", 0.0, 3000.0, 10.0, "Caps how fast the force may change, taking the edge off sudden spikes."],
+	["soft_clip_knee", "Soft-clip knee", 0.3, 0.95, 0.01, "The share of full force where squeezing starts, so the peaks stay felt instead of cut flat."],
+	["min_force", "Minimum force (weak wheels)", 0.0, 0.3, 0.005, "Lifts small forces above a weak base's own friction; leave at 0 on direct drive."],
+	["damping_nm_s_per_rad", "Damping", 0.0, 0.5, 0.005, "Resists the wheel's speed, calming oscillation on the straights."],
+	["friction_nm", "Friction (N·m)", 0.0, 2.0, 0.01, "A steady drag whichever way you turn, like a heavier steering rack."],
+	["inertia_nm_s2_per_rad", "Inertia", 0.0, 0.05, 0.001, "Makes the rim feel heavier to start and stop turning."],
+	["road_detail_gain_nm_per_n", "Road detail", 0.0, 0.003, 0.0001, "How much of the road surface's small bumps reach your hands."],
+	["kerb_gain_nm_per_n", "Kerb detail", 0.0, 0.01, 0.0001, "How hard kerbs and rumble strips rattle the wheel."],
+	["clutch_shudder_nm", "Clutch shudder (N·m)", 0.0, 1.0, 0.05, "A shake while the clutch slips at pull-away."],
+	["gear_grind_nm", "Gear grind (N·m)", 0.0, 1.0, 0.05, "A buzz when a gear is forced in without the clutch."],
 ]
 
 var sim
@@ -399,6 +399,15 @@ func _ffb_slider(parent: Control, entry: Array, config: Dictionary) -> void:
 			status.text = sim.last_error()
 		_update_strength_label())
 	parent.add_child(row)
+	# One line on what the slider does (D-131).
+	if entry.size() > 5:
+		row.tooltip_text = entry[5]
+		var help := Label.new()
+		help.text = entry[5]
+		help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		help.add_theme_font_size_override("font_size", 12)
+		help.add_theme_color_override("font_color", Color(0.7, 0.75, 0.8))
+		parent.add_child(help)
 	ffb_sliders[key] = slider
 
 

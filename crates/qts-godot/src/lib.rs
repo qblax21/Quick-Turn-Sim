@@ -362,6 +362,8 @@ impl SimBridge {
                     "peak_torque_nm" => w.value.peak_torque_nm,
                     "verified" => w.value.verified,
                     "note" => gstr(&w.value.note),
+                    "device_names" => w.value.device_names.iter().map(|n| gstr(n)).collect::<PackedStringArray>(),
+                    "ffb_preset" => gstr(&w.value.ffb_preset),
                 }),
                 Err(e) => self.last_error = e.to_string(),
             }

@@ -115,6 +115,12 @@ sees in the demo is described in `DEMO.md`.
 - **Clipping helper** (D-123): the F4 meter has a six-second graph of
   output against request, and K (or its button) sets the gain that keeps
   clipping under 2 % of the lap just driven.
+- **First-run wheel setup** (D-131): the D-085 wizard now recognises the
+  CSL Elite by name and loads its preset, checks the centre and pedals at
+  rest (adding pedal deadzone only where needed), turns on rotation
+  matched to the car, and runs a 20 s test drive whose clipping can lower
+  the gain. Each FFB slider has a one-line explanation. Untested with a
+  person at a real wheel.
 
 - **Render bench for testers** (D-125): `Run render bench.bat` in a
   packaged build writes a results file (machine, frame times, 1 % lows)
