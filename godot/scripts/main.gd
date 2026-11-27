@@ -369,14 +369,9 @@ func _bench_one(preset: String, low_end: bool, limit: float) -> Dictionary:
 	var lap_done := false
 	# Memory (D-128): the largest figures seen, sampled twice a second.
 	var mem_peak := {"ws": 0.0, "video_local": 0.0, "godot_video": 0.0, "textures": 0.0, "buffers": 0.0}
-	# The first reading starts the thread that reads Windows' GPU counters
-	# (they take about 200 ms to open); a second's wait gives it its first
-	# figure before the clock starts.
+	# The first reading opens Windows' GPU counters, which takes about
+	# 200 ms: done before the clock starts.
 	_sample_memory(mem_peak)
-	var wait_until := Time.get_ticks_msec() + 1000
-	while mem_peak.video_local == 0.0 and Time.get_ticks_msec() < wait_until:
-		await get_tree().process_frame
-		_sample_memory(mem_peak)
 	var next_mem := 0.5
 	var began := Time.get_ticks_usec()
 	var last := began
@@ -402,10 +397,14 @@ func _bench_one(preset: String, low_end: bool, limit: float) -> Dictionary:
 		if t > 16.0 and shot == null:
 			shot = get_viewport().get_texture().get_image()
 			skip = true
-		var pipes := _pipeline_compiles()
+		# Godot's compile counters are read only on slow frames and at 5 s,
+		# not every frame (D-133).
 		var ms := (now - last) / 1000.0
+		var pipes := last_pipes
+		if ms > 8.0 or (t > 5.0 and pipes_at_5 < 0):
+			pipes = _pipeline_compiles()
 		if t > 5.0 and pipes_at_5 < 0:
-			pipes_at_5 = last_pipes
+			pipes_at_5 = pipes
 		if t > 5.0 and not skip_next:
 			if ms > 8.0 and pipes > last_pipes:
 				slow_frames_compiling += 1
@@ -458,7 +457,7 @@ func _bench_one(preset: String, low_end: bool, limit: float) -> Dictionary:
 		"hitches": hitches,
 		"warm_up": warm_up_report,
 		"pipelines_loading": pipes_at_5 - pipes_at_start,
-		"pipelines_driving": last_pipes - pipes_at_5,
+		"pipelines_driving": _pipeline_compiles() - pipes_at_5,
 		"slow_frames_compiling": slow_frames_compiling,
 	}
 	for line in hitches:
@@ -870,6 +869,7 @@ func _watch_replay(path: String) -> void:
 	replay_picker = null
 	replay_view = ReplayView.new()
 	replay_view.setup(sim, camera)
+	replay_view.smoke_quality = settings.get_value("display/smoke")
 	replay_view.closed.connect(func() -> void:
 		replay_view.close()
 		replay_view.queue_free()

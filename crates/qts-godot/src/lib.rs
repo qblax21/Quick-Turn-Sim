@@ -651,6 +651,9 @@ impl SimBridge {
             "throttle" => s.throttle,
             "brake" => s.brake,
             "run_time" => s.run_time_s,
+            "slip_ratio" => s.slip_ratio.iter().map(|&v| v as f32).collect::<PackedFloat32Array>(),
+            "slip_angle" => s.slip_angle.iter().map(|&v| v as f32).collect::<PackedFloat32Array>(),
+            "load" => s.load.iter().map(|&v| v as f32).collect::<PackedFloat32Array>(),
         }
     }
 

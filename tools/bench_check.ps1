@@ -28,7 +28,13 @@ $slowerLimit = 1.15
 
 function Invoke-Bench {
     $log = Join-Path ([System.IO.Path]::GetTempPath()) "qts_bench_check"
-    Start-Process $Godot -ArgumentList "--path", "`"$(Join-Path $root 'godot')`"", "--resolution", "1600x900", "--", "--render-bench=all" -Wait -NoNewWindow -RedirectStandardOutput "$log.out" -RedirectStandardError "$log.err"
+    $p = Start-Process $Godot -ArgumentList "--path", "`"$(Join-Path $root 'godot')`"", "--resolution", "1600x900", "--", "--render-bench=all" -PassThru -NoNewWindow -RedirectStandardOutput "$log.out" -RedirectStandardError "$log.err"
+    # Two laps of about two minutes each: past 15 minutes the game is stuck.
+    if (-not $p.WaitForExit(15 * 60 * 1000)) {
+        Stop-Process -Id $p.Id -Force -Confirm:$false
+        Get-Content "$log.out" | Select-Object -Last 5 | ForEach-Object { Write-Host $_ }
+        Write-Error "The bench did not finish within 15 minutes and was stopped."
+    }
     Get-Content "$log.out" | Where-Object { $_ -match "^render bench" } | ForEach-Object { Write-Host $_ }
     $written = Get-Content "$log.out" | Where-Object { $_ -match '^render bench: results written to (.+)$' } | Select-Object -Last 1
     if (-not $written) { Write-Error "The bench wrote no results file." }

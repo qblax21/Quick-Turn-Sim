@@ -3,19 +3,20 @@
 //! formal drift judging scores a run, on line, angle and style, from what
 //! the car did through it. It only reads the session.
 //!
-//! - **Line** (35 points): how close the car comes to the inner clipping
+//! Weights and rules as Formula DRIFT's 2026 qualifying (D-119):
+//! - **Line** (40 points): how close the car comes to the inner clipping
 //!   point (ICP), and how far its tail reaches into the outer clipping zone
 //!   (OCZ), half each.
-//! - **Angle** (35 points): the car's mean body slip angle through the
-//!   zone, nothing at 5 degrees or less and full marks at 35 or more.
-//! - **Style** (30 points): the share of the zone spent sliding (10
+//! - **Angle** (40 points): the mean body slip angle over the maximum,
+//!   [`ANGLE_RANGE_DEG`]; full marks at 35 degrees or more.
+//! - **Style** (20 points): the share of the zone spent sliding (10
 //!   degrees or more), less 30 percent of the marks for every time the car
 //!   straightens and slides again within it.
-//! - **Penalties**, which zero the corner: a spin (more than 110 degrees of
-//!   slip), or all four wheels off the course for more than half a second.
+//! - **Incomplete**, which scores nothing for the run: a spin, three tyres
+//!   off, or an opposite drift (the constants below).
 //!
-//! A lap's score is the mean of its corners' scores; a corner the car did
-//! not pass through scores nothing.
+//! A run's score is taken over the whole run; each corner also gets its own
+//! score for the panel and the coach.
 
 use crate::session::Session;
 use crate::track::{DriftDef, DriftZoneDef, Track};
@@ -34,6 +35,11 @@ pub const STRAIGHT_DEG: f64 = 5.0;
 /// in the rulebook, the score is the average angle over a maximum, with
 /// no floor; the rulebook sets the maximum per event from the field's
 /// data, this project fixes it at 35.
+///
+/// UNVERIFIED (D-133): no published figure backs 35. Formula DRIFT judges
+/// angle against each event's own maximum, and describes angle only as
+/// the most a driver can hold under control; no rulebook found names a
+/// number of degrees. 35 is our own choice for these fictional cars.
 pub const ANGLE_RANGE_DEG: (f64, f64) = (0.0, 35.0);
 /// Slip angle that is a spin, degrees: the rulebook's "approximately 180
 /// degrees" of over-rotation, taken from 150.

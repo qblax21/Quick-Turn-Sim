@@ -23,7 +23,8 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 if (-not $Out) { $Out = Join-Path $root "out\steam_kit" }
 # Godot runs from the project folder: every path it is given is absolute.
-$Out = [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Out))
+if (-not [System.IO.Path]::IsPathRooted($Out)) { $Out = Join-Path (Get-Location) $Out }
+$Out = [System.IO.Path]::GetFullPath($Out)
 if (Test-Path $Out) { Remove-Item -Recurse -Force -Confirm:$false $Out }
 $replays = Join-Path $Out "replays"
 New-Item -ItemType Directory -Force -Path $replays | Out-Null

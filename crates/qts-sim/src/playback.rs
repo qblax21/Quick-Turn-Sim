@@ -41,6 +41,14 @@ pub struct PlaybackSample {
     pub brake: f64,
     /// Time into the current timed run, s; negative outside a run.
     pub run_time_s: f64,
+    /// Per wheel (FL, FR, RL, RR), for tyre smoke and marks in the replay
+    /// viewer (D-133): longitudinal slip ratio, slip angle (rad) and
+    /// vertical load (N), as the live HUD has them.
+    pub slip_ratio: [f64; 4],
+    /// Slip angle, rad.
+    pub slip_angle: [f64; 4],
+    /// Vertical load, N.
+    pub load: [f64; 4],
 }
 
 /// A replay being prepared and then watched.
@@ -157,6 +165,9 @@ impl Playback {
             throttle: frame.throttle_f64(),
             brake: frame.brake_f64(),
             run_time_s: if timing.running { s.run_time() } else { -1.0 },
+            slip_ratio: std::array::from_fn(|i| out.wheels[i].slip_ratio),
+            slip_angle: std::array::from_fn(|i| out.wheels[i].slip_angle),
+            load: std::array::from_fn(|i| out.wheels[i].load),
         });
         let index = self.samples.len() - 1;
         if self
@@ -192,6 +203,9 @@ impl Playback {
             } else {
                 mix(a.run_time_s, b.run_time_s)
             },
+            slip_ratio: std::array::from_fn(|i| mix(a.slip_ratio[i], b.slip_ratio[i])),
+            slip_angle: std::array::from_fn(|i| mix(a.slip_angle[i], b.slip_angle[i])),
+            load: std::array::from_fn(|i| mix(a.load[i], b.load[i])),
         }
     }
 

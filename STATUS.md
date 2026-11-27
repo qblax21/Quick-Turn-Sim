@@ -136,6 +136,7 @@ sees in the demo is described in `DEMO.md`.
   screenshots and a 38 s 1080p60 trailer (Ridgeline hot lap, Harrow tandem)
   from replays of the computer driver; draft store text with every
   unmeasured claim marked in `docs/STORE_PAGE.md`. No capsule art yet.
+  Replays draw tyre smoke since D-133, and the kit was re-rendered with it.
 - **Medium preset and size** (D-132): Low uses FXAA and Medium (new) SMAA
   with light AO instead of MSAA; Medium at 1080p takes 562 MB of video
   memory by Windows' count (High 818), on the RTX 3060. Thin distant lines

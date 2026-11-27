@@ -19,6 +19,10 @@ extends Node
 const ReplayView := preload("res://scripts/replay_view.gd")
 const CarView := preload("res://scripts/car_view.gd")
 const Capture := preload("res://scripts/capture.gd")
+const TyreSmoke := preload("res://scripts/tyre_smoke.gd")
+# Smoke run up before a screenshot, s (longer than the smoke lives):
+# stills are taken out of order, so their smoke is built up again (D-133).
+const STILL_SMOKE_S := 4.5
 
 const SIZE := Vector2i(1920, 1080)
 const FPS := 60
@@ -40,6 +44,7 @@ var frame_no := 0
 var still_no := 0
 var step := 1
 var stills_only := false
+var lead_smoke = null
 
 
 func _arg(name: String, default: String = "") -> String:
@@ -113,6 +118,9 @@ func _segment(name: String, path: String, from: float, length: float, lead: Arra
 		lead_view = CarView.new()
 		add_child(lead_view)
 		lead_view.build(sim.car_info())
+		lead_smoke = TyreSmoke.new()
+		add_child(lead_smoke)
+		lead_smoke.setup(sim.car_info(), view.smoke_quality)
 	var tandem := not lead.is_empty()
 	var shots: Array = _tandem_shots(from, from + length) if tandem else view.shot_list(from, from + length)
 	var shot := 0
@@ -121,7 +129,7 @@ func _segment(name: String, path: String, from: float, length: float, lead: Arra
 		while shot < shots.size() - 1 and t >= shots[shot][2]:
 			shot += 1
 			view.post_index = -1
-		var xform := _pose(view, lead_view, lead, k, t)
+		var xform := _pose(view, lead_view, lead, k, t, float(step) / FPS)
 		_camera(view, shots[shot][0], xform, lead_view, t - shots[shot][1])
 		var image: Image = await Capture.render_size(self, camera, SIZE)
 		frame_no += 1
@@ -132,7 +140,11 @@ func _segment(name: String, path: String, from: float, length: float, lead: Arra
 			stills.append([int(r[0] * FPS), r[1]])
 	for s in stills:
 		var t: float = from + float(s[0]) / FPS
-		var xform := _pose(view, lead_view, lead, s[0], t)
+		# Build the smoke up over the seconds before the still.
+		for j in range(maxi(s[0] - int(STILL_SMOKE_S * FPS), 0), s[0]):
+			_pose(view, lead_view, lead, j, from + float(j) / FPS, 1.0 / FPS)
+			await get_tree().process_frame
+		var xform := _pose(view, lead_view, lead, s[0], t, 1.0 / FPS)
 		view.post_index = -1
 		_camera(view, s[1], xform, lead_view, 1.0)
 		var image: Image = await Capture.render_size(self, camera, SIZE)
@@ -140,6 +152,9 @@ func _segment(name: String, path: String, from: float, length: float, lead: Arra
 		image.save_png(out_dir.path_join("screenshots/screenshot_%d_%s.png" % [still_no, name]))
 	if lead_view:
 		lead_view.queue_free()
+	if lead_smoke:
+		lead_smoke.queue_free()
+		lead_smoke = null
 	view.close()
 	view.queue_free()
 	await get_tree().process_frame
@@ -222,14 +237,18 @@ func _camera(view, kind: String, xform: Transform3D, lead_view, shot_t: float) -
 
 # Places the cars at `t` (frame `k` of the segment); the replay car's
 # transform, for the camera.
-func _pose(view, lead_view, lead: Array, k: int, t: float) -> Transform3D:
+func _pose(view, lead_view, lead: Array, k: int, t: float, smoke_dt: float) -> Transform3D:
 	var frame: Dictionary = sim.replay_frame(t)
 	if frame.is_empty():
 		return view.car_view.global_transform
 	view.time = t
 	view.car_view.set_seat_view(false)
 	view.car_view.update(frame.transform, frame.wheels, frame.steering_wheel_angle)
+	view.smoke_at(frame, smoke_dt)
 	view.world.update_cones(sim.replay_cones(t))
 	if lead_view and k < lead.size() and not lead[k].is_empty():
 		lead_view.update(lead[k].transform, lead[k].wheels, lead[k].steering_wheel_angle)
+		if lead_smoke:
+			lead_smoke.update(lead[k].transform, lead[k].wheels, lead[k])
+			lead_smoke.step(smoke_dt)
 	return frame.transform

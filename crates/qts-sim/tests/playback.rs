@@ -104,3 +104,28 @@ fn a_replay_of_changed_data_is_refused() {
     let error = Playback::load(&data(), &replay.to_bytes()).err().unwrap();
     assert!(error.contains("changed"), "{error}");
 }
+
+#[test]
+fn a_replay_carries_the_tyre_slip_for_smoke() {
+    // D-133: the replay viewer draws tyre smoke from the slip the replay
+    // recorded, as live play does from the HUD's.
+    let (bytes, _) = record();
+    let mut playback = Playback::load(&data(), &bytes).unwrap();
+    while !playback.is_prepared() {
+        playback.prepare(5000);
+    }
+    let mut most_slip = 0.0_f64;
+    let mut loaded = true;
+    for k in 0..200 {
+        let s = playback.at(1.0 + k as f64 * 0.09);
+        loaded &= s.load.iter().all(|&n| n > 500.0);
+        for i in 0..4 {
+            most_slip = most_slip.max(s.slip_angle[i].abs());
+        }
+    }
+    assert!(loaded, "every wheel carries load on the cone course");
+    assert!(
+        most_slip > 0.01,
+        "cornering shows slip angle, most {most_slip} rad"
+    );
+}

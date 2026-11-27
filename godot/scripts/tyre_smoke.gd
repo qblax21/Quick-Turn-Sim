@@ -77,6 +77,21 @@ func setup(info: Dictionary, smoke_quality: int) -> void:
 	set_quality(smoke_quality)
 
 
+# How fast the smoke ages, 1 for real time (D-133: the replay viewer's
+# playback speed, 0 while paused).
+func set_speed(scale: float) -> void:
+	for p in emitters:
+		p.speed_scale = scale
+
+
+# Ages the smoke by exactly `dt` seconds this frame, whatever the frame
+# took: for replay frames rendered one by one (trailers, the store kit).
+func step(dt: float) -> void:
+	for p in emitters:
+		p.speed_scale = 0.0
+		p.request_particles_process(dt)
+
+
 func set_quality(q: int) -> void:
 	quality = clampi(q, 0, AMOUNT.size() - 1)
 	for p in emitters:

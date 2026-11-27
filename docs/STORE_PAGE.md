@@ -95,6 +95,6 @@ computer driver drawn by the replay viewer).
 - **The tandem is two computer-driven laps:** a lead started 30 m ahead,
   as the game's tandem mode starts it, and a follower from the line. They
   run as separate sessions with no contact, as in the game.
-- **No smoke:** the replay viewer does not draw tyre smoke yet (D-117), so
-  the trailer has none, although live driving does.
+- **Smoke:** the replay viewer draws tyre smoke as live driving does
+  (D-133), so the trailer and screenshots show it.
 - **No music or sound:** the trailer is silent.

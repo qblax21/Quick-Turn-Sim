@@ -18,11 +18,16 @@
 extends Node
 
 const PhotoMode := preload("res://scripts/photo_mode.gd")
+const TyreSmoke := preload("res://scripts/tyre_smoke.gd")
 const Capture := preload("res://scripts/capture.gd")
 
 # Trailer director: shot kinds it cuts between, and shot lengths in turn.
 const SHOTS := ["trackside", "chase_low", "orbit", "side_track", "helicopter"]
 const SHOT_LENGTHS := [4.0, 3.0, 5.0, 3.5, 4.5]
+# Tyre smoke as in live play (D-133), from the slip the replay recorded:
+# the same emitters and quality setting.
+var smoke_quality := 2
+var tyre_smoke
 var mark_in := 0.0
 var mark_out := -1.0
 var exporting := false
@@ -81,6 +86,9 @@ func _ready() -> void:
 	car_view = CarView.new()
 	add_child(car_view)
 	car_view.build(sim.car_info())
+	tyre_smoke = TyreSmoke.new()
+	add_child(tyre_smoke)
+	tyre_smoke.setup(sim.car_info(), smoke_quality)
 	duration = sim.replay_info().get("duration", 0.0)
 	_place_posts()
 	_build_overlay()
@@ -176,6 +184,8 @@ func _process(delta: float) -> void:
 		return
 	var xform: Transform3D = frame.transform
 	car_view.update(xform, frame.wheels, frame.steering_wheel_angle)
+	tyre_smoke.set_speed(SPEEDS[speed_index] if playing else 0.0)
+	tyre_smoke.update(xform, frame.wheels, frame)
 	world.update_cones(sim.replay_cones(time))
 	_update_camera(xform, delta)
 	_update_overlay(frame, info, available)
@@ -389,6 +399,7 @@ func export_sequence(fps: int = export_fps, scale: float = export_scale) -> Stri
 		var xform: Transform3D = frame.transform
 		car_view.set_seat_view(false)
 		car_view.update(xform, frame.wheels, frame.steering_wheel_angle)
+		smoke_at(frame, 1.0 / fps)
 		world.update_cones(sim.replay_cones(t))
 		_shot_camera(shots[shot][0], xform, t - shots[shot][1])
 		var image: Image = await Capture.render(self, camera, scale)
@@ -405,6 +416,12 @@ func export_sequence(fps: int = export_fps, scale: float = export_scale) -> Stri
 	exporting = false
 	layer.visible = true
 	return export_dir
+
+
+# The smoke for one frame rendered on its own, aged by exactly `dt`.
+func smoke_at(frame: Dictionary, dt: float) -> void:
+	tyre_smoke.update(frame.transform, frame.wheels, frame)
+	tyre_smoke.step(dt)
 
 
 func close() -> void:

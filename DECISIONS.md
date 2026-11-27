@@ -3190,3 +3190,68 @@ at 100 Hz, offline, and adds only three numbers per sample.
     in its own way, so its figure will differ somewhat.
   - The packaged build passed its self-test (a car driven for 3 s).
   - The store page and README now give these figures.
+
+## D-133 Tyre smoke in replays, the kit re-rendered, the 35 degree angle checked
+
+- **Replays draw tyre smoke.** It is the same `tyre_smoke.gd` emitters as
+  live play, at the player's smoke setting, driven by the same slip
+  measure as the tyre marks.
+  - Each replay sample now keeps every wheel's slip ratio, slip angle and
+    load (the core's playback, 96 bytes a sample at 100 samples a second).
+    The re-simulation is unchanged, so replays still check EXACT.
+  - The smoke ages with the playback speed and stops while paused.
+  - **Frames rendered one by one** (the D-key trailer export, the store
+    kit) step it by exactly one frame's time, whatever a frame took to
+    draw.
+  - **The kit:** stills are taken out of order, so the kit builds each
+    still's smoke up again over the 4.5 s before it. In tandem, the lead
+    car smokes too.
+- **Within the bench budget:** it is the emitters the live bench already
+  draws (24 particles a wheel on Low, 240 on High), so the frame time check
+  (D-130) covers them. Replay playback has no bench of its own.
+- **The kit, re-rendered** with `tools\steam_kit.ps1`: five 1920x1080
+  screenshots and the trailer (38 s, 1920x1080 at 60 fps, 62 MB), now with smoke. Still no music.
+- **The 35 degree full-marks angle: unverified, kept.** Formula DRIFT's
+  rules judge angle against a maximum set at each event from the field's
+  own data (2026 Judging Regulations, as D-119 read them). They describe
+  angle as the most a driver can hold under control, with no number of
+  degrees.
+  - **Other sources:** Drift Masters' 2026 judging rules were found but
+    could not be read as text here. Formula DRIFT's 2024 regulations link
+    is dead (404).
+  - **No published figure backs 35.** It is this project's choice for its
+    fictional cars, now marked unverified in `drift.rs`. The scoring does
+    not change: its form (the average angle over a maximum, no floor)
+    already follows the rulebook.
+  - **A stale comment fixed:** the header of `drift.rs` still gave the
+    pre-D-119 weights (35/35/30) and the 5 degree floor.
+- **Bench fixes found on the way:**
+  - **Crash at quit (from D-130).** The thread that read Windows' GPU
+    memory counters kept running after Godot unloaded the library, and the
+    game crashed on the way out ("qts_godot.dll_unloaded" in the Windows
+    log). The counters are read on the caller's thread again, once before
+    the bench's clock starts (later reads take about 0.1 ms).
+  - **Fewer counter reads.** Godot's pipeline-compile counters are now
+    read only on slow frames and at 5 s, not every frame.
+  - **A time limit.** `bench_check.ps1 -Run` stops a bench that has not
+    finished in 15 minutes and fails, instead of waiting for ever.
+  - **The kit script** failed when run without `-Out` (it joined two
+    absolute paths).
+- **Open: the bench sometimes hangs.** On this machine, a full Low-and-High
+  bench (`--render-bench=all`) stopped responding in about one run in two
+  or three. It happens part way through the High lap, after a full Low
+  lap. The game then sits at almost no CPU, waiting on something.
+  - **Ruled out, each still hanging when changed:**
+    - the bench's own D-130 changes (the main script from before them
+      hangs too);
+    - Windows' GPU memory counters (switched off);
+    - D-128's smaller upload staging buffer (put back to Godot's 128 MB).
+  - **Never seen:** in 8 short runs (12 s a preset), or in the four 40 s
+    runs at 1080p. Nobody has played long enough to say whether play
+    hits it.
+  - **The only other clue:** the NVIDIA driver logged errors (nvlddmkm
+    event 153, crashes in nvoglv64.dll) earlier the same night.
+  - **Not yet known** whether it is this driver, the uncapped frame rate
+    (about 230 fps on High) or the game, so it could reach players.
+  - **Next steps:** a run with the frame rate capped, one with High alone,
+    and a run on another machine.
