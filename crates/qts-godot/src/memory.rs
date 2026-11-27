@@ -77,7 +77,10 @@ fn video_memory() -> (u64, u64) {
                 std::thread::sleep(std::time::Duration::from_millis(500));
             });
     });
-    (LOCAL.load(Ordering::Relaxed), NON_LOCAL.load(Ordering::Relaxed))
+    (
+        LOCAL.load(Ordering::Relaxed),
+        NON_LOCAL.load(Ordering::Relaxed),
+    )
 }
 
 /// This process's video memory from the Windows "GPU Process Memory"
