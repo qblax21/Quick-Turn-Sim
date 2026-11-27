@@ -24,6 +24,7 @@ static func render_size(owner: Node, source: Camera3D, wanted: Vector2i) -> Imag
 	viewport.world_3d = owner.get_viewport().world_3d
 	viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
 	viewport.msaa_3d = owner.get_viewport().msaa_3d
+	viewport.screen_space_aa = owner.get_viewport().screen_space_aa
 	var camera := Camera3D.new()
 	camera.fov = source.fov
 	camera.near = source.near

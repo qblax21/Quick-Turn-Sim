@@ -241,8 +241,16 @@ func _apply_settings() -> void:
 		DisplayServer.VSYNC_ENABLED if settings.get_value("display/vsync") else DisplayServer.VSYNC_DISABLED)
 	var msaa: int = clampi(settings.get_value("display/msaa"), 0, settings.MSAA_MODES.size() - 1)
 	get_viewport().msaa_3d = settings.MSAA_MODES[msaa]
+	var screen_aa: int = clampi(settings.get_value("display/screen_aa"), 0, settings.SCREEN_AA_MODES.size() - 1)
+	get_viewport().screen_space_aa = settings.SCREEN_AA_MODES[screen_aa]
 	sun.shadow_enabled = settings.get_value("display/shadows")
 	environment.ssao_enabled = settings.get_value("display/ambient_occlusion")
+	# Light: Godot's lowest SSAO quality, one blur pass; full: the project's
+	# own (medium quality, two passes). Both at half resolution.
+	if settings.get_value("display/ao_light"):
+		RenderingServer.environment_set_ssao_quality(RenderingServer.ENV_SSAO_QUALITY_VERY_LOW, true, 0.5, 1, 50.0, 300.0)
+	else:
+		RenderingServer.environment_set_ssao_quality(RenderingServer.ENV_SSAO_QUALITY_MEDIUM, true, 0.5, 2, 50.0, 300.0)
 	camera.fov = clampf(settings.get_value("display/fov"), 30.0, 110.0)
 	get_viewport().scaling_3d_scale = clampf(settings.get_value("display/render_scale"), 0.5, 1.0)
 	Engine.max_fps = maxi(int(settings.get_value("display/max_fps")), 0)
@@ -552,6 +560,12 @@ func _steam_kit(out: String) -> void:
 	_hide_scenery()
 	self_testing = true
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	# --kit-preset=NAME renders with that graphics preset (D-132's before
+	# and after pictures); the saved settings are not changed.
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--kit-preset="):
+			settings.apply_graphics_preset(arg.get_slice("=", 1))
+			_apply_settings()
 	var kit = SteamKit.new()
 	add_child(kit)
 	var code: int = await kit.run(sim, camera, out)

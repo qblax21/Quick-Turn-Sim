@@ -18,7 +18,7 @@ text never says "realistic" or "accurate".
 > the tyre forces, and a download under 20 MB. No subscription, no paid
 > DLC: every update is free.
 
-(240 characters. "A download under 20 MB" is the demo's 18.9 MB [measured]; the full game's is [UNMEASURED].)
+(240 characters. "A download under 20 MB": the full game zips to 19.6 MB and the demo to 18.9 MB [measured: D-132, D-121; Steam's own compression will differ somewhat].)
 
 ## About this game
 
@@ -53,10 +53,10 @@ nothing.
   (README: "Force feedback: before you drive with a wheel").
 
 **Small and light.**
-- The demo is an 18.9 MB download and 49 MB installed **[measured: D-121,
-  `tools\package.ps1 -Demo`]**.
-- **[UNMEASURED]** The full game's size is not measured; the demo is two
-  cars and two tracks.
+- The full game is a 19.6 MB download and 49.7 MB installed; the demo is
+  18.9 MB and 49 MB **[measured: D-132 and D-121, `tools\package.ps1
+  -Ship` and `-Demo`; the download is the zip, and Steam's own compression
+  will differ somewhat]**.
 - Harrow on High at 1080p uses about 0.7 GB of RAM and 0.8 GB of video
   memory **[measured on an RTX 3060 only: D-128]**.
 
@@ -67,8 +67,8 @@ nothing.
 | OS | Windows 10 64-bit | **[UNMEASURED]** only Windows 11 has been run |
 | CPU | 4 cores (Ryzen 3 3100 / Core i3-10100 class) | **[UNMEASURED]** estimate (D-117); one core runs the physics at about 4 % of a Ryzen 5 5600X core |
 | RAM | 4 GB | **[UNMEASURED]** for 4 GB. The game peaks at 0.67 GB on High on the RTX 3060 [measured, D-128]; the old 8 GB line was a guess |
-| GPU | Vulkan 1.3, GTX 1050 Ti / RX 570 class, 2 GB | **[UNMEASURED]** scaled from the RTX 3060 (D-117, D-125); video memory on High fits a 2 GB card by the budget [measured on the 3060: 0.82 GB] |
-| Storage | 150 MB | **[UNMEASURED]** for the full game; the demo installs in 49 MB [measured] |
+| GPU | Vulkan 1.3, GTX 1050 Ti / RX 570 class, 2 GB | **[UNMEASURED]** scaled from the RTX 3060 (D-117, D-125). Video memory at 1080p by Windows' count: Medium 0.56 GB, High 0.82 GB [measured on the 3060 only, D-132] |
+| Storage | 100 MB | The full game installs in 49.7 MB [measured, D-132]; the line leaves room for settings, replays and updates |
 | Input | Keyboard, gamepad or a DirectInput wheel | Wheels **[UNMEASURED]** on hardware |
 
 ## Media

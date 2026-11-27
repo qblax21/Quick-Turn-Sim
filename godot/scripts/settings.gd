@@ -15,6 +15,10 @@ const DEFAULTS := {
 	"display/msaa": 2,
 	"display/shadows": true,
 	"display/ambient_occlusion": true,
+	# D-132: post-process anti-aliasing (0 off, 1 FXAA, 2 SMAA), cheap on
+	# video memory beside MSAA, and a lighter ambient occlusion.
+	"display/screen_aa": 0,
+	"display/ao_light": false,
 	"display/fov": 65.0,
 	"display/render_scale": 1.0,
 	"display/smoke": 2,
@@ -41,24 +45,43 @@ const DEFAULTS := {
 
 # Graphics presets (D-117): each sets these display values at once; any
 # of them can be changed afterwards.
+# Low and Medium (D-132) smooth edges with FXAA and SMAA, which work on
+# the finished picture, instead of MSAA, whose 2x buffers cost about 214 MB
+# of video memory at 1080p (D-128); Medium's ambient occlusion is the
+# lightest of Godot's.
 const GRAPHICS_PRESETS := {
 	"Low": {
 		"display/render_scale": 0.7,
 		"display/msaa": 0,
+		"display/screen_aa": 1,
 		"display/shadows": false,
 		"display/ambient_occlusion": false,
+		"display/ao_light": true,
 		"display/smoke": 1,
 		"display/max_fps": 60,
+	},
+	"Medium": {
+		"display/render_scale": 1.0,
+		"display/msaa": 0,
+		"display/screen_aa": 2,
+		"display/shadows": true,
+		"display/ambient_occlusion": true,
+		"display/ao_light": true,
+		"display/smoke": 2,
+		"display/max_fps": 0,
 	},
 	"High": {
 		"display/render_scale": 1.0,
 		"display/msaa": 2,
+		"display/screen_aa": 0,
 		"display/shadows": true,
 		"display/ambient_occlusion": true,
+		"display/ao_light": false,
 		"display/smoke": 2,
 		"display/max_fps": 0,
 	},
 }
+const SCREEN_AA_MODES := [Viewport.SCREEN_SPACE_AA_DISABLED, Viewport.SCREEN_SPACE_AA_FXAA, Viewport.SCREEN_SPACE_AA_SMAA]
 
 var values := {}
 # Preset id -> {setting name: value}, applied on top of the preset file.

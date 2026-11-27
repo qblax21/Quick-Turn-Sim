@@ -3138,3 +3138,55 @@ at 100 Hz, offline, and adds only three numbers per sample.
   The player's own controls and settings files are put back after.
 - **Not checked:** any of it with a person at a real wheel. The clipping a
   person's 20 s gives will differ from the computer's.
+
+## D-132 A Medium preset for 2 GB cards, and the full game's real size
+
+- **Low and Medium no longer use MSAA.** At 1080p, MSAA 2x took about
+  214 MB of video memory (D-128).
+  - **Low:** FXAA, which smooths the finished picture. AO stays off.
+  - **Medium (new):** SMAA, a sharper edge filter that also works on the
+    finished picture, plus shadows and the lightest ambient occlusion
+    (Godot's "very low" quality, one blur pass).
+  - **High:** unchanged (MSAA 2x and full AO).
+  - Settings gains "Edge smoothing" (Off, FXAA, SMAA) and "Lighter ambient
+    occlusion".
+- **Video memory at 1080p**: Harrow, the computer driving for 40 s, 3D
+  drawn at 1974x1080, RTX 3060.
+
+  | Preset | Godot's count | Windows' count |
+  |---|---|---|
+  | High (MSAA 2x, full AO): the only preset with shadows and AO before | 481 MB | 818 MB |
+  | Medium (SMAA, light AO) | 341 MB | 562 MB |
+  | Low (FXAA, no AO, no shadows) | 231 MB | 557 MB |
+
+  Medium stays under 1 GB with about 460 MB to spare. Its frame times in
+  that run: mean 4.37 ms, 1% low 10.5 ms, against High's 4.83 and 7.5.
+  - **Measured only on the RTX 3060.** A 2 GB card has not been tried.
+  - **One stall:** in the first High run, one frame took 8.4 s at the end
+    of the run, with 6 ms of script and 4 ms of GPU work. The rerun had
+    none (worst 10.5 ms), so the stall was outside the game.
+- **What it looks like:** the five store stills were rendered from the same
+  replays on High and on Medium (`tools\steam_kit.ps1 -StillsOnly -Preset
+  NAME`), so the frames match exactly.
+  - Up close the cars and shading look the same.
+  - **The visible loss:** thin lines far away (the track's edge paint, the
+    car's panel seams) break into dots on Medium, which MSAA smoothed.
+    SMAA cannot rebuild detail thinner than a pixel. Temporal AA might, at
+    the cost of ghosting in motion; it was not tried.
+- **The full game's size**, measured with `tools\package.ps1 -Ship`. The
+  new `-Ship` switch builds the store build: the stripped "dist" library,
+  as the demo already used, and the slimmed D-121 runtime. Without it the
+  full game keeps the 31 MB library with symbols, for testers.
+
+  | | Download (zip) | Installed |
+  |---|---|---|
+  | Full game: 4 cars, 5 tracks | 19.6 MB | 49.7 MB |
+  | Demo: 2 cars, 2 tracks (D-121) | 18.9 MB | 49 MB |
+
+  - **Most of it is the engine:** the Godot runtime is 44.4 MB of the
+    install. This project's own part is 5.2 MB: the library (2.7 MB), the
+    game pack (2.4 MB) and the data.
+  - **The zip stands in for the download.** Steam compresses what it sends
+    in its own way, so its figure will differ somewhat.
+  - The packaged build passed its self-test (a car driven for 3 s).
+  - The store page and README now give these figures.

@@ -8,6 +8,7 @@
 #   -- --steam-kit=OUT_DIR --ridgeline=R.rpl --ridgeline-from=S
 #      --harrow=FOLLOW.rpl --harrow-lead=LEAD.rpl --harrow-from=S
 #      [--ridgeline-seconds=18] [--harrow-seconds=20] [--kit-step=1]
+#      [--kit-stills-only=1] [--kit-preset=Low|Medium|High]
 #
 # The trailer is a Ridgeline hot lap, then Harrow in tandem: the follower
 # replay with the lead replay (a second computer car started 30 m ahead, as
@@ -38,6 +39,7 @@ var out_dir := ""
 var frame_no := 0
 var still_no := 0
 var step := 1
+var stills_only := false
 
 
 func _arg(name: String, default: String = "") -> String:
@@ -53,6 +55,7 @@ func run(bridge, scene_camera: Camera3D, out: String) -> int:
 	camera = scene_camera
 	out_dir = out
 	step = maxi(int(_arg("kit-step", "1")), 1)
+	stills_only = _arg("kit-stills-only", "") == "1"
 	for sub in ["screenshots", "trailer"]:
 		DirAccess.make_dir_recursive_absolute(out_dir.path_join(sub))
 	var ridge_from := float(_arg("ridgeline-from", "0"))
@@ -113,7 +116,7 @@ func _segment(name: String, path: String, from: float, length: float, lead: Arra
 	var tandem := not lead.is_empty()
 	var shots: Array = _tandem_shots(from, from + length) if tandem else view.shot_list(from, from + length)
 	var shot := 0
-	for k in range(0, int(length * FPS), step):
+	for k in range(0, int(length * FPS) if not stills_only else 0, step):
 		var t := from + float(k) / FPS
 		while shot < shots.size() - 1 and t >= shots[shot][2]:
 			shot += 1

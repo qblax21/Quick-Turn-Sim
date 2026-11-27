@@ -8,12 +8,16 @@
 #
 # Needs tools\build.ps1 run first, Godot 4.7.2 and ffmpeg on the PATH (or
 # -Godot / -Ffmpeg). -Step N renders every Nth trailer frame, for a quick
-# look; the video then runs N times fast.
+# look; the video then runs N times fast. -StillsOnly renders only the
+# screenshots, and -Preset Low|Medium|High renders with that graphics
+# preset (D-132 compares presets this way).
 param(
     [string]$Out = "",
     [string]$Godot = "",
     [string]$Ffmpeg = "ffmpeg",
-    [int]$Step = 1
+    [int]$Step = 1,
+    [switch]$StillsOnly,
+    [string]$Preset = ""
 )
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
@@ -59,6 +63,8 @@ $userArgs = @(
     "--harrow=$follow", "--harrow-lead=$lead", ("--harrow-from={0:F3}" -f $harrowFrom), "--harrow-seconds=20",
     "--kit-step=$Step"
 )
+if ($StillsOnly) { $userArgs += "--kit-stills-only=1" }
+if ($Preset) { $userArgs += "--kit-preset=$Preset" }
 Write-Host "Rendering (the window shows the scene; it takes a few minutes)"
 $log = Join-Path $Out "render.log"
 $p = Start-Process $Godot -ArgumentList (@("--path", (Join-Path $root "godot"), "--") + $userArgs) -Wait -PassThru -RedirectStandardOutput $log -RedirectStandardError "$log.err"
@@ -68,6 +74,10 @@ if ($p.ExitCode -ne 0) {
     Write-Error "Rendering failed with exit code $($p.ExitCode)."
 }
 
+if ($StillsOnly) {
+    Get-ChildItem (Join-Path $Out "screenshots") -Filter *.png | ForEach-Object { Write-Host ("  {0}  {1:N1} MB" -f $_.Name, ($_.Length / 1MB)) }
+    exit 0
+}
 $rate = [math]::Max([int](60 / $Step), 1)
 $video = Join-Path $Out "trailer_1080p60.mp4"
 & $Ffmpeg -hide_banner -loglevel error -y -framerate $rate -i (Join-Path $Out "trailer\frame_%05d.png") -r 60 -c:v libx264 -preset slow -crf 16 -pix_fmt yuv420p -movflags +faststart $video

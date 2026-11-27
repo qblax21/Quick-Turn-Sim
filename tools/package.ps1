@@ -16,7 +16,7 @@
 # -Demo builds the demo slice (D-115): two cars, two tracks, the first-run
 # wizard, the library from the stripped "dist" profile and the "Windows
 # Demo" export preset. It zips the folder and prints the download and
-# install sizes. With -CheckBudget it fails if the parts this project
+# install sizes (as it does for the full game). With -CheckBudget it fails if the parts this project
 # ships (game pack, library, data; the Godot runtime is fixed per engine
 # version) go over the budget in tools\demo_budget.txt.
 
@@ -25,6 +25,10 @@ param(
     [string]$Out = "",
     [switch]$Demo,
     [switch]$CheckBudget,
+    # The full game as it would go on the store (D-132): the library from
+    # the stripped "dist" profile, as the demo's. Without it the full game
+    # gets the "release" library, with symbols, for testers.
+    [switch]$Ship,
     # A release template to use as the runtime instead of the stock one,
     # such as the slimmed build from tools\build_template.ps1 (D-121).
     [string]$Template = ""
@@ -61,7 +65,7 @@ if (-not $Godot -or -not (Test-Path $Godot)) {
     Write-Error "Godot was not found. Pass its path with -Godot."
 }
 
-$cargoProfile = if ($Demo) { "dist" } else { "release" }
+$cargoProfile = if ($Demo -or $Ship) { "dist" } else { "release" }
 cargo build --profile $cargoProfile -p qts-godot
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $library = Join-Path $root "target\$cargoProfile\qts_godot.dll"
@@ -124,7 +128,10 @@ $benchNote = "echo.`r`necho The results file is render_bench_*.txt in this folde
 Set-Content -Encoding ascii -Path (Join-Path $dist "Run render bench.bat") -Value ("@echo off`r`nrem About 10 minutes: the computer drives a lap of Harrow at Low, then at High.`r`n`"%~dp0$name.exe`" -- --render-bench=all`r`n" + $benchNote)
 Set-Content -Encoding ascii -Path (Join-Path $dist "Run render bench (low-end).bat") -Value ("@echo off`r`nrem Low preset with the 3D capped at 1280x720, on a second GPU if there is one.`r`n`"%~dp0$name.exe`" --gpu-index 1 -- --render-bench=Low --bench-low-end`r`n" + $benchNote)
 
-if ($Demo) {
+# Both builds are zipped and measured (the full game since D-132): the zip
+# stands in for the download, since Steam compresses what it sends in its
+# own way, and the folder is the install.
+if ($true) {
     $zip = Join-Path $Out "$name.zip"
     if (Test-Path $zip) { Remove-Item -Force -Confirm:$false $zip }
     Compress-Archive -Path $dist -DestinationPath $zip -CompressionLevel Optimal
@@ -134,13 +141,14 @@ if ($Demo) {
     $shipped = $install - $runtime
     $mb = { param($b) "{0:N1} MB" -f ($b / 1MB) }
     Write-Host ""
-    Write-Host "Demo download (zip): $(& $mb (Get-Item $zip).Length)"
-    Write-Host "Demo install:        $(& $mb $install)"
+    $label = if ($Demo) { "Demo" } else { "Full game" }
+    Write-Host "$label download (zip): $(& $mb (Get-Item $zip).Length)"
+    Write-Host "$label install:        $(& $mb $install)"
     foreach ($f in $files | Sort-Object Length -Descending | Select-Object -First 5) {
         Write-Host ("  {0,-28} {1}" -f $f.Name, (& $mb $f.Length))
     }
     Write-Host "Shipped by this project (all but the Godot runtime): $(& $mb $shipped)"
-    if ($CheckBudget) {
+    if ($Demo -and $CheckBudget) {
         $limits = @{}
         foreach ($line in Get-Content (Join-Path $root "tools\demo_budget.txt")) {
             if ($line -match '^\s*(shipped|install)\s+([\d.]+)') { $limits[$Matches[1]] = [double]$Matches[2] }
