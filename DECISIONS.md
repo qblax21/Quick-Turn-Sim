@@ -3255,3 +3255,49 @@ at 100 Hz, offline, and adds only three numbers per sample.
     (about 230 fps on High) or the game, so it could reach players.
   - **Next steps:** a run with the frame rate capped, one with High alone,
     and a run on another machine.
+
+## D-134 A frame cap at the monitor's refresh rate; the bench hang chased
+
+- **The cap:** Settings, "Frame rate cap": Monitor refresh (the default),
+  60, 120, 144 or Uncapped. It replaces the 0 to 240 slider.
+  - "Monitor refresh" reads the screen's rate from the system (60 if it
+    will not say).
+  - Presets: Low caps at 60, Medium and High at the monitor's refresh.
+  - **Physics unaffected:** the cap only paces drawing. The core steps the
+    session on its own thread at 1000 Hz whatever the frame rate (D-012;
+    the tick count test at 240, 60, 30 and 12 fps, D-105).
+- **The bench:** `--bench-cap=N` caps a render bench at N fps (uncapped by
+  default, as the frame time check of D-130 needs). The results file now
+  gives the cap and the share of the time the GPU was busy (its mean GPU
+  time per frame times the frame rate).
+- **GPU load, High at 1600x900, RTX 3060** (the bench's own figures, and
+  `nvidia-smi` sampled once a second over the run):
+
+  | | Frame rate | GPU busy (bench) | GPU use (driver) | Board power |
+  |---|---|---|---|---|
+  | High, uncapped (3 runs) | 344 fps | 76% | 83% | 141 W |
+  | Low and High, capped at 60 (3 runs) | 60 fps | High 36%, Low 20% | 34% | 36 W |
+
+  At 60 fps the GPU also clocks down, so each frame takes longer to draw
+  (5.9 ms against 2.2) while the card does about a quarter of the work.
+- **The hang (D-133), on this machine, the same session:**
+
+  | Run | Runs | Hung |
+  |---|---|---|
+  | High alone, uncapped | 3 | 0 |
+  | Low then High, capped at 60 | 3 | 0 |
+  | Low then High, uncapped (control, afterwards) | 4 | 1 |
+
+  - The hung run stopped just after High's warm-up, before its lap began:
+    the GPU went to 0% use and stayed there until the run was stopped.
+  - **Not proven:** 0 hangs in 3 capped runs is what a one-in-four hang
+    would give about four times in ten. It points at the uncapped Low lap
+    before High (about 460 fps) rather than at High itself, which never hung
+    alone; Godot rebuilds its render buffers when the preset changes.
+  - **The NVIDIA errors:** the only driver errors in the system log are
+    four of event 153 at 01:34 and 01:48 the night before; none were logged
+    during these runs or the hung one. They do not explain it.
+  - **For players:** the game now always runs capped (at the refresh rate
+    by default, and with vsync on by default), unlike the bench. An
+    uncapped player is the one case left open.
+- `tools\bench_check.ps1` keeps its 15 minute limit.

@@ -22,7 +22,7 @@ const DEFAULTS := {
 	"display/fov": 65.0,
 	"display/render_scale": 1.0,
 	"display/smoke": 2,
-	"display/max_fps": 0,
+	"display/frame_cap": 0,
 	"audio/volume": 0.8,
 	"driving/ghost": true,
 	"driving/lap_telemetry": false,
@@ -58,7 +58,7 @@ const GRAPHICS_PRESETS := {
 		"display/ambient_occlusion": false,
 		"display/ao_light": true,
 		"display/smoke": 1,
-		"display/max_fps": 60,
+		"display/frame_cap": 1,
 	},
 	"Medium": {
 		"display/render_scale": 1.0,
@@ -68,7 +68,7 @@ const GRAPHICS_PRESETS := {
 		"display/ambient_occlusion": true,
 		"display/ao_light": true,
 		"display/smoke": 2,
-		"display/max_fps": 0,
+		"display/frame_cap": 0,
 	},
 	"High": {
 		"display/render_scale": 1.0,
@@ -78,9 +78,26 @@ const GRAPHICS_PRESETS := {
 		"display/ambient_occlusion": true,
 		"display/ao_light": false,
 		"display/smoke": 2,
-		"display/max_fps": 0,
+		"display/frame_cap": 0,
 	},
 }
+# The frame rate cap (D-134): the monitor's refresh rate, a fixed figure, or
+# none (0). It only paces drawing; the physics runs on its own thread at its
+# own rate whatever this is.
+const FRAME_CAP_NAMES := ["Monitor refresh", "60", "120", "144", "Uncapped"]
+const FRAME_CAPS := [-1, 60, 120, 144, 0]
+
+
+# The cap for Engine.max_fps: the refresh rate for "Monitor refresh" (60 if
+# the system will not say), 0 for none.
+func frame_cap_fps() -> int:
+	var cap: int = FRAME_CAPS[clampi(int(get_value("display/frame_cap")), 0, FRAME_CAPS.size() - 1)]
+	if cap < 0:
+		var hz := DisplayServer.screen_get_refresh_rate()
+		cap = int(round(hz)) if hz > 0.0 else 60
+	return cap
+
+
 const SCREEN_AA_MODES := [Viewport.SCREEN_SPACE_AA_DISABLED, Viewport.SCREEN_SPACE_AA_FXAA, Viewport.SCREEN_SPACE_AA_SMAA]
 
 var values := {}

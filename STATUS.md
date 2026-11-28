@@ -126,6 +126,11 @@ sees in the demo is described in `DEMO.md`.
   packaged build writes a results file (machine, frame times, 1 % lows)
   to send back; a low-end variant caps the 3D at 720p. Since D-128 it also
   records RAM and video memory.
+- **Frame cap** (D-134): defaults to the monitor's refresh rate (or 60,
+  120, 144, uncapped); physics is unaffected. Capped at 60, High uses about
+  a quarter of the GPU's power of uncapped (36 W against 141 W). The bench
+  hang (D-133) hit 1 of 4 uncapped Low-then-High runs and none of 3 capped
+  or 3 High-alone runs: not proven, and still open for uncapped play.
 - **Frame time check** (D-130): sessions compile their render pipelines
   while held at load (about 135 ms), which removed the freeze as the car
   appears. `tools\bench_check.ps1` fails on any frame over 50 ms after 5 s

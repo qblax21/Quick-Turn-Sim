@@ -56,7 +56,7 @@ func _build() -> void:
 	_slider(box, "Field of view (degrees)", "display/fov", 40.0, 100.0, 1.0)
 	_slider(box, "Render scale", "display/render_scale", 0.5, 1.0, 0.05)
 	_choice(box, "Tyre smoke", "display/smoke", ["Off", "Low", "High"])
-	_slider(box, "Frame rate cap (0 = none)", "display/max_fps", 0.0, 240.0, 10.0)
+	_choice(box, "Frame rate cap", "display/frame_cap", settings.FRAME_CAP_NAMES)
 
 	_heading(box, "Sound")
 	_slider(box, "Volume", "audio/volume", 0.0, 1.0, 0.01)

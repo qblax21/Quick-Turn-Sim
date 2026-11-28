@@ -253,7 +253,7 @@ func _apply_settings() -> void:
 		RenderingServer.environment_set_ssao_quality(RenderingServer.ENV_SSAO_QUALITY_MEDIUM, true, 0.5, 2, 50.0, 300.0)
 	camera.fov = clampf(settings.get_value("display/fov"), 30.0, 110.0)
 	get_viewport().scaling_3d_scale = clampf(settings.get_value("display/render_scale"), 0.5, 1.0)
-	Engine.max_fps = maxi(int(settings.get_value("display/max_fps")), 0)
+	Engine.max_fps = settings.frame_cap_fps()
 	if tyre_smoke:
 		tyre_smoke.set_quality(settings.get_value("display/smoke"))
 	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(settings.get_value("audio/volume"), 0.0001)))
@@ -295,7 +295,7 @@ func _self_test() -> void:
 
 # The render bench (D-117, D-122, D-125). Started with
 #   -- --render-bench=Low|High|all [--bench-low-end] [--bench-seconds=N]
-#      [--bench-3d-height=N]
+#      [--bench-3d-height=N] [--bench-cap=N]
 # The computer drives the Kestrel RC round Harrow from a standing start,
 # sliding through the judged zones, seen from the chase camera with vsync
 # and the frame cap off. Frame times are recorded from 5 s in until the lap
@@ -337,7 +337,11 @@ func _render_bench(which: String) -> void:
 func _bench_one(preset: String, low_end: bool, limit: float) -> Dictionary:
 	settings.apply_graphics_preset(preset)
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	# --bench-cap=N caps the frame rate at N (D-134); uncapped otherwise.
 	Engine.max_fps = 0
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--bench-cap="):
+			Engine.max_fps = maxi(arg.get_slice("=", 1).to_int(), 0)
 	self_testing = true
 	# The computer drives a real drift lap of Harrow (D-122), with no assists,
 	# as a player would have to.
@@ -450,6 +454,7 @@ func _bench_one(preset: String, low_end: bool, limit: float) -> Dictionary:
 		"low1_fps": 1000.0 * count / maxf(worst_1, 1e-6),
 		"worst_ms": sorted[sorted.size() - 1] if sorted.size() > 0 else 0.0,
 		"gpu_ms": gpu_total / maxf(gpu.size(), 1),
+		"frame_cap": Engine.max_fps,
 		"tick_us": status.get("step_mean_us", 0.0),
 		"tick_worst_us": status.get("step_worst_us", 0.0),
 		"seconds": seconds,
@@ -620,7 +625,8 @@ func _write_bench_results(results: Array, low_end: bool) -> String:
 		lines.append("window      %s, 3D drawn at %s (render scale %.2f), smoke %d" % [r.window, r.render_3d, r.render_scale, r.smoke])
 		lines.append("frames      %d over %.0f s, %s" % [r.frames, r.seconds, "lap finished" if r.lap_finished else "lap not finished"])
 		lines.append("frame time  mean %.2f ms (%.0f fps), 1%% low %.2f ms (%.0f fps), worst %.2f ms" % [r.mean_ms, r.fps, r.low1_ms, r.low1_fps, r.worst_ms])
-		lines.append("GPU time    mean %.2f ms per frame" % r.gpu_ms)
+		lines.append("GPU time    mean %.2f ms per frame, busy %.0f%% of the time" % [r.gpu_ms, 100.0 * r.gpu_ms * r.fps / 1000.0])
+		lines.append("frame cap   %s" % ("%d fps" % r.frame_cap if r.frame_cap > 0 else "none"))
 		lines.append("physics     tick mean %.0f us, worst %.0f us (budget 1000 us)" % [r.tick_us, r.tick_worst_us])
 		lines.append("warm-up     %s" % r.warm_up)
 		lines.append("pipelines   %d more compiled in the first 5 s, %d while measured" % [r.pipelines_loading, r.pipelines_driving])
