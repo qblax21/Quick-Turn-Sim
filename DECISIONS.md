@@ -3301,3 +3301,54 @@ at 100 Hz, offline, and adds only three numbers per sample.
     by default, and with vsync on by default), unlike the bench. An
     uncapped player is the one case left open.
 - `tools\bench_check.ps1` keeps its 15 minute limit.
+
+## D-135 Force feedback at the grip limit, audited on Harrow
+
+- **The audit:** the column torque is the kingpin moment of the full tyre
+  forces (qts-vehicle, `car.rs`): each tyre's aligning moment, its lateral
+  force through the mechanical trail, its longitudinal force through the
+  scrub radius, the vertical loads through caster and kingpin inclination,
+  and the wheels' gyroscopic moment. The aligning moment is the lateral
+  force times a pneumatic trail that shrinks with slip (qts-tire,
+  `magic.rs`). No effect is added on top.
+
+  | Cue | Where it comes from | Checked by |
+  |---|---|---|
+  | Light before the limit | pneumatic trail shrinking with slip | D-104 (`ffb_grip_cue.rs`); now on a Harrow lap |
+  | Aligning torque falling past peak slip, front scrub | the same, with the force flat past its peak | new: the Harrow push |
+  | Rear breakaway through the rack | the car's yaw turns the fronts' slip angle round, so their aligning moment swings the wheel into opposite lock | new: the Harrow lap's slides |
+  | Self-steer toward countersteer | the same | D-116 (`drift_ffb.rs`, hands off) |
+
+  **Nothing was missing**, so the physics is unchanged and the tick time
+  with it (Harrow lap tick mean 42 us in the D-134 bench runs).
+- **The test:** `crates/qts-sim/tests/ffb_harrow.rs`, the Kestrel RC on
+  Harrow. `-- --nocapture` prints the tables.
+  - **A computer-driven drift lap** (120 s), ticks with the rear gripping
+    (rear slip under 4 degrees), binned by front slip angle:
+
+    | Front slip | Ticks | Centring torque, column | At the base (CSL Elite preset) | Front lateral force |
+    |---|---|---|---|---|
+    | 1-2 deg | 10223 | 7.1 N·m | 1.9 N·m | 2703 N |
+    | 3-4 deg | 3036 | 15.5 N·m | 4.0 N·m | 5332 N |
+    | 4-5 deg | 1807 | 15.8 N·m | 4.2 N·m | 5817 N |
+    | 5-6 deg | 866 | 14.5 N·m | 4.0 N·m | 6502 N |
+    | 6-7 deg | 439 | 13.5 N·m | 3.5 N·m | 7000 N |
+
+    The torque peaks at 4-5 degrees and has lost 15% by 6-7, while the
+    force is still rising.
+  - **A push:** from Harrow's start at 15 m/s, the wheel wound on over
+    1.2 s with the speed held, until the fronts scrub. The torque peaks at
+    17.7 N·m at 7 degrees of front slip, the force at 7633 N at 9.4
+    degrees (the torque then at 95%). At 18.8 degrees the force is still
+    97% of its peak and the torque is down to 76%.
+    - **Only 5% lighter at the force's peak:** the angle kit's long
+      mechanical trail (38 mm, D-111) carries much of the torque on a part
+      that follows the force itself. Most of the drop comes while
+      scrubbing.
+  - **Slides:** 39749 ticks of the lap with the rear past 10 degrees and
+    the rim already countersteered. In 91% of them the torque still pulls
+    the wheel further into opposite lock. This is counted only with the
+    rim already turned, so ordinary centring cannot pass for it.
+- **Unverified:** the CSL Elite's 6 N·m (D-131); the base column shows the
+  preset's gain and filtering, not a measured wheel. No real car's column
+  torque has been compared with these curves.

@@ -126,6 +126,10 @@ sees in the demo is described in `DEMO.md`.
   packaged build writes a results file (machine, frame times, 1 % lows)
   to send back; a low-end variant caps the 3D at 720p. Since D-128 it also
   records RAM and video memory.
+- **FFB at the grip limit** (D-135): audited; the light-before-the-limit
+  cue, scrub past the peak, rear breakaway and self-steer all come from the
+  tyre model's kingpin moment, with no canned effects. Nothing was missing.
+  `tests/ffb_harrow.rs` shows torque against front slip on Harrow.
 - **Frame cap** (D-134): defaults to the monitor's refresh rate (or 60,
   120, 144, uncapped); physics is unaffected. Capped at 60, High uses about
   a quarter of the GPU's power of uncapped (36 W against 141 W). The bench
