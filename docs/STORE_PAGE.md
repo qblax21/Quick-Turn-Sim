@@ -15,10 +15,10 @@ text never says "realistic" or "accurate".
 
 > A physics-first driving sim you buy once. Grip laps and judged drifting
 > on fictional cars and tracks, a 1000 Hz simulation, force feedback from
-> the tyre forces, and a download under 20 MB. No subscription, no paid
+> the tyre forces, and a 20 MB download. No subscription, no paid
 > DLC: every update is free.
 
-(240 characters. "A download under 20 MB": the full game zips to 19.6 MB and the demo to 18.9 MB [measured: D-132, D-121; Steam's own compression will differ somewhat].)
+(234 characters. "A 20 MB download": the full game and the demo each zip to 20.3 MB since the OpenGL renderer joined the runtime [measured: D-136; Steam's own compression will differ somewhat].)
 
 ## About this game
 
@@ -53,10 +53,10 @@ nothing.
   (README: "Force feedback: before you drive with a wheel").
 
 **Small and light.**
-- The full game is a 19.6 MB download and 49.7 MB installed; the demo is
-  18.9 MB and 49 MB **[measured: D-132 and D-121, `tools\package.ps1
-  -Ship` and `-Demo`; the download is the zip, and Steam's own compression
-  will differ somewhat]**.
+- The full game is a 20.3 MB download and 51.1 MB installed, and so is
+  the demo **[measured: D-136, `tools\package.ps1 -Ship` here and `-Demo`
+  on CI; the download is the zip, and Steam's own compression will differ
+  somewhat]**.
 - Harrow on High at 1080p uses about 0.7 GB of RAM and 0.8 GB of video
   memory **[measured on an RTX 3060 only: D-128]**.
 
@@ -72,7 +72,7 @@ GPU lines are scaled from it by FP32 throughput, which is crude.
 | CPU | 4 threads (Core i3-6100 / Ryzen 3 1200 class) | 6 threads (Ryzen 5 2600 / Core i5-8400 class) | **[ESTIMATE]** physics is 45 us of each 1 ms tick on one 5600X core; drawing 2.2 ms (Vulkan) to 2.9 ms (OpenGL) a frame on another [measured, D-136] |
 | RAM | 4 GB | 8 GB | Peaks: Very Low 0.32 GB, Low 0.66 GB, High 0.67 GB [measured, D-128, D-136] |
 | GPU | OpenGL 3.3, 1 GB (Intel UHD 620 class) | Vulkan 1.3, 2 GB (GTX 1050 Ti / RX 570 class) | **[ESTIMATE]** RTX 3060 GPU time per frame: Very Low 0.68-0.76 ms, Low 0.47-0.67 ms, High 2.2 ms at 1600x900 [measured, D-134, D-136], scaled about 30 and 6 times. Video memory by the driver: Very Low 82 MB, Medium 0.56 GB, High 0.82 GB [measured] |
-| Storage | 100 MB | 100 MB | The full game installs in 49.7 MB [measured, D-132]; the line leaves room for settings, replays and updates |
+| Storage | 100 MB | 100 MB | The full game installs in 51.1 MB [measured, D-136]; the line leaves room for settings, replays and updates |
 | Input | Keyboard, gamepad or a DirectInput wheel | A force-feedback wheel | Wheels **[UNMEASURED]** on hardware |
 
 ## Media

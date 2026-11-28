@@ -159,8 +159,8 @@ sees in the demo is described in `DEMO.md`.
 - **Medium preset and size** (D-132): Low uses FXAA and Medium (new) SMAA
   with light AO instead of MSAA; Medium at 1080p takes 562 MB of video
   memory by Windows' count (High 818), on the RTX 3060. Thin distant lines
-  alias more than on High. The full game's store build is a 19.6 MB zip,
-  49.7 MB installed (`tools\package.ps1 -Ship`).
+  alias more than on High. The full game's store build is a 20.3 MB zip,
+  51.1 MB installed since D-136 added OpenGL (`tools\package.ps1 -Ship`).
 - **Memory budget** (D-128): `tools\memory_check.ps1` runs Harrow on High
   against `tools\memory_budget.txt`; CI runs it on SwiftShader (RAM 599 of
   680 MB, video memory 185 of 768 MB on the runner). On the RTX 3060: 674 MB of RAM and

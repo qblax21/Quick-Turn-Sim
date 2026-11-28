@@ -109,8 +109,8 @@ that touches rendering, bench it on a real GPU and commit the run:
 powershell -ExecutionPolicy Bypass -File tools\bench_check.ps1 -Run -Update
 ```
 
-The store build of the full game is a 19.6 MB zip and installs in
-49.7 MB (D-132; most of that is the Godot runtime):
+The store build of the full game is a 20.3 MB zip and installs in
+51.1 MB (D-136; most of that is the Godot runtime):
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools\package.ps1 -Ship -Template out\godot-template\godot_template_release.exe

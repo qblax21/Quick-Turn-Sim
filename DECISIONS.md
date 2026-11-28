@@ -3475,3 +3475,18 @@ at 100 Hz, offline, and adds only three numbers per sample.
   runs only with a tandem lead, entirely offline.
 - **Not yet seen on screen:** the GDScript loads (the self-test), but no
   person has driven a tandem with the readout up.
+
+### D-136 addendum: the size with OpenGL
+
+- **Measured** with the runtime CI built from the new profile (`tools\package.ps1 -Ship`
+  here, `-Demo` on CI). The OpenGL renderer adds 1.4 MB to the Godot runtime.
+
+  | | Download (zip) | Installed |
+  |---|---|---|
+  | Full game | 20.3 MB (was 19.6) | 51.1 MB (was 49.7) |
+  | Demo | 20.3 MB (was 18.9) | 51.1 MB (was 49) |
+
+  - The demo's install is still within CI's 56 MB limit.
+  - The store page's "a download under 20 MB" now reads "a 20 MB
+    download".
+  - The packaged full game passed its self-test on both renderers.
