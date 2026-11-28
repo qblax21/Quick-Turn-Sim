@@ -9,7 +9,7 @@
 # Needs tools\build.ps1 run first, Godot 4.7.2 and ffmpeg on the PATH (or
 # -Godot / -Ffmpeg). -Step N renders every Nth trailer frame, for a quick
 # look; the video then runs N times fast. -StillsOnly renders only the
-# screenshots, and -Preset Low|Medium|High renders with that graphics
+# screenshots, and -Preset "Very Low"|Low|Medium|High (with -OpenGL for Very Low) renders with that graphics
 # preset (D-132 compares presets this way).
 param(
     [string]$Out = "",
@@ -17,7 +17,8 @@ param(
     [string]$Ffmpeg = "ffmpeg",
     [int]$Step = 1,
     [switch]$StillsOnly,
-    [string]$Preset = ""
+    [string]$Preset = "",
+    [switch]$OpenGL
 )
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
@@ -68,7 +69,11 @@ if ($StillsOnly) { $userArgs += "--kit-stills-only=1" }
 if ($Preset) { $userArgs += "--kit-preset=$Preset" }
 Write-Host "Rendering (the window shows the scene; it takes a few minutes)"
 $log = Join-Path $Out "render.log"
-$p = Start-Process $Godot -ArgumentList (@("--path", (Join-Path $root "godot"), "--") + $userArgs) -Wait -PassThru -RedirectStandardOutput $log -RedirectStandardError "$log.err"
+# -OpenGL renders with the Compatibility renderer, as the Very Low preset
+# runs (D-136).
+$engineArgs = @("--path", (Join-Path $root "godot"))
+if ($OpenGL) { $engineArgs += @("--rendering-method", "gl_compatibility") }
+$p = Start-Process $Godot -ArgumentList ($engineArgs + @("--") + $userArgs) -Wait -PassThru -RedirectStandardOutput $log -RedirectStandardError "$log.err"
 Get-Content $log | Where-Object { $_ -match "steam kit" } | ForEach-Object { Write-Host "  $_" }
 if ($p.ExitCode -ne 0) {
     Get-Content "$log.err" | Select-Object -Last 20 | ForEach-Object { Write-Host $_ }

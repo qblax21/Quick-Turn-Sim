@@ -126,6 +126,11 @@ sees in the demo is described in `DEMO.md`.
   packaged build writes a results file (machine, frame times, 1 % lows)
   to send back; a low-end variant caps the 3D at 720p. Since D-128 it also
   records RAM and video memory.
+- **Very Low preset** (D-136): Godot's OpenGL renderer for old or
+  integrated GPUs (the game restarts itself to switch; Godot falls back to
+  it where Vulkan will not start). On the RTX 3060 it is CPU-bound like Low
+  (2.9 ms a frame against 2.2) with half the RAM. The store page's minimum
+  and recommended specs are estimates scaled from that card.
 - **FFB at the grip limit** (D-135): audited; the light-before-the-limit
   cue, scrub past the peak, rear breakaway and self-steer all come from the
   tyre model's kingpin moment, with no canned effects. Nothing was missing.

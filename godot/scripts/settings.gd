@@ -23,6 +23,9 @@ const DEFAULTS := {
 	"display/render_scale": 1.0,
 	"display/smoke": 2,
 	"display/frame_cap": 0,
+	# D-136: 0 Vulkan (Forward+), 1 OpenGL (Compatibility) for old or
+	# integrated GPUs. Applies on the next start; the game restarts itself.
+	"display/renderer": 0,
 	"audio/volume": 0.8,
 	"driving/ghost": true,
 	"driving/lap_telemetry": false,
@@ -50,7 +53,21 @@ const DEFAULTS := {
 # of video memory at 1080p (D-128); Medium's ambient occlusion is the
 # lightest of Godot's.
 const GRAPHICS_PRESETS := {
+	# D-136: Godot's Compatibility renderer (OpenGL 3.3) for GPUs with weak
+	# or no Vulkan. It has no ambient occlusion, and smoke stays light.
+	"Very Low": {
+		"display/renderer": 1,
+		"display/render_scale": 0.7,
+		"display/msaa": 0,
+		"display/screen_aa": 0,
+		"display/shadows": false,
+		"display/ambient_occlusion": false,
+		"display/ao_light": true,
+		"display/smoke": 1,
+		"display/frame_cap": 1,
+	},
 	"Low": {
+		"display/renderer": 0,
 		"display/render_scale": 0.7,
 		"display/msaa": 0,
 		"display/screen_aa": 1,
@@ -61,6 +78,7 @@ const GRAPHICS_PRESETS := {
 		"display/frame_cap": 1,
 	},
 	"Medium": {
+		"display/renderer": 0,
 		"display/render_scale": 1.0,
 		"display/msaa": 0,
 		"display/screen_aa": 2,
@@ -71,6 +89,7 @@ const GRAPHICS_PRESETS := {
 		"display/frame_cap": 0,
 	},
 	"High": {
+		"display/renderer": 0,
 		"display/render_scale": 1.0,
 		"display/msaa": 2,
 		"display/screen_aa": 0,
@@ -84,6 +103,8 @@ const GRAPHICS_PRESETS := {
 # The frame rate cap (D-134): the monitor's refresh rate, a fixed figure, or
 # none (0). It only paces drawing; the physics runs on its own thread at its
 # own rate whatever this is.
+const RENDERER_NAMES := ["Vulkan (Forward+)", "OpenGL (Compatibility)"]
+const RENDERING_METHODS := ["forward_plus", "gl_compatibility"]
 const FRAME_CAP_NAMES := ["Monitor refresh", "60", "120", "144", "Uncapped"]
 const FRAME_CAPS := [-1, 60, 120, 144, 0]
 

@@ -2,7 +2,7 @@
 # SCons profile for the slimmed Godot 4.7.2 Windows release template (D-121).
 # Used by tools/build_template.ps1 as `scons profile=<this file>`.
 #
-# Kept: Vulkan (Forward+), GDScript, GDExtension, 3D, GPU particles, the
+# Kept: Vulkan (Forward+), OpenGL 3.3 (Compatibility, D-136), GDScript, GDExtension, 3D, GPU particles, the
 # default theme (its icons are SVG, so the svg module stays), FreeType,
 # glslang (Vulkan compiles shaders at run time), noise (FastNoiseLite makes the ground and sky textures), PNG and JPG
 # saving (photo mode, bench), WebP (lossless texture storage), SDL3 (wheel
@@ -16,10 +16,10 @@ arch = "x86_64"
 production = "yes"
 debug_symbols = "no"
 
-# Renderers: Forward+ on Vulkan only. No OpenGL fallback (the minimum spec
-# already needs Vulkan) and no Direct3D 12.
+# Renderers: Forward+ on Vulkan, and OpenGL 3.3 for the Very Low preset and
+# as Godot's fallback where Vulkan will not start (D-136). No Direct3D 12.
 vulkan = "yes"
-opengl3 = "no"
+opengl3 = "yes"
 d3d12 = "no"  # also on the command line: the platform turns it on otherwise
 
 # Engine features with no use here.

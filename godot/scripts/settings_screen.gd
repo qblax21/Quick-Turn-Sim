@@ -46,6 +46,7 @@ func _build() -> void:
 			_build())
 		presets.add_child(b)
 	_row(box, "Graphics preset", presets)
+	_choice(box, "Renderer (applies on restart)", "display/renderer", settings.RENDERER_NAMES)
 	_check(box, "Fullscreen", "display/fullscreen")
 	_check(box, "Vertical sync", "display/vsync")
 	_choice(box, "Anti-aliasing (MSAA)", "display/msaa", ["Off", "2x", "4x", "8x"])

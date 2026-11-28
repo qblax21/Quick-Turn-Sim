@@ -62,14 +62,18 @@ nothing.
 
 ## System requirements (draft)
 
-| | Minimum | Status |
-|---|---|---|
-| OS | Windows 10 64-bit | **[UNMEASURED]** only Windows 11 has been run |
-| CPU | 4 cores (Ryzen 3 3100 / Core i3-10100 class) | **[UNMEASURED]** estimate (D-117); one core runs the physics at about 4 % of a Ryzen 5 5600X core |
-| RAM | 4 GB | **[UNMEASURED]** for 4 GB. The game peaks at 0.67 GB on High on the RTX 3060 [measured, D-128]; the old 8 GB line was a guess |
-| GPU | Vulkan 1.3, GTX 1050 Ti / RX 570 class, 2 GB | **[UNMEASURED]** scaled from the RTX 3060 (D-117, D-125). Video memory at 1080p by Windows' count: Medium 0.56 GB, High 0.82 GB [measured on the 3060 only, D-132] |
-| Storage | 100 MB | The full game installs in 49.7 MB [measured, D-132]; the line leaves room for settings, replays and updates |
-| Input | Keyboard, gamepad or a DirectInput wheel | Wheels **[UNMEASURED]** on hardware |
+**An estimate (D-136) until it is run on real low-end hardware.** Every
+figure was measured on one PC (Ryzen 5 5600X, RTX 3060, Windows 11); the
+GPU lines are scaled from it by FP32 throughput, which is crude.
+
+| | Minimum: Very Low (OpenGL), 720p, about 45 fps | Recommended: Medium or High (Vulkan), 1080p, 60 fps | Status |
+|---|---|---|---|
+| OS | Windows 10 64-bit | Windows 10/11 64-bit | **[UNMEASURED]** only Windows 11 has been run |
+| CPU | 4 threads (Core i3-6100 / Ryzen 3 1200 class) | 6 threads (Ryzen 5 2600 / Core i5-8400 class) | **[ESTIMATE]** physics is 45 us of each 1 ms tick on one 5600X core; drawing 2.2 ms (Vulkan) to 2.9 ms (OpenGL) a frame on another [measured, D-136] |
+| RAM | 4 GB | 8 GB | Peaks: Very Low 0.32 GB, Low 0.66 GB, High 0.67 GB [measured, D-128, D-136] |
+| GPU | OpenGL 3.3, 1 GB (Intel UHD 620 class) | Vulkan 1.3, 2 GB (GTX 1050 Ti / RX 570 class) | **[ESTIMATE]** RTX 3060 GPU time per frame: Very Low 0.68-0.76 ms, Low 0.47-0.67 ms, High 2.2 ms at 1600x900 [measured, D-134, D-136], scaled about 30 and 6 times. Video memory by the driver: Very Low 82 MB, Medium 0.56 GB, High 0.82 GB [measured] |
+| Storage | 100 MB | 100 MB | The full game installs in 49.7 MB [measured, D-132]; the line leaves room for settings, replays and updates |
+| Input | Keyboard, gamepad or a DirectInput wheel | A force-feedback wheel | Wheels **[UNMEASURED]** on hardware |
 
 ## Media
 

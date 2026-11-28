@@ -101,6 +101,8 @@ func _ready() -> void:
 
 	settings = Settings.new()
 	add_child(settings)
+	if _switch_renderer():
+		return
 	reader = InputReader.new()
 	reader.sim_bridge = sim
 	add_child(reader)
@@ -231,6 +233,38 @@ func _find_data_dir() -> String:
 	return ""
 
 
+# The renderer is chosen when Godot starts, so a change of "display/renderer"
+# (D-136) restarts the game once with --rendering-method. Started with any
+# arguments of the game's own (the bench, the self-test, the kit), it keeps
+# whatever renderer it was given. If the restarted game still runs the
+# other renderer, Godot fell back on its own (no usable Vulkan), and the
+# setting follows, so the two never chase each other.
+func _switch_renderer() -> bool:
+	var wanted: String = settings.RENDERING_METHODS[clampi(int(settings.get_value("display/renderer")), 0, 1)]
+	var running := RenderingServer.get_current_rendering_method()
+	var user_args := OS.get_cmdline_user_args()
+	if running == wanted:
+		return false
+	if "--qts-restarted" in user_args:
+		if running == "gl_compatibility":
+			settings.values["display/renderer"] = 1
+			settings.save()
+			push_warning("Vulkan is not available; using the OpenGL renderer.")
+		return false
+	if not user_args.is_empty():
+		return false
+	var relaunch := Array(OS.get_cmdline_args())
+	# Godot keeps its own options out of that list; run from the project
+	# folder rather than an exported build, the project path is one.
+	if not OS.has_feature("template"):
+		relaunch.append_array(["--path", ProjectSettings.globalize_path("res://")])
+	relaunch.append_array(["--rendering-method", wanted, "--rendering-driver", "opengl3" if wanted == "gl_compatibility" else "vulkan"])
+	relaunch.append_array(["--", "--qts-restarted"])
+	OS.create_process(OS.get_executable_path(), PackedStringArray(relaunch))
+	get_tree().quit(0)
+	return true
+
+
 func _apply_settings() -> void:
 	var window := get_window()
 	var fullscreen: bool = settings.get_value("display/fullscreen")
@@ -315,6 +349,10 @@ func _render_bench(which: String) -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--bench-seconds="):
 			limit = clampf(arg.get_slice("=", 1).to_float(), 10.0, BENCH_MAX_S)
+	# "VeryLow" for "Very Low" (D-136), to be run with --rendering-method
+	# gl_compatibility: a preset cannot change the renderer of a running game.
+	if which.to_lower() == "verylow":
+		which = "Very Low"
 	var presets: Array = ["Low", "High"] if which.to_lower() == "all" else [which]
 	var kept: Dictionary = settings.values.duplicate()
 	var results: Array = []

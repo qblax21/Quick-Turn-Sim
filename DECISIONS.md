@@ -3352,3 +3352,70 @@ at 100 Hz, offline, and adds only three numbers per sample.
 - **Unverified:** the CSL Elite's 6 N·m (D-131); the base column shows the
   preset's gain and filtering, not a measured wheel. No real car's column
   torque has been compared with these curves.
+
+## D-136 A Very Low preset on OpenGL, and a minimum spec estimate
+
+- **Very Low:** Godot's Compatibility renderer (OpenGL 3.3) for old or
+  integrated GPUs whose Vulkan is missing or weak.
+  - Its settings: render scale 0.7, no anti-aliasing, no shadows, no
+    ambient occlusion (the renderer has none), light smoke, capped at 60.
+  - **The renderer is picked when Godot starts.** "Renderer" in Settings,
+    or the Very Low preset, applies on the next start: the game restarts
+    itself once with `--rendering-method`.
+  - **Fallback:** `rendering_device/fallback_to_opengl3` is on, so where
+    Vulkan will not start at all, Godot opens on OpenGL. The setting then
+    follows, so the game does not keep restarting.
+  - **Kept as given:** a game started with arguments of its own (the
+    bench, the self-test, the kit) keeps whatever renderer it was started
+    with.
+  - **The store build:** the slimmed runtime (D-121,
+    `tools/godot_template/custom.py`) now includes OpenGL. The CI install
+    size limit (56 MB) is unchanged.
+  - **Bench:** `--rendering-method gl_compatibility -- --render-bench=VeryLow`.
+  - **Kit:** `tools\steam_kit.ps1 -OpenGL -Preset "Very Low"`.
+- **Bench, RTX 3060**: Harrow lap, uncapped, 3D drawn at a fixed height
+  (`--bench-3d-height`) in a 1600x900 window. The 504 and 756 line runs are
+  the presets' 0.7 render scale at 720p and 1080p, and 540 is Low at 0.5 of
+  1080p.
+
+  | Run | 3D lines | Mean | 1% low | Worst | GPU per frame | RAM peak | Video memory (driver) |
+  |---|---|---|---|---|---|---|---|
+  | Very Low, OpenGL | 504 | 2.91 ms | 6.41 ms | 12.2 ms | 0.68 ms | 315 MB | 77 MB |
+  | Very Low, OpenGL | 756 | 2.86 ms | 4.74 ms | 7.4 ms | 0.76 ms | 315 MB | 82 MB |
+  | Low, Vulkan | 504 | 2.19 ms | 3.91 ms | 7.1 ms | 0.47 ms | 655 MB | 288 MB |
+  | Low, Vulkan, scale 0.5 | 540 | 2.13 ms | 3.50 ms | 5.9 ms | 0.47 ms | 656 MB | 288 MB |
+  | Low, Vulkan | 756 | 2.15 ms | 3.55 ms | 5.3 ms | 0.67 ms | 655 MB | 288 MB |
+
+  - **On this card every run is limited by the CPU**: the GPU works under
+    1 ms a frame. OpenGL costs the CPU about 0.7 ms more a frame. It uses
+    half the RAM and about a quarter of the video memory.
+  - **OpenGL compiles its shaders as it meets them**, and Godot's pipeline
+    counter reads 0 there, so the D-130 warm-up cannot catch them. One
+    earlier 1600x900 OpenGL run had 2 frames over 50 ms; none of the runs
+    above did. The very first OpenGL start, with no shader cache, took over
+    3 s before the car moved.
+  - An earlier try with `--resolution 1920x1080` came out at 1600x900:
+    Godot keeps the window inside this screen. So `--bench-3d-height`
+    stands in for the resolution, and 2D is drawn at 1600x900 throughout.
+- **Looks:** the five store stills rendered on Very Low under OpenGL
+  (`out\verylow_kit`) show the track, both cars, the smoke and the marks.
+  Beside High, the tarmac is lighter and bluer and the smoke thinner.
+- **Minimum and recommended spec: an estimate**, in `docs/STORE_PAGE.md`,
+  until it is run on real low-end hardware.
+  - **GPU:** scaled from the RTX 3060's GPU time by FP32 throughput, which
+    is crude.
+    - An Intel UHD 620 (about 0.4 TFLOPS, some 30 times less) would need
+      about 20-23 ms a frame for Very Low at 720-1080p: 43-49 fps.
+    - A GTX 1050 Ti (2.1 TFLOPS, about 6 times less) would need about 4 ms
+      for Low and 13 ms for High at 1600x900: High at 60 with room to
+      spare.
+  - **CPU:** physics is 45 us of every 1000 us tick on one Ryzen 5 5600X
+    core. Drawing takes about 2-3 ms a frame on another. A CPU at a third
+    of that speed would still make 60 fps by this sum, but that has not
+    been tried.
+- **The proposal** (the store page's table):
+  - **Minimum:** Very Low on OpenGL 3.3 at 720p, about 45 fps. Windows 10
+    64-bit, 4 threads, 4 GB RAM, a 1 GB GPU of the Intel UHD 620 class.
+  - **Recommended:** Medium or High on Vulkan at 1080p and 60 fps. 6
+    threads, 8 GB RAM, a 2 GB GTX 1050 Ti or RX 570.
+  - Both are marked as estimates.
