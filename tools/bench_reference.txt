@@ -1,5 +1,5 @@
 Quick Turn Sim render bench, version 0.1.0
-date        2026-11-27T05:54:14
+date        2026-11-27T22:12:06
 OS          Windows 10.0.26300
 CPU         AMD Ryzen 5 5600X 6-Core Processor, 12 threads
 RAM         31.9 GB
@@ -11,14 +11,15 @@ run         the computer drives Harrow in the Kestrel RC from a standing start; 
 
 [Low]
 window      1600x900, 3D drawn at 1120x630 (render scale 0.70), smoke 1
-frames      49066 over 114 s, lap finished
-frame time  mean 2.22 ms (449 fps), 1% low 4.15 ms (241 fps), worst 7.06 ms
-GPU time    mean 0.55 ms per frame
-physics     tick mean 45 us, worst 399 us (budget 1000 us)
-warm-up     62 pipelines compiled over 3 frames, 141 ms, before the session ran
+frames      49019 over 110 s, lap finished
+frame time  mean 2.15 ms (466 fps), 1% low 3.57 ms (280 fps), worst 6.24 ms
+GPU time    mean 0.53 ms per frame, busy 25% of the time
+frame cap   none
+physics     tick mean 43 us, worst 185 us (budget 1000 us)
+warm-up     62 pipelines compiled over 3 frames, 139 ms, before the session ran
 pipelines   11 more compiled in the first 5 s, 0 while measured
 hitches     0 over 50 ms
-RAM       working set peak 657 MB, 656 MB at the end; Godot's own allocations peak 119 MB
+RAM       working set peak 656 MB, 656 MB at the end; Godot's own allocations peak 119 MB
 video mem   121 MB by Godot's count (textures 80, buffers 18), 288 MB by the driver's
   texture   1024x512, 2.7 MB, ProceduralSkyMaterial.sky_cover
   texture   512x512, 1.3 MB, StandardMaterial3D.albedo_texture
@@ -26,16 +27,16 @@ video mem   121 MB by Godot's count (textures 80, buffers 18), 288 MB by the dri
 
 [High]
 window      1600x900, 3D drawn at 1600x900 (render scale 1.00), smoke 2
-frames      24473 over 110 s, lap finished
-frame time  mean 4.29 ms (233 fps), 1% low 7.80 ms (128 fps), worst 13.72 ms
-GPU time    mean 3.48 ms per frame
-physics     tick mean 43 us, worst 373 us (budget 1000 us)
-warm-up     43 pipelines compiled over 3 frames, 111 ms, before the session ran
-pipelines   7 more compiled in the first 5 s, 0 while measured
+frames      36599 over 110 s, lap finished
+frame time  mean 2.87 ms (349 fps), 1% low 4.46 ms (224 fps), worst 7.30 ms
+GPU time    mean 2.22 ms per frame, busy 77% of the time
+frame cap   none
+physics     tick mean 41 us, worst 152 us (budget 1000 us)
+warm-up     42 pipelines compiled over 3 frames, 129 ms, before the session ran
+pipelines   8 more compiled in the first 5 s, 0 while measured
 hitches     0 over 50 ms
-RAM       working set peak 781 MB, 754 MB at the end; Godot's own allocations peak 156 MB
-video mem   313 MB by Godot's count (textures 258, buffers 31), 556 MB by the driver's
+RAM       working set peak 762 MB, 738 MB at the end; Godot's own allocations peak 140 MB
+video mem   307 MB by Godot's count (textures 256, buffers 27), 555 MB by the driver's
   texture   1024x512, 2.7 MB, ProceduralSkyMaterial.sky_cover
-  texture   512x512, 1.3 MB, StandardMaterial3D.albedo_texture
   texture   512x512, 1.3 MB, StandardMaterial3D.albedo_texture
   texture   64x111, 0.0 MB, coupe_kestrel_rc.glb::StandardMaterial3D_31eui.albedo_texture

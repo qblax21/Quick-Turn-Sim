@@ -140,17 +140,22 @@ sees in the demo is described in `DEMO.md`.
   cue, scrub past the peak, rear breakaway and self-steer all come from the
   tyre model's kingpin moment, with no canned effects. Nothing was missing.
   `tests/ffb_harrow.rs` shows torque against front slip on Harrow.
+- **Bench hang found** (D-138): NVIDIA's Vulkan present layer
+  (`VK_LAYER_NV_present`, driver 621.01) stalled the GPU for good about
+  every 15 to 20 minutes of uncapped High. The game turns that layer off for
+  itself at startup; an hour then ran clean, where the control hung in
+  156 s. Also fixed: starting a session left the previous one drawn (the
+  bench's High ran on top of the Low scene).
 - **Frame cap** (D-134): defaults to the monitor's refresh rate (or 60,
   120, 144, uncapped); physics is unaffected. Capped at 60, High uses about
   a quarter of the GPU's power of uncapped (36 W against 141 W). The bench
   hang (D-133) hit 1 of 4 uncapped Low-then-High runs and none of 3 capped
-  or 3 High-alone runs: not proven, and still open for uncapped play.
+  or 3 High-alone runs; the cause was found in D-138.
 - **Frame time check** (D-130): sessions compile their render pipelines
   while held at load (about 135 ms), which removed the freeze as the car
   appears. `tools\bench_check.ps1` fails on any frame over 50 ms after 5 s
   or a 1% low 15 % slower than the baseline; CI checks the committed
-  reference run (RTX 3060: Low 1% low 4.85 ms, worst 9.4 ms; High 9.01 ms,
-  worst 15.2 ms).
+  reference run (RTX 3060, since D-138: Low 1% low 3.57 ms, High 4.46 ms).
 - **Store page kit** (D-129): `tools\steam_kit.ps1` renders five 1920x1080
   screenshots and a 38 s 1080p60 trailer (Ridgeline hot lap, Harrow tandem)
   from replays of the computer driver; draft store text with every

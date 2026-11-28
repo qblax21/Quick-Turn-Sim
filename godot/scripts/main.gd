@@ -329,7 +329,7 @@ func _self_test() -> void:
 
 # The render bench (D-117, D-122, D-125). Started with
 #   -- --render-bench=Low|High|all [--bench-low-end] [--bench-seconds=N]
-#      [--bench-3d-height=N] [--bench-cap=N]
+#      [--bench-3d-height=N] [--bench-cap=N] [--bench-soak] [--bench-vsync]
 # The computer drives the Kestrel RC round Harrow from a standing start,
 # sliding through the judged zones, seen from the chase camera with vsync
 # and the frame cap off. Frame times are recorded from 5 s in until the lap
@@ -348,7 +348,7 @@ func _render_bench(which: String) -> void:
 	var limit := float(BENCH_MAX_S)
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--bench-seconds="):
-			limit = clampf(arg.get_slice("=", 1).to_float(), 10.0, BENCH_MAX_S)
+			limit = clampf(arg.get_slice("=", 1).to_float(), 10.0, BENCH_MAX_S * (12 if "--bench-soak" in OS.get_cmdline_user_args() else 1))
 	# "VeryLow" for "Very Low" (D-136), to be run with --rendering-method
 	# gl_compatibility: a preset cannot change the renderer of a running game.
 	if which.to_lower() == "verylow":
@@ -374,7 +374,9 @@ func _render_bench(which: String) -> void:
 
 func _bench_one(preset: String, low_end: bool, limit: float) -> Dictionary:
 	settings.apply_graphics_preset(preset)
-	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	# --bench-vsync keeps vsync on, as players have it by default (D-138).
+	var vsync := "--bench-vsync" in OS.get_cmdline_user_args()
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if vsync else DisplayServer.VSYNC_DISABLED)
 	# --bench-cap=N caps the frame rate at N (D-134); uncapped otherwise.
 	Engine.max_fps = 0
 	for arg in OS.get_cmdline_user_args():
@@ -415,6 +417,7 @@ func _bench_one(preset: String, low_end: bool, limit: float) -> Dictionary:
 	# 200 ms: done before the clock starts.
 	_sample_memory(mem_peak)
 	var next_mem := 0.5
+	var soak := "--bench-soak" in OS.get_cmdline_user_args()
 	var began := Time.get_ticks_usec()
 	var last := began
 	var hitches: Array = []
@@ -431,7 +434,9 @@ func _bench_one(preset: String, low_end: bool, limit: float) -> Dictionary:
 			next_mem = t + 0.5
 			_sample_memory(mem_peak)
 		var h: Dictionary = sim.hud()
-		lap_done = int(h.get("runs", 0)) + int(h.get("invalid_runs", 0)) > laps_before
+		# --bench-soak keeps driving to --bench-seconds past the lap's end
+		# (a long run, for faults that take minutes to show).
+		lap_done = int(h.get("runs", 0)) + int(h.get("invalid_runs", 0)) > laps_before and not soak
 		# The bench's own picture: read back now, written to disk after the run,
 		# and the frame that paid for the read-back left out of the figures (a
 		# player never pays it).
@@ -965,8 +970,11 @@ func _clear_session() -> void:
 	if audio:
 		audio.stop()
 	if sim and sim.is_running():
-		_log_input_delay()
-		_save_session_replay()
+		# The bench and the checks drive sessions of their own: none of them
+		# belongs among the player's replays.
+		if not self_testing:
+			_log_input_delay()
+			_save_session_replay()
 		sim.stop_session()
 	telemetry_on = false
 	replay_on = false
@@ -974,6 +982,10 @@ func _clear_session() -> void:
 
 
 func _start_driving(car_id: String, track_id: String, auto_clutch: bool, auto_shift: bool, ffb_preset: String, device_id: String, direct_steering: bool) -> void:
+	# Whatever was driving before goes first (D-138). The bench went from Low
+	# straight into High with the Low scene still in the tree and drawn: a
+	# second track, car, smoke and HUD, 1.3 ms more GPU work a frame.
+	_clear_session()
 	# Keep settings changed in the setup screen unless another preset was picked.
 	if sim.ffb_config().get("id", "") != ffb_preset:
 		sim.ffb_load_preset(ffb_preset)

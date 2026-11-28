@@ -53,7 +53,75 @@ macro_rules! vd {
 struct SimExtension;
 
 #[gdextension]
-unsafe impl ExtensionLibrary for SimExtension {}
+unsafe impl ExtensionLibrary for SimExtension {
+    // Loaded at Godot's first stage, before it creates its Vulkan instance,
+    // so the loader setting below takes effect (D-138).
+    fn min_level() -> InitLevel {
+        InitLevel::Core
+    }
+
+    fn on_stage_init(stage: InitStage) {
+        if stage == InitStage::Core {
+            skip_nvidia_present_layer();
+        }
+    }
+}
+
+/// The Vulkan layer NVIDIA's driver adds to present through DXGI ("Vulkan/
+/// OpenGL present method" in its control panel). With it, the game stalled
+/// for good about every 15 to 20 minutes on an RTX 3060 (driver 621.01)
+/// running uncapped on High; without it, an hour ran clean (D-138). Turned
+/// off for this process only, through the Vulkan loader's own setting,
+/// added to any list already set. `QTS_KEEP_NV_PRESENT=1` keeps it.
+const NV_PRESENT_LAYER: &str = "VK_LAYER_NV_present";
+
+fn skip_nvidia_present_layer() {
+    if !cfg!(windows) || std::env::var_os("QTS_KEEP_NV_PRESENT").is_some_and(|v| v == "1") {
+        return;
+    }
+    let key = "VK_LOADER_LAYERS_DISABLE";
+    if let Some(value) =
+        with_layer_disabled(&std::env::var(key).unwrap_or_default(), NV_PRESENT_LAYER)
+    {
+        // Godot is still starting up on its main thread: nothing else reads
+        // the environment yet.
+        std::env::set_var(key, value);
+    }
+}
+
+/// The loader's disable list with `layer` added, or `None` if it is
+/// already there.
+fn with_layer_disabled(current: &str, layer: &str) -> Option<String> {
+    if current.split(',').any(|l| l.trim() == layer) {
+        return None;
+    }
+    Some(if current.trim().is_empty() {
+        layer.to_string()
+    } else {
+        format!("{current},{layer}")
+    })
+}
+
+#[cfg(test)]
+mod layer_tests {
+    use super::*;
+
+    #[test]
+    fn the_present_layer_is_added_to_any_list_once() {
+        assert_eq!(
+            with_layer_disabled("", NV_PRESENT_LAYER).as_deref(),
+            Some("VK_LAYER_NV_present")
+        );
+        assert_eq!(
+            with_layer_disabled("VK_LAYER_OBS_HOOK", NV_PRESENT_LAYER).as_deref(),
+            Some("VK_LAYER_OBS_HOOK,VK_LAYER_NV_present")
+        );
+        assert_eq!(
+            with_layer_disabled("a, VK_LAYER_NV_present", NV_PRESENT_LAYER),
+            None
+        );
+    }
+}
 
 /// Converts a simulation vector to Godot's axes.
 fn to_godot(v: [f64; 3]) -> Vector3 {

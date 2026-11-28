@@ -3490,3 +3490,76 @@ at 100 Hz, offline, and adds only three numbers per sample.
   - The store page's "a download under 20 MB" now reads "a 20 MB
     download".
   - The packaged full game passed its self-test on both renderers.
+
+## D-138 The bench hang found: NVIDIA's present layer
+
+- **What hung** (D-133, D-134). Each stuck game's threads were sampled
+  with a small tool built on Windows' own dbghelp (no debugger is installed
+  here; Godot's release build has no symbols, so its own frames show only
+  as offsets).
+  - **Godot's main thread:** blocked in a Vulkan call, inside NVIDIA's
+    driver (`vulkan-1` into `nvoglv64`), waiting for the GPU. Its CPU time
+    did not move between two samples 10 s apart. It was the same call at
+    the same address in all three hangs sampled.
+  - **One driver thread** spun a whole core polling the clock, and the GPU
+    sat at 0% use. Work was waiting on a signal that never came.
+  - **The simulation thread** was idle and healthy: not the game's own
+    deadlock.
+  - **Not tied to a moment:** in one hung run the GPU trace shows High
+    running normally for 54 s first. It is a random stall, about one per
+    15 to 20 minutes of High uncapped (about 340 fps). Low (about 460 fps)
+    never hung in about 40 minutes.
+- **The layers in the way.** The Vulkan loader's log shows which layers
+  sit between Godot and the driver here:
+  - NVIDIA's own `VK_LAYER_NV_present` and `VK_LAYER_NV_optimus`.
+  - OBS Studio's capture hook `VK_LAYER_OBS_HOOK` (`graphics-hook64.dll`).
+    It loads into every Vulkan program even with OBS closed, and its own
+    off switch (`DISABLE_VULKAN_OBS_CAPTURE`) is ignored here.
+  - The Steam and Epic overlay layers only load when asked for.
+- **The tests** (uncapped, windowed 1600x900; layers turned off per run
+  with the loader's `VK_LOADER_LAYERS_DISABLE`):
+
+  | Run | Layers off | Result |
+  |---|---|---|
+  | 10 x Low then High | OBS hook | hung on run 10: OBS is not it |
+  | 4 x 5 min High | OBS hook | hung on run 4 |
+  | 60 min High | OBS hook, NV present | 1.24 million frames, no hang |
+  | 60 min High (control) | OBS hook | hung after 156 s |
+  | 60 min High, the fix below | none from outside (OBS hook loaded) | 1.23 million frames, no hang |
+
+  At the earlier rate an hour would be expected to hang three or four
+  times, so a clean hour by chance is about a 3% event.
+- **The cause:** NVIDIA's present layer is the driver's way of presenting
+  Vulkan frames through DXGI. It is the "Vulkan/OpenGL present method"
+  setting in NVIDIA's control panel, set to Auto by default. With it, the
+  stall comes back. Without it, it doesn't. Seen on driver 621.01, RTX
+  3060, Windows 11, Godot 4.7.2.
+- **The fix:** the game turns that one layer off for its own process.
+  - The simulation library now loads at Godot's first stage (Core), before
+    Godot creates its Vulkan instance. It adds the layer to the loader's
+    `VK_LOADER_LAYERS_DISABLE`, keeping any list already set.
+  - The loader's log confirms it in the editor run and in the exported
+    game. OpenGL (Very Low) is not affected.
+  - The cost: Vulkan presents natively, as it did before NVIDIA added the
+    layer, instead of through DXGI. `QTS_KEEP_NV_PRESENT=1` keeps the
+    layer, for comparison.
+- **Players:** the game is capped at the refresh rate with vsync on by
+  default (D-134). Whether the stall also happens like that was not
+  tested; the fix covers it either way.
+- **A second bug found on the way:** starting a session never cleared the
+  one before. The bench went from Low into High with the whole Low scene
+  still in the tree and drawn: track, car, smoke, marks and HUD.
+  - High after Low drew 233 fps with 3.5 ms of GPU work a frame, against
+    341 fps and 2.2 ms alone.
+  - `_start_driving` now clears first. The bench's own sessions are no
+    longer saved among the player's replays.
+  - Play from the menu always cleared first, so it was not affected; the
+    wizard's test drive was.
+- **The standard bench after both fixes** (`tools\bench_check.ps1 -Run
+  -Update`, Low then High, uncapped): no hang.
+  - Low: 1% low 3.57 ms (baseline 4.15).
+  - High: 349 fps, 1% low 4.46 ms (baseline 7.80; that baseline included
+    the leftover Low scene).
+  - The baseline and CI reference were updated from this run.
+- **New bench options:** `--bench-soak` (drive to `--bench-seconds`, up to
+  an hour, past the lap's end) and `--bench-vsync`.
