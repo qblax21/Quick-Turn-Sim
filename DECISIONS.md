@@ -3419,3 +3419,59 @@ at 100 Hz, offline, and adds only three numbers per sample.
   - **Recommended:** Medium or High on Vulkan at 1080p and 60 fps. 6
     threads, 8 GB RAM, a 2 GB GTX 1050 Ti or RX 570.
   - Both are marked as estimates.
+
+## D-137 Tandem scoring behind the computer's lead car
+
+- **What is judged:** chasing the tandem lead (D-122) through a drift
+  track's judged zones, each zone scores the chase car out of 100. It is
+  judged on how close it stays and how well it copies the lead's angle and
+  line, which is what tandem judging asks of a chase driver.
+  - **Formula DRIFT's criteria for the chase driver**, as a write-up citing
+    the rulebook puts them: complete the course as close to the lead as
+    possible, mimicking its angle, line, transition points and style
+    (FordMuscle, https://www.fordmuscle.com/?p=7240).
+  - **MB Drift's rulebook** (a smaller series) lists the same: close
+    proximity for as long as possible, matching the lead's angle, and its
+    line and transitions.
+  - Both were read only as search result excerpts, not first-hand.
+    Formula DRIFT's own 2024 regulations link is dead (D-133), and neither
+    gives a points split.
+- **The scoring** (`crates/qts-sim/src/tandem.rs`). **Every weight and
+  band is this project's own, unverified:**
+  - **Proximity, 50:** the gap between the two bodies' footprints, by
+    bands: 1.5 m or less full marks, 3 m 0.8, 6 m 0.5, 10 m 0.2, beyond 0.
+    Averaged over the zone at 100 samples a second.
+  - **Angle, 30:** the chase car's slip angle against the lead's where the
+    lead was at the same point of the track. No marks at 20 degrees apart.
+  - **Line, 20:** the chase car's offset across the track against the
+    lead's at the same point. No marks at 3 m apart.
+  - **Contact, -20 each:** the cars do not collide (D-122), so contact is
+    the two footprints overlapping. Each new overlap counts once.
+  - **Lost the lead:** more than 15 m behind for 1 s inside a zone scores
+    that zone 0.
+  - **Comparing at the same point**, not the same moment, scores copying
+    whatever the gap. Proximity is scored on its own.
+- **The tandem lead now starts 10 m ahead**, inside the 15 m lost gap; it
+  was 30 m.
+- **Shown in the drift coach** (`drift_hud.gd`): the live gap, and each
+  corner's tandem score with its parts. After the lap, the tandem total and
+  the corner that cost the most, in words (for example "lost the lead",
+  "proximity: 6.2 m behind on average"). These sit beside the solo drift
+  score, which is unchanged.
+- **Test** (`tests/tandem.rs`): the computer drives both cars on Harrow.
+
+  | Chase | Lap | Zones lost | Angle copied | Line copied |
+  |---|---|---|---|---|
+  | Lead 10 m ahead, same pace | 64.1 | 1 of 9 | 0.83 mean | 0.95 mean |
+  | Lead 40 m ahead | 17.7 | 6 of 9 | 0.98 mean | 0.98 mean |
+
+  - The same driver copies the lead's angle and line almost exactly from
+    40 m back too. Proximity and losing the lead are what separate the
+    two runs, as intended.
+  - With no collisions, the same-pace chase car catches up and drives
+    through the lead in T4 to T8 (gap 0). That is one contact per zone, 20
+    points each.
+- **Cost:** 0.7 us per physics tick, under 0.1 % of the 1000 us tick. It
+  runs only with a tandem lead, entirely offline.
+- **Not yet seen on screen:** the GDScript loads (the self-test), but no
+  person has driven a tandem with the readout up.

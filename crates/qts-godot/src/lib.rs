@@ -824,7 +824,43 @@ impl SimBridge {
                 }
             }
         }
+        // Tandem judging (D-137), while chasing a lead car.
+        let tz = |z: &qts_sim::tandem::TandemZone| {
+            vd! {
+                "name" => gstr(&z.name),
+                "total" => z.total,
+                "proximity" => z.proximity,
+                "angle" => z.angle,
+                "line" => z.line,
+                "gap" => z.mean_gap_m,
+                "contacts" => i64::from(z.contacts),
+                "lost" => z.lost,
+                "text" => gstr(&z.reason()),
+            }
+        };
+        let tandem = d.tandem.as_ref().map(|t| {
+            let mut zones: Array<VarDictionary> = Array::new();
+            for z in &t.last_lap {
+                match z {
+                    Some(z) => zones.push(&tz(z)),
+                    None => {
+                        zones.push(&vd! { "name" => gstr("-"), "total" => 0.0, "missed" => true })
+                    }
+                }
+            }
+            vd! {
+                "gap" => t.gap_m,
+                "has_last_zone" => t.last_zone.is_some(),
+                "last_zone" => t.last_zone.as_ref().map(tz).unwrap_or_default(),
+                "lap_so_far" => t.lap_so_far,
+                "lap_total" => t.last_lap_total,
+                "coach" => gstr(t.coach.as_deref().unwrap_or("")),
+                "zones" => zones,
+            }
+        });
         vd! {
+            "has_tandem" => tandem.is_some(),
+            "tandem" => tandem.unwrap_or_default(),
             "active" => d.active,
             "angle" => d.angle_deg,
             "zone" => gstr(d.zone.as_deref().unwrap_or("")),

@@ -489,6 +489,8 @@ pub struct DriftSlot {
     pub best_total: Option<f64>,
     /// Where the last lap lost the most points, and why ([`coach_note`]).
     pub coach: Option<String>,
+    /// Tandem judging while chasing a lead car (D-137).
+    pub tandem: Option<crate::tandem::TandemState>,
 }
 
 /// Judges a session as it is driven. Call [`DriftJudge::observe`] after

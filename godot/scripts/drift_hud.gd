@@ -4,7 +4,10 @@
 #            (line, angle, style out of 40, 40, 20; D-119) and the lap so far
 #   panel    after each lap, and on F9: every corner's score and why, the
 #            lap's score and the best, and the corner that cost the most
-# Display only; the judging is in the core (qts-sim/src/drift.rs).
+#   tandem   chasing the computer's lead car (D-137): the live gap, each
+#            corner's tandem score (close, angle, line out of 50, 30, 20) and
+#            after the lap its total and the corner that cost the most
+# Display only; the judging is in the core (qts-sim/src/drift.rs, tandem.rs).
 extends VBoxContainer
 
 const SHOW_AFTER_LAP_S := 12.0
@@ -48,6 +51,11 @@ func _row(text: String, size: int, colour := Color(1, 1, 1)) -> void:
 	rows.add_child(l)
 
 
+static func _tandem_parts(z: Dictionary) -> String:
+	return "close %2.0f  angle %2.0f  line %2.0f%s" % [z.proximity * 50.0, z.angle * 30.0, z.line * 20.0,
+		("  contact x%d" % z.contacts) if z.contacts > 0 else ""]
+
+
 static func _parts(z: Dictionary) -> String:
 	return "line %2.0f  angle %2.0f  style %2.0f" % [z.line * 40.0, z.angle * 40.0, z.style * 20.0]
 
@@ -64,6 +72,13 @@ func update_from(d: Dictionary) -> void:
 		lines.append("%s  %3.0f   %s" % [z.name, z.total, "penalty" if z.penalty else _parts(z)])
 	if d.get("zones_so_far", 0) > 0:
 		lines.append("lap so far %4.1f  (%d corners)" % [d.lap_so_far, d.zones_so_far])
+	# Tandem (D-137): chasing the computer's lead car.
+	if d.get("has_tandem", false):
+		var t: Dictionary = d.tandem
+		lines.append("TANDEM  gap %4.1f m" % t.gap)
+		if t.has_last_zone:
+			var z: Dictionary = t.last_zone
+			lines.append("%s  %3.0f   %s" % [z.name, z.total, "lost the lead" if z.lost else _tandem_parts(z)])
 	readout.text = "\n".join(lines)
 	var s: int = d.get("serial", 0)
 	if s != serial and d.get("has_lap", false):
@@ -87,6 +102,16 @@ func _build(d: Dictionary) -> void:
 	var coach: String = d.get("coach", "")
 	if coach != "":
 		_row(coach, 17, Color(0.55, 0.85, 1.0))
+	if d.get("has_tandem", false) and not d.tandem.zones.is_empty():
+		var t: Dictionary = d.tandem
+		_row("Tandem  %.1f / 100" % t.lap_total, 18, Color(1.0, 0.85, 0.4))
+		if t.coach != "":
+			_row(t.coach, 16, Color(0.55, 0.85, 1.0))
+		for z in t.zones:
+			if z.get("missed", false):
+				_row("--   not judged", 15, Color(0.6, 0.6, 0.6))
+			else:
+				_row("%-3s %5.1f   %s" % [z.name, z.total, "lost the lead" if z.lost else _tandem_parts(z)], 15)
 	for z in d.get("zones", []):
 		if z.get("missed", false):
 			_row("--   not judged", 15, Color(0.6, 0.6, 0.6))

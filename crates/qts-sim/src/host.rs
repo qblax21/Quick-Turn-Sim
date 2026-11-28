@@ -359,6 +359,9 @@ pub struct Opponent {
     pub session: Session,
     /// Its driver.
     pub driver: crate::ai::AiDriver,
+    /// True for a tandem lead (started ahead), judged by the tandem judge
+    /// (D-137).
+    pub lead: bool,
 }
 
 impl Opponent {
@@ -368,7 +371,11 @@ impl Opponent {
         if ahead_m > 0.0 {
             driver.place_ahead(&mut session, ahead_m);
         }
-        Self { session, driver }
+        Self {
+            session,
+            driver,
+            lead: ahead_m > 0.0,
+        }
     }
 }
 
@@ -778,6 +785,7 @@ struct SimThread {
     opponent_cur: Option<RenderPose>,
     coach: crate::coach::CoachRecorder,
     drift: crate::drift::DriftJudge,
+    tandem: Option<crate::tandem::TandemJudge>,
     row: Vec<f64>,
     // Input interpolation.
     seen_sequence: u64,
@@ -856,6 +864,7 @@ impl SimThread {
         *lock(&shared.drift) = Some(drift.slot());
         Self {
             drift,
+            tandem: None,
             // On a drift track the ghost is the best-scored lap (D-118).
             ai: None,
             opponent: None,
@@ -962,6 +971,14 @@ impl SimThread {
                 self.opponent_prev = opponent.as_ref().map(|o| RenderPose::of(&o.session));
                 self.opponent_cur = self.opponent_prev;
                 self.opponent = opponent;
+                self.tandem = self
+                    .opponent
+                    .as_ref()
+                    .filter(|o| o.lead)
+                    .map(|_| crate::tandem::TandemJudge::new(&self.session, self.drift.slot()));
+                if self.tandem.is_none() {
+                    lock(&self.drift.slot()).tandem = None;
+                }
             }
             HostCommand::StartTelemetry {
                 path,
@@ -1272,6 +1289,9 @@ impl SimThread {
             o.session.step(&f);
             self.opponent_prev = self.opponent_cur;
             self.opponent_cur = Some(RenderPose::of(&o.session));
+            if let Some(j) = self.tandem.as_mut() {
+                j.observe(&self.session, &o.session);
+            }
         }
         let score = self.drift.just_counted();
         if self

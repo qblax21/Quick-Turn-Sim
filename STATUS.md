@@ -126,6 +126,11 @@ sees in the demo is described in `DEMO.md`.
   packaged build writes a results file (machine, frame times, 1 % lows)
   to send back; a low-end variant caps the 3D at 720p. Since D-128 it also
   records RAM and video memory.
+- **Tandem scoring** (D-137): behind the computer's lead on a drift
+  track, each zone scores proximity (50), angle (30) and line (20) against
+  the lead, less 20 a contact, and 0 if the lead is lost (15 m for 1 s).
+  Shown in the drift readout and after-lap panel. The weights are
+  unverified; the lead now starts 10 m ahead.
 - **Very Low preset** (D-136): Godot's OpenGL renderer for old or
   integrated GPUs (the game restarts itself to switch; Godot falls back to
   it where Vulkan will not start). On the RTX 3060 it is CPU-bound like Low

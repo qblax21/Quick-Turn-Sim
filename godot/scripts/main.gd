@@ -1138,7 +1138,8 @@ func _add_computer_car(info: Dictionary) -> void:
 	var choice: int = settings.get_value("menu/computer_car")
 	if choice == 0 or self_testing:
 		return
-	var ahead := 30.0 if choice == 2 else 0.0
+	# D-137: 10 m, inside the tandem judge's 15 m "lost the lead" gap.
+	var ahead := 10.0 if choice == 2 else 0.0
 	if not sim.set_opponent(session_car, "drift", 0.85, ahead):
 		if not sim.set_opponent(session_car, "grip", 0.85, ahead):
 			push_warning("computer car: " + sim.last_error())

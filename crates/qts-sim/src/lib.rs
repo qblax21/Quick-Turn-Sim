@@ -29,6 +29,7 @@ pub mod lap_telemetry;
 pub mod playback;
 pub mod session;
 pub mod setup;
+pub mod tandem;
 pub mod telemetry;
 pub mod tire_plots;
 pub mod track;
